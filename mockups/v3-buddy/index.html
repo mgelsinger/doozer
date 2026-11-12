@@ -1,0 +1,883 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Desk Buddy Doozer</title>
+<link rel="stylesheet" href="../shared/base.css">
+<style>
+  /* ---- Fake desktop (review only) --------------------------------------- */
+  .desk { position: fixed; inset: 0; }
+  .win {
+    position: absolute; background: #fff; border-radius: 12px; overflow: hidden;
+    box-shadow: 0 18px 50px rgba(60, 40, 90, .2), 0 0 0 1px rgba(0, 0, 0, .06);
+    font-size: 13.5px;
+  }
+  .win-bar {
+    height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 12px;
+    background: #f6f1ec; font-weight: 500; cursor: grab; touch-action: none;
+  }
+  .win-bar:active { cursor: grabbing; }
+  .win-bar i { width: 11px; height: 11px; border-radius: 50%; background: #e2d8cf; }
+  .win-bar i:first-child { margin-left: auto; }
+  .win-body { padding: 14px 16px; color: #5d4d48; line-height: 1.7; }
+  .win-body ul { margin: 0; padding-left: 18px; }
+  .win-body .done { text-decoration: line-through; opacity: .5; }
+  #win-notes { left: 9%; top: 26%; width: 300px; }
+  #win-music { right: 9%; top: 44%; width: 280px; }
+  .player { display: flex; gap: 12px; align-items: center; }
+  .cover { width: 62px; height: 62px; border-radius: 12px; flex: none;
+    background: conic-gradient(from 40deg, #ffb3c7, #ffd88a, #a9e8cf, #aed9ff, #cfc0f7, #ffb3c7); }
+  .bar { height: 5px; border-radius: 3px; background: #efe7e0; margin-top: 10px; overflow: hidden; }
+  .bar b { display: block; width: 38%; height: 100%; background: #ff8fa3; border-radius: 3px; }
+  .taskbar {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 48px;
+    background: rgba(255, 255, 255, .7); backdrop-filter: blur(16px);
+    border-top: 1px solid rgba(255, 255, 255, .9);
+    display: flex; justify-content: center; align-items: center; gap: 10px;
+  }
+  .taskbar i { width: 30px; height: 30px; border-radius: 9px; }
+  .taskbar .clock { position: absolute; right: 18px; font-size: 12px; text-align: right; color: #5d4d48; line-height: 1.25; }
+
+  /* ---- The world Doozer lives in ---------------------------------------- */
+  #world { position: fixed; inset: 0; pointer-events: none; z-index: 500; overflow: hidden; }
+  #pet { position: absolute; left: 0; top: 0; width: 112px; height: 112px; will-change: transform; z-index: 5; }
+  #pet .hit {
+    position: absolute; left: 15%; top: 12%; width: 70%; height: 84%; border-radius: 46%;
+    pointer-events: auto; cursor: grab; touch-action: none;
+  }
+  #pet.is-held .hit { cursor: grabbing; }
+  #pet.air .dz-shadow { opacity: 0; }
+
+  .bubble {
+    position: absolute; bottom: 102%; left: 50%; translate: -50% 0;
+    padding: 7px 13px; border-radius: 16px; background: #fff; color: var(--ink);
+    font-size: 14px; font-weight: 500; white-space: nowrap;
+    box-shadow: 0 6px 18px rgba(60, 40, 90, .18), 0 0 0 2px rgba(60, 40, 90, .06);
+    opacity: 0; scale: .6; transform-origin: 50% 120%;
+    transition: opacity .18s, scale .28s cubic-bezier(.3, 1.7, .5, 1);
+  }
+  .bubble::after {
+    content: ''; position: absolute; left: 50%; top: 100%; margin: -6px 0 0 -6px;
+    width: 12px; height: 12px; background: #fff; rotate: 45deg; border-radius: 2px;
+  }
+  .bubble.show { opacity: 1; scale: 1; }
+  #pet.menu-open .bubble, #pet.stats-open .bubble { opacity: 0; }
+
+  /* Radial menu */
+  .menu { position: absolute; left: 50%; top: 52%; width: 0; height: 0; }
+  .menu button {
+    position: absolute; width: 50px; height: 50px; margin: -25px; padding: 0;
+    left: calc(cos(var(--a)) * 94px); top: calc(sin(var(--a)) * 94px);
+    border: 0; border-radius: 50%; background: #fff; cursor: pointer; pointer-events: none;
+    box-shadow: 0 6px 16px rgba(60, 40, 90, .22);
+    display: grid; place-items: center;
+    opacity: 0; scale: .2; translate: calc(cos(var(--a)) * -60px) calc(sin(var(--a)) * -60px);
+    transition: opacity .15s, scale .3s cubic-bezier(.3, 1.6, .5, 1), translate .3s cubic-bezier(.3, 1.6, .5, 1);
+    transition-delay: calc(var(--i) * 28ms);
+  }
+  #pet.menu-open .menu button { opacity: 1; scale: 1; translate: 0 0; pointer-events: auto; }
+  .menu button:hover { scale: 1.12 !important; }
+  .menu button svg.ico, .menu button > svg:not(.ring) { width: 26px; height: 26px; grid-area: 1 / 1; }
+  .menu .ring { position: absolute; inset: 0; width: 100%; height: 100%; rotate: -90deg; }
+  .menu .ring circle { fill: none; stroke-width: 4; }
+  .menu .ring .track { stroke: #f1e9e3; }
+  .menu .ring .val { stroke-linecap: round; transition: stroke-dasharray .4s, stroke .4s; }
+  .menu button::after {
+    content: attr(data-label); position: absolute; top: 104%; left: 50%; translate: -50% 0;
+    font-size: 11px; font-weight: 600; color: #fff; background: rgba(58, 42, 38, .82);
+    padding: 2px 7px; border-radius: 8px; opacity: 0; transition: opacity .12s; pointer-events: none; white-space: nowrap;
+  }
+  .menu button:hover::after { opacity: 1; }
+
+  /* Stats card */
+  .stats {
+    position: absolute; bottom: 104%; left: 50%; translate: -50% 0; width: 190px;
+    background: #fff; border-radius: 18px; padding: 12px 14px;
+    box-shadow: 0 10px 26px rgba(60, 40, 90, .22);
+    opacity: 0; scale: .7; transform-origin: 50% 110%; pointer-events: none;
+    transition: opacity .15s, scale .25s cubic-bezier(.3, 1.6, .5, 1);
+  }
+  #pet.stats-open .stats { opacity: 1; scale: 1; pointer-events: auto; }
+  .stats h4 { margin: 0 0 8px; font-size: 14px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+  .stats .hearts svg { width: 14px; height: 14px; margin-left: 1px; }
+  .stats .hearts svg.off { filter: grayscale(1); opacity: .3; }
+  .stat { display: grid; grid-template-columns: 20px 1fr; gap: 8px; align-items: center; margin: 5px 0; }
+  .stat svg { width: 20px; height: 20px; }
+  .meter { height: 9px; border-radius: 6px; background: #f3ece6; overflow: hidden; }
+  .meter b { display: block; height: 100%; border-radius: 6px; transition: width .4s, background .4s; }
+  .stats .treat {
+    margin-top: 9px; width: 100%; border: 0; border-radius: 11px; padding: 7px; cursor: pointer;
+    background: #fff1d6; font-weight: 600; font-size: 13px; display: flex; gap: 6px; justify-content: center; align-items: center;
+  }
+  .stats .treat:hover { background: #ffe3b0; }
+  .stats .treat svg { width: 18px; height: 18px; }
+
+  /* Things in the world */
+  .thing { position: absolute; left: 0; top: 0; pointer-events: auto; }
+  .food { width: 40px; height: 40px; margin: -38px 0 0 -20px; pointer-events: none; animation: food-drop .6s cubic-bezier(.5, 0, .8, .5); }
+  .food svg { width: 100%; height: 100%; }
+  @keyframes food-drop { 0% { transform: translateY(-340px) rotate(-90deg); } 62% { transform: translateY(0); } 80% { transform: translateY(-14px) rotate(8deg); } 100% { transform: none; } }
+  .food[data-bite="1"] { mask-image: radial-gradient(circle at 90% 22%, transparent 11px, #000 11.5px); }
+  .food[data-bite="2"] { mask-image: radial-gradient(circle at 90% 22%, transparent 11px, #000 11.5px), radial-gradient(circle at 14% 34%, transparent 13px, #000 13.5px); mask-composite: intersect; }
+  .food[data-bite="3"] { mask-image: radial-gradient(circle at 90% 22%, transparent 13px, #000 13.5px), radial-gradient(circle at 14% 34%, transparent 15px, #000 15.5px), radial-gradient(circle at 55% 0%, transparent 13px, #000 13.5px); mask-composite: intersect; }
+  .ball { width: 36px; height: 36px; margin: -18px; cursor: grab; touch-action: none; filter: drop-shadow(0 3px 3px rgba(60, 40, 90, .25)); }
+  .ball svg { width: 100%; height: 100%; }
+  .ball.bye { transition: scale .3s, opacity .3s; scale: 0; opacity: 0; }
+  .poop { width: 30px; height: 30px; top: auto; margin-left: -15px; cursor: pointer; transition: scale .15s; animation: poop-in .4s cubic-bezier(.3, 1.6, .5, 1); }
+  .poop:hover { scale: 1.2; }
+  .poop svg { width: 100%; height: 100%; }
+  .poop::before { content: '〰'; position: absolute; left: 8px; top: -12px; font-size: 11px; color: #9b8f6b; rotate: 90deg; animation: stink 1.6s ease-in-out infinite; }
+  @keyframes stink { 0%, 100% { translate: 0 2px; opacity: 0; } 50% { translate: 0 -5px; opacity: .9; } }
+  @keyframes poop-in { from { scale: 0; } to { scale: 1; } }
+  .cloud { position: absolute; left: 50%; bottom: 92%; width: 96px; margin-left: -48px; pointer-events: none; animation: cloud-in .35s cubic-bezier(.3, 1.5, .5, 1); }
+  @keyframes cloud-in { from { scale: .3; opacity: 0; translate: 0 20px; } }
+  .cloud .drops { position: absolute; left: 12px; right: 12px; top: 36px; height: 80px;
+    background: repeating-linear-gradient(100deg, transparent 0 9px, #7cc8f7 9px 11.5px, transparent 11.5px 17px);
+    mask-image: repeating-linear-gradient(180deg, #000 0 9px, transparent 9px 20px); mask-size: 100% 20px;
+    animation: rain .32s linear infinite; opacity: .9; }
+  @keyframes rain { to { mask-position: 0 20px; } }
+
+  .particle { position: absolute; width: 22px; height: 22px; margin: -11px; pointer-events: none; font-size: 18px; font-weight: 700; color: #8f7bd8; display: grid; place-items: center; }
+  .particle svg { width: 100%; height: 100%; }
+  .p-rise { animation: p-rise 1.3s ease-out forwards; }
+  @keyframes p-rise { 0% { scale: .2; opacity: 0; } 18% { scale: 1.1; opacity: 1; } 100% { translate: var(--dx) -78px; scale: .9; opacity: 0; } }
+  .p-burst { animation: p-burst .6s ease-out forwards; }
+  @keyframes p-burst { 0% { scale: 1; opacity: 1; } 100% { translate: var(--dx) var(--dy); scale: .3; opacity: 0; } }
+  .crumb { width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: #e2a960; }
+  .spark { color: #ffc94d; font-size: 20px; }
+  .poof { width: 34px; height: 34px; margin: -17px; border-radius: 50%; background: radial-gradient(circle, #fff 30%, rgba(255, 255, 255, 0) 70%); }
+</style>
+</head>
+<body>
+  <div class="desk mock-only">
+    <div class="win" id="win-notes">
+      <div class="win-bar">Notes <i></i><i></i><i></i></div>
+      <div class="win-body">
+        <ul>
+          <li class="done">Adopt a Doozer</li>
+          <li>Buy more snacks</li>
+          <li>Drag this window — Doozer rides along</li>
+          <li>Pick Doozer up and toss it</li>
+        </ul>
+      </div>
+    </div>
+    <div class="win" id="win-music">
+      <div class="win-bar">Player <i></i><i></i><i></i></div>
+      <div class="win-body">
+        <div class="player"><div class="cover"></div><div><b>Nap Time Lo-fi</b><br>Doozer &amp; the Snoozers</div></div>
+        <div class="bar"><b></b></div>
+      </div>
+    </div>
+    <div class="taskbar">
+      <i style="background:#ffb3c7"></i><i style="background:#ffd88a"></i><i style="background:#a9e8cf"></i><i style="background:#aed9ff"></i><i style="background:#cfc0f7"></i>
+      <div class="clock" id="clock"></div>
+    </div>
+  </div>
+
+  <div id="world">
+    <div id="pet">
+      <div class="hit" title=""></div>
+      <div class="bubble" id="bubble"></div>
+      <div class="menu" id="menu"></div>
+      <div class="stats" id="stats"></div>
+    </div>
+  </div>
+
+<script type="module">
+import { createSim, mountReview, loadPalette, BARE, THUMB, clamp, rand, pick, wait } from '../shared/env.js';
+import { createDoozer } from '../shared/doozer-svg.js';
+import { say, refusalLine, NEED_KEYS, NEEDS } from '../shared/sim.js';
+import { ICONS, NEED_ART, levelColor } from '../shared/art.js';
+import { sfx } from '../shared/sfx.js';
+
+const sim = createSim();
+const world = document.getElementById('world');
+const petEl = document.getElementById('pet');
+const hitEl = petEl.querySelector('.hit');
+const bubble = document.getElementById('bubble');
+const menuEl = document.getElementById('menu');
+const statsEl = document.getElementById('stats');
+
+const PET_W = 112;
+const FOOT = 105;         // px from the top of the sprite to the soles of its feet
+const GRAVITY = 2100;
+const TASKBAR = 48;
+
+const dz = createDoozer({ palette: loadPalette('v3', 'mint'), outline: true, size: PET_W });
+petEl.prepend(dz.el);
+dz.setMood(sim.mood);
+
+mountReview(sim, {
+  version: 'v3',
+  title: 'V3 · Desk Buddy',
+  hint: 'No window at all. Click Doozer for the menu, drag to pick it up, throw it, drag the windows.',
+  palette: dz.palette,
+  onPalette: (key) => dz.setPalette(key),
+});
+
+// ---- Surfaces Doozer can stand on -------------------------------------------
+const GROUND_GAP = BARE ? 8 : TASKBAR;   // on the real desktop the overlay ends at the taskbar; leave room for the shadow
+const groundY = () => innerHeight - GROUND_GAP;
+function surfaces() {
+  const list = [{ id: 'ground', x1: -400, x2: innerWidth + 400, y: groundY(), el: null }];
+  if (!BARE) {
+    for (const w of document.querySelectorAll('.win')) {
+      const r = w.getBoundingClientRect();
+      list.push({ id: w.id, x1: r.left + 16, x2: r.right - 16, y: r.top + 3, el: w });
+    }
+  }
+  return list;
+}
+const walkRange = (s) => (s.id === 'ground' ? [60, innerWidth - 60] : [s.x1 + 26, s.x2 - 26]);
+
+// ---- Pet state ----------------------------------------------------------------
+const pet = {
+  x: innerWidth * 0.5, y: groundY(), vx: 0, vy: 0,
+  surface: 'ground', anchorX: null,
+  state: 'idle',           // idle | walk | jump | fall | held | busy | chase | sleep
+  timer: 1.2, dir: 1, targetX: 0, speed: 46, onArrive: null, jump: null,
+};
+let activity = null;       // the scripted little scene currently playing, if any
+let ball = null;
+let cursor = { x: innerWidth / 2, y: innerHeight / 2 };
+
+function begin(name) {
+  cancelActivity();
+  activity = { name, cancelled: false, cleanup: [] };
+  return activity;
+}
+function cancelActivity() {
+  if (!activity) return;
+  activity.cancelled = true;
+  activity.cleanup.forEach((fn) => fn());
+  activity = null;
+  stopWalk(false);
+}
+const alive = (a) => a === activity && !a.cancelled;
+function end(a) {
+  if (activity === a) activity = null;
+  if (pet.state === 'busy' || pet.state === 'chase' || pet.state === 'walk') rest(rand(0.8, 2));
+}
+function rest(seconds) {
+  pet.state = sim.asleep ? 'sleep' : 'idle';
+  pet.timer = seconds;
+  dz.setPose(null);
+}
+
+// ---- Speech, particles ----------------------------------------------------------
+let speakTimer = 0;
+function speak(text, ms = 2400) {
+  bubble.textContent = text;
+  bubble.classList.add('show');
+  clearTimeout(speakTimer);
+  speakTimer = setTimeout(() => bubble.classList.remove('show'), ms);
+}
+function particle(html, x, y, cls = 'p-rise', life = 1300, extra = '') {
+  const n = document.createElement('div');
+  n.className = `particle ${cls} ${extra}`;
+  n.innerHTML = html;
+  n.style.left = `${x}px`;
+  n.style.top = `${y}px`;
+  n.style.setProperty('--dx', `${rand(-26, 26)}px`);
+  n.style.setProperty('--dy', `${rand(-30, 12)}px`);
+  world.appendChild(n);
+  setTimeout(() => n.remove(), life);
+}
+const hearts = (n = 1) => { for (let i = 0; i < n; i++) setTimeout(() => particle(ICONS.heart, pet.x + rand(-28, 28), pet.y - 96), i * 130); };
+const sparkles = (x, y, n = 5) => { for (let i = 0; i < n; i++) setTimeout(() => particle('✦', x + rand(-40, 40), y + rand(-50, 10), 'p-rise', 1300, 'spark'), i * 70); };
+const crumbs = (x, y) => { for (let i = 0; i < 5; i++) particle('', x, y, 'p-burst', 600, 'crumb'); };
+const poof = (x, y) => particle('', x, y, 'p-burst', 500, 'poof');
+
+// ---- Walking & jumping -----------------------------------------------------------
+function walkTo(x, { speed = 46 } = {}) {
+  stopWalk(false);
+  return new Promise((resolve) => {
+    pet.state = 'walk';
+    pet.targetX = x;
+    pet.speed = speed;
+    pet.onArrive = resolve;
+    pet.dir = Math.sign(x - pet.x) || 1;
+    dz.setPose('walk');
+    dz.look(pet.dir * 0.85, 0);
+  });
+}
+function stopWalk(arrived) {
+  const cb = pet.onArrive;
+  pet.onArrive = null;
+  if (pet.state === 'walk') { pet.state = 'idle'; pet.timer = rand(1, 3); dz.setPose(null); dz.look(0, 0); }
+  cb?.(arrived);
+}
+function jumpTo(surface, x) {
+  stopWalk(false);
+  const dy = surface.y - pet.y;
+  return new Promise((resolve) => {
+    pet.jump = { x0: pet.x, y0: pet.y, x1: x, y1: surface.y, t: -0.22, dur: 0.72, h: Math.max(0, -dy) * 0.35 + 90, to: surface.id, resolve };
+    pet.state = 'jump';
+    pet.surface = null;
+    dz.setPose(null);
+    dz.squish(1.3);          // anticipation crouch
+    dz.flash('wow', 900);
+    dz.look(Math.sign(x - pet.x) * 0.8, dy < 0 ? -0.8 : 0.6);
+  });
+}
+function startFall(vx = 0, vy = 0) {
+  stopWalk(false);
+  pet.state = 'fall';
+  pet.surface = null;
+  pet.anchorX = null;
+  pet.vx = vx;
+  pet.vy = vy;
+  petEl.classList.add('air');
+}
+function land(surface, impact) {
+  pet.surface = surface.id;
+  pet.anchorX = null;
+  pet.y = surface.y;
+  pet.vx = pet.vy = 0;
+  petEl.classList.remove('air');
+  dz.setPose(null);
+  dz.squish(clamp(impact / 800, 0.5, 1.9));
+  if (impact > 900) { sfx.thud(); if (Math.random() < 0.6) speak(say('land'), 1400); } else sfx.step();
+  rest(rand(0.7, 1.4));
+  if (activity?.name === 'play' && surface.id === 'ground') pet.state = 'chase', dz.setPose('walk');
+}
+
+// ---- Autonomy ---------------------------------------------------------------------
+function decide(surf, all) {
+  if (activity) { pet.timer = 0.5; return; }
+  const others = all.filter((s) => s.id !== surf.id && s.id !== 'ground' && s.x2 - s.x1 > 80);
+  const r = Math.random();
+  const [lo, hi] = walkRange(surf);
+  if (surf.id === 'ground' && others.length && r < 0.16) {
+    const t = pick(others);
+    jumpTo(t, rand(t.x1 + 30, t.x2 - 30));
+  } else if (surf.id !== 'ground' && r < 0.2) {
+    const g = all[0];
+    jumpTo(g, clamp(pet.x + pick([-1, 1]) * rand(90, 190), 70, innerWidth - 70));
+  } else if (surf.id === 'ground' && r < 0.26 && !THUMB) {
+    peek();
+  } else if (r < 0.72) {
+    walkTo(rand(lo, hi));
+  } else {
+    pet.timer = rand(2.2, 4.5);
+    const mood = sim.mood;
+    if (Math.random() < 0.55) speak(say(mood));
+    if (mood === 'sleepy' && Math.random() < 0.6) { dz.flash('yawn', 1100); sfx.yawn(); }
+    else if (mood === 'joyful' || mood === 'content') { dz.setPose('wave'); setTimeout(() => { if (pet.state === 'idle') dz.setPose(null); }, 1300); }
+  }
+}
+
+async function peek() {
+  const a = begin('peek');
+  const left = pet.x < innerWidth / 2;
+  if (!(await walkTo(left ? -12 : innerWidth + 12, { speed: 70 })) || !alive(a)) return;
+  pet.state = 'busy';
+  dz.look(left ? 1 : -1, -0.2);
+  await wait(1000); if (!alive(a)) return;
+  dz.blink();
+  await wait(900); if (!alive(a)) return;
+  speak('peekaboo!', 1500);
+  dz.flash('love', 1000);
+  await wait(1100); if (!alive(a)) return;
+  await walkTo(left ? rand(120, 320) : innerWidth - rand(120, 320));
+  end(a);
+}
+
+// ---- Care scenes ------------------------------------------------------------------
+function thing(cls, html, x, y) {
+  const n = document.createElement('div');
+  n.className = `thing ${cls}`;
+  n.innerHTML = html;
+  n.style.translate = `${x}px ${y}px`;
+  world.appendChild(n);
+  return n;
+}
+
+async function doFeed(kind = 'meal') {
+  if (pet.state === 'held' || !sim.feed(kind).ok) return;
+  const a = begin('feed');
+  const surf = surfaces().find((s) => s.id === pet.surface) ?? surfaces()[0];
+  const [lo, hi] = walkRange(surf);
+  const side = pet.x - 110 < lo ? 1 : pet.x + 110 > hi ? -1 : pick([-1, 1]);
+  const fx = clamp(pet.x + side * rand(80, 110), lo - 10, hi + 10);
+  const food = thing('food', kind === 'treat' ? ICONS.treat : ICONS.feed, fx, surf.y);
+  a.cleanup.push(() => food.remove());
+  dz.flash('wow', 800);
+  speak(kind === 'treat' ? say('treat') : 'ooh! food!', 1400);
+  await wait(700); if (!alive(a)) return;
+  if (!(await walkTo(fx - side * 46, { speed: 95 })) || !alive(a)) return;
+  pet.state = 'busy';
+  dz.look(side * 0.9, 0.7);
+  dz.flash('eat', 1900);
+  for (let bite = 1; bite <= 3; bite++) {
+    food.dataset.bite = bite;
+    sfx.munch();
+    crumbs(fx - side * 12, surf.y - 18);
+    await wait(540); if (!alive(a)) return;
+  }
+  food.remove();
+  dz.look(0, 0);
+  dz.flash('cheer', 1300);
+  hearts(kind === 'treat' ? 4 : 2);
+  speak(say('feed'));
+  sfx.chirp();
+  await wait(1300);
+  end(a);
+}
+
+async function doPlay() {
+  if (pet.state === 'held' || !sim.play().ok) return;
+  const a = begin('play');
+  speak('ball! ball! ball!', 1500);
+  const g = surfaces()[0];
+  if (pet.surface !== 'ground') {
+    await jumpTo(g, clamp(pet.x + pick([-1, 1]) * 120, 80, innerWidth - 80));
+    if (!alive(a)) return;
+  }
+  spawnBall(clamp(pet.x + pick([-1, 1]) * 140, 60, innerWidth - 60), g.y - 300);
+  a.cleanup.push(removeBall);
+  a.kicks = 0;
+  pet.state = 'chase';
+  dz.setPose('walk');
+  const started = performance.now();
+  while (alive(a) && a.kicks < 6 && performance.now() - started < 16000) await wait(200);
+  if (!alive(a)) return;
+  pet.state = 'busy';
+  dz.flash('cheer', 1400);
+  speak(say('play'));
+  hearts(3);
+  sfx.chirp();
+  removeBall();
+  await wait(1400);
+  end(a);
+}
+
+async function doWash() {
+  if (pet.state === 'held' || !sim.wash().ok) return;
+  const a = begin('wash');
+  pet.state = 'busy';
+  const cloud = document.createElement('div');
+  cloud.className = 'cloud';
+  cloud.innerHTML = `<svg viewBox="0 0 96 44"><path d="M22 40c-10 0-16-6-16-13s6-12 13-12c2-8 9-13 18-13 9 0 16 5 19 12 1 0 3-.500 5-.500 9 0 15 6 15 13s-6 13.500-15 13.500z" fill="#fff" stroke="#b9d7ee" stroke-width="3"/></svg><div class="drops"></div>`;
+  petEl.appendChild(cloud);
+  a.cleanup.push(() => cloud.remove());
+  dz.flash('shake', 2400);
+  speak('brrr!', 1200);
+  for (let i = 0; i < 4; i++) {
+    sfx.splash();
+    await wait(580); if (!alive(a)) return;
+  }
+  cloud.remove();
+  syncMesses();
+  sparkles(pet.x, pet.y - 50, 7);
+  dz.flash('cheer', 1300);
+  speak(say('wash'));
+  sfx.sparkle();
+  await wait(1300);
+  end(a);
+}
+
+// ---- Ball ---------------------------------------------------------------------------
+function spawnBall(x, y) {
+  removeBall();
+  const el = thing('ball', ICONS.play, 0, 0);
+  ball = { el, x, y, vx: rand(-120, 120), vy: 0, r: 18, held: false, spin: 0 };
+  let grab = null;
+  el.addEventListener('pointerdown', (e) => {
+    el.setPointerCapture(e.pointerId);
+    ball.held = true;
+    grab = { x: e.clientX, y: e.clientY, t: performance.now(), vx: 0, vy: 0 };
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (!grab || !ball) return;
+    const now = performance.now();
+    const dt = Math.max(1, now - grab.t) / 1000;
+    grab.vx = 0.5 * grab.vx + 0.5 * (e.clientX - grab.x) / dt;
+    grab.vy = 0.5 * grab.vy + 0.5 * (e.clientY - grab.y) / dt;
+    grab.x = e.clientX; grab.y = e.clientY; grab.t = now;
+    ball.x = e.clientX; ball.y = e.clientY;
+  });
+  const release = () => {
+    if (!grab || !ball) return;
+    ball.held = false;
+    ball.vx = clamp(grab.vx, -1500, 1500);
+    ball.vy = clamp(grab.vy, -1700, 1700);
+    grab = null;
+  };
+  el.addEventListener('pointerup', release);
+  el.addEventListener('pointercancel', release);
+}
+function removeBall() {
+  if (!ball) return;
+  const el = ball.el;
+  ball = null;
+  el.classList.add('bye');
+  setTimeout(() => el.remove(), 320);
+}
+function updateBall(dt) {
+  if (!ball) return;
+  const g = groundY();
+  if (!ball.held) {
+    ball.vy += GRAVITY * dt;
+    ball.x += ball.vx * dt;
+    ball.y += ball.vy * dt;
+    if (ball.x < ball.r) { ball.x = ball.r; ball.vx = Math.abs(ball.vx) * 0.75; }
+    if (ball.x > innerWidth - ball.r) { ball.x = innerWidth - ball.r; ball.vx = -Math.abs(ball.vx) * 0.75; }
+    if (ball.y < ball.r) { ball.y = ball.r; ball.vy = Math.abs(ball.vy) * 0.6; }
+    if (ball.y > g - ball.r) {
+      ball.y = g - ball.r;
+      if (ball.vy > 160) sfx.step();
+      ball.vy = ball.vy > 120 ? -ball.vy * 0.62 : 0;
+      ball.vx *= 0.985;
+    }
+    ball.spin += ball.vx * dt * 3;
+  }
+  ball.el.style.translate = `${ball.x}px ${ball.y}px`;
+  ball.el.style.rotate = `${ball.spin}deg`;
+}
+function kick() {
+  const away = ball.x >= pet.x ? 1 : -1;
+  const roomAhead = away > 0 ? innerWidth - ball.x : ball.x;
+  const dir = roomAhead < 160 ? -away : away;
+  ball.vx = dir * rand(260, 520);
+  ball.vy = -rand(620, 900);
+  dz.squish(1.1);
+  dz.flash('cheer', 520);
+  sfx.boing();
+  if (activity?.name === 'play') {
+    activity.kicks++;
+    if (activity.kicks % 2 === 0) hearts(1);
+  }
+}
+
+// ---- Messes ---------------------------------------------------------------------------
+const poops = [];
+function syncMesses() {
+  while (poops.length < sim.messes) {
+    const x = pet.surface === 'ground' ? clamp(pet.x + pick([-1, 1]) * rand(40, 70), 30, innerWidth - 30) : rand(60, innerWidth - 60);
+    const n = thing('poop', ICONS.mess, 0, 0);
+    n.style.translate = 'none';
+    n.style.left = `${x}px`;
+    n.style.bottom = `${GROUND_GAP - 2}px`;
+    n.title = 'Tidy up';
+    n.addEventListener('click', () => {
+      const i = poops.indexOf(n);
+      if (i >= 0) poops.splice(i, 1);
+      poof(x, groundY() - 14);
+      n.remove();
+      sfx.pop();
+      sim.tidy();
+      if (!sim.asleep) speak(say('tidy'), 1500);
+    });
+    poops.push(n);
+  }
+  while (poops.length > sim.messes) {
+    const n = poops.pop();
+    poof(parseFloat(n.style.left), groundY() - 14);
+    n.remove();
+  }
+}
+
+// ---- Menu & stats ------------------------------------------------------------------------
+const RING = 2 * Math.PI * 22;
+const MENU = [
+  { id: 'feed',  label: 'Feed',  icon: 'feed',  need: 'tummy',  run: () => doFeed() },
+  { id: 'play',  label: 'Play',  icon: 'play',  need: 'fun',    run: () => doPlay() },
+  { id: 'wash',  label: 'Wash',  icon: 'wash',  need: 'clean',  run: () => doWash() },
+  { id: 'sleep', label: 'Nap',   icon: 'sleep', need: 'energy', run: () => sim.toggleSleep() },
+  { id: 'stats', label: 'Stats', icon: 'stats', run: () => petEl.classList.toggle('stats-open') },
+];
+const ANGLES = [-170, -130, -90, -50, -10];
+MENU.forEach((item, i) => {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.dataset.label = item.label;
+  b.setAttribute('aria-label', item.label);
+  b.style.setProperty('--a', `${ANGLES[i]}deg`);
+  b.style.setProperty('--i', i);
+  b.innerHTML = (item.need ? `<svg class="ring" viewBox="0 0 50 50"><circle class="track" cx="25" cy="25" r="22"/><circle class="val" cx="25" cy="25" r="22"/></svg>` : '') + `<span class="ico" style="display:grid">${ICONS[item.icon]}</span>`;
+  b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeMenu();
+    item.run();
+  });
+  item.el = b;
+  menuEl.appendChild(b);
+});
+function closeMenu() { petEl.classList.remove('menu-open'); }
+function paintMenu() {
+  for (const item of MENU) {
+    if (item.need) {
+      const v = sim.needs[item.need];
+      const val = item.el.querySelector('.val');
+      val.style.strokeDasharray = `${(RING * v) / 100} ${RING}`;
+      val.style.stroke = levelColor(v);
+    }
+    if (item.id === 'sleep') {
+      const icon = sim.asleep ? 'wake' : 'sleep';
+      if (item.el.dataset.icon !== icon) {
+        item.el.dataset.icon = icon;
+        item.el.dataset.label = sim.asleep ? 'Wake' : 'Nap';
+        item.el.querySelector('.ico').innerHTML = ICONS[icon];
+      }
+    }
+  }
+  statsEl.innerHTML = `
+    <h4>Doozer <span class="hearts">${[1, 2, 3, 4, 5].map((n) => ICONS.heart.replace('<svg', `<svg class="${n <= sim.bondLevel ? '' : 'off'}"`)).join('')}</span></h4>
+    ${NEED_KEYS.map((k) => `<div class="stat" title="${NEEDS[k].label}: ${Math.round(sim.needs[k])}%">${ICONS[NEED_ART[k].icon]}<div class="meter"><b style="width:${sim.needs[k]}%;background:${levelColor(sim.needs[k])}"></b></div></div>`).join('')}
+    <button class="treat" type="button">${ICONS.treat} Give a treat · ${sim.treats} left</button>`;
+}
+statsEl.addEventListener('click', (e) => {
+  if (e.target.closest('.treat')) { petEl.classList.remove('stats-open'); doFeed('treat'); }
+});
+addEventListener('pointerdown', (e) => {
+  if (!e.target.closest('#pet')) { closeMenu(); petEl.classList.remove('stats-open'); }
+});
+
+// ---- Pointer: pick up, throw, poke, pet -----------------------------------------------------
+let drag = null;
+let stroke = 0;
+let lastPet = 0;
+hitEl.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) return;
+  hitEl.setPointerCapture(e.pointerId);
+  drag = { sx: e.clientX, sy: e.clientY, ox: pet.x - e.clientX, oy: pet.y - e.clientY, moved: false, t: performance.now(), lx: e.clientX, ly: e.clientY, vx: 0, vy: 0 };
+});
+hitEl.addEventListener('pointermove', (e) => {
+  if (!drag) {
+    // Stroking: moving the cursor back and forth over Doozer pets it.
+    stroke += Math.hypot(e.movementX, e.movementY);
+    if (stroke > 150 && performance.now() - lastPet > 650 && pet.state !== 'held') {
+      stroke = 0;
+      lastPet = performance.now();
+      sim.pet();
+      hearts(1);
+      dz.flash('love', 1000);
+      sfx.coo();
+    }
+    return;
+  }
+  if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 7) {
+    drag.moved = true;
+    cancelActivity();
+    closeMenu();
+    petEl.classList.remove('stats-open');
+    if (sim.asleep) sim.wake();
+    stopWalk(false);
+    pet.state = 'held';
+    pet.surface = null;
+    pet.anchorX = null;
+    petEl.classList.add('is-held', 'air');
+    dz.setPose('held');
+    dz.flash('held', 60000);
+    speak(say('held'), 1600);
+    sfx.chirp();
+  }
+  if (drag.moved) {
+    const now = performance.now();
+    const dt = Math.max(1, now - drag.t) / 1000;
+    drag.vx = 0.55 * drag.vx + 0.45 * (e.clientX - drag.lx) / dt;
+    drag.vy = 0.55 * drag.vy + 0.45 * (e.clientY - drag.ly) / dt;
+    drag.lx = e.clientX; drag.ly = e.clientY; drag.t = now;
+    pet.x = e.clientX + drag.ox;
+    pet.y = e.clientY + drag.oy;
+  }
+});
+function release() {
+  if (!drag) return;
+  const d = drag;
+  drag = null;
+  petEl.classList.remove('is-held');
+  if (d.moved) {
+    dz.flash('wow', 500);
+    const stale = performance.now() - d.t > 120; // held still before letting go: just drop
+    startFall(stale ? 0 : clamp(d.vx, -1500, 1500), stale ? 0 : clamp(d.vy, -1700, 1500));
+    dz.setPose('held');
+  } else {
+    // A click: poke + menu
+    dz.squish(0.8);
+    sfx.chirp();
+    petEl.classList.remove('stats-open');
+    petEl.classList.toggle('menu-open');
+    paintMenu();
+  }
+}
+hitEl.addEventListener('pointerup', release);
+hitEl.addEventListener('pointercancel', release);
+addEventListener('pointermove', (e) => { cursor = { x: e.clientX, y: e.clientY }; });
+
+// Fake windows can be dragged around; Doozer rides along if it is sitting on one.
+for (const bar of document.querySelectorAll('.win-bar')) {
+  let move = null;
+  const win = bar.parentElement;
+  bar.addEventListener('pointerdown', (e) => {
+    bar.setPointerCapture(e.pointerId);
+    const r = win.getBoundingClientRect();
+    move = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+    win.style.zIndex = String(Date.now() % 100000);
+  });
+  bar.addEventListener('pointermove', (e) => {
+    if (!move) return;
+    win.style.right = 'auto';
+    win.style.left = `${clamp(e.clientX - move.dx, -200, innerWidth - 80)}px`;
+    win.style.top = `${clamp(e.clientY - move.dy, 0, innerHeight - TASKBAR - 34)}px`;
+  });
+  bar.addEventListener('pointerup', () => { move = null; });
+}
+
+// ---- Sim events --------------------------------------------------------------------------------
+sim.on('mood', ({ mood }) => {
+  dz.setMood(mood);
+  if (['hungry', 'bored', 'sleepy', 'dirty'].includes(mood) && !activity) { speak(say(mood), 2800); sfx.sad(); }
+});
+sim.on('need', ({ need, level }) => {
+  if (level === 'urgent' && !activity) speak(say(NEEDS[need].lowMood), 3000);
+});
+sim.on('refuse', ({ reason }) => {
+  speak(refusalLine(reason), 1800);
+  if (!sim.asleep) dz.flash('no', 900);
+  sfx.no();
+  dz.parts.root.animate([{ rotate: '0deg' }, { rotate: '-7deg' }, { rotate: '7deg' }, { rotate: '-5deg' }, { rotate: '0deg' }], { duration: 420 });
+});
+sim.on('action', ({ type, why }) => {
+  if (type === 'sleep') {
+    cancelActivity();
+    stopWalk(false);
+    if (pet.state !== 'held' && pet.state !== 'fall' && pet.state !== 'jump') pet.state = 'sleep';
+    dz.setPose(null);
+    speak(why === 'exhausted' ? 'so… sleepy… zzz' : say('sleep'), 1800);
+    sfx.yawn();
+  } else if (type === 'wake') {
+    if (pet.state === 'sleep') rest(1.6);
+    dz.flash('yawn', 900);
+    speak(say('wake'), 1800);
+  }
+  dz.setMood(sim.mood);
+  paintMenu();
+});
+sim.on('mess', () => { syncMesses(); if (!sim.asleep) { speak(say('mess'), 1800); dz.flash('wow', 900); } sfx.pop(); });
+sim.on('change', () => { syncMesses(); paintMenu(); dz.setMood(sim.mood); });
+sim.on('tick', () => { if (petEl.classList.contains('menu-open') || petEl.classList.contains('stats-open')) paintMenu(); });
+setInterval(() => {
+  if (pet.state === 'sleep') { particle('z', pet.x + 30, pet.y - 92); if (Math.random() < 0.4) sfx.snore(); }
+}, 1500);
+
+// ---- Frame loop ----------------------------------------------------------------------------------
+function update(dt) {
+  const all = surfaces();
+  const surf = all.find((s) => s.id === pet.surface);
+
+  if (pet.state === 'jump') {
+    const j = pet.jump;
+    j.t += dt / j.dur;
+    const t = clamp(j.t, 0, 1);
+    petEl.classList.toggle('air', j.t > 0);
+    pet.x = j.x0 + (j.x1 - j.x0) * t;
+    pet.y = j.y0 + (j.y1 - j.y0) * t - 4 * j.h * t * (1 - t);
+    if (j.t >= 1) {
+      const target = all.find((s) => s.id === j.to) ?? all[0];
+      pet.jump = null;
+      if (pet.x >= target.x1 - 10 && pet.x <= target.x2 + 10) land(target, 700);
+      else startFall();
+      j.resolve();
+    }
+  } else if (pet.state === 'fall') {
+    const prevY = pet.y;
+    pet.vy += GRAVITY * dt;
+    pet.x += pet.vx * dt;
+    pet.y += pet.vy * dt;
+    if (pet.x < 44) { pet.x = 44; pet.vx = Math.abs(pet.vx) * 0.5; sfx.step(); }
+    if (pet.x > innerWidth - 44) { pet.x = innerWidth - 44; pet.vx = -Math.abs(pet.vx) * 0.5; sfx.step(); }
+    if (pet.y - FOOT < 0 && pet.vy < 0) { pet.y = FOOT; pet.vy = Math.abs(pet.vy) * 0.3; }
+    if (pet.vy > 0) {
+      const hit = all
+        .filter((s) => prevY <= s.y + 1 && pet.y >= s.y && pet.x >= s.x1 && pet.x <= s.x2)
+        .sort((a, b) => a.y - b.y)[0];
+      if (hit) land(hit, pet.vy);
+      else if (pet.y > all[0].y) land(all[0], pet.vy);
+    }
+  } else if (pet.state !== 'held') {
+    if (!surf) startFall();
+    else {
+      // Stay glued to the surface, even if the window underneath is being dragged.
+      if (surf.el && pet.anchorX !== null) pet.x += surf.x1 - pet.anchorX;
+      pet.anchorX = surf.x1;
+      pet.y = surf.y;
+      if (pet.x < surf.x1 - 8 || pet.x > surf.x2 + 8) { startFall(); dz.flash('wow', 600); }
+      else grounded(dt, surf, all);
+    }
+  }
+
+  updateBall(dt);
+  petEl.style.transform = `translate(${pet.x - PET_W / 2}px, ${pet.y - FOOT}px)`;
+}
+
+let kickCooldown = 0;
+function grounded(dt, surf, all) {
+  pet.timer -= dt;
+  kickCooldown -= dt;
+  if (pet.state === 'idle') {
+    dz.look(clamp((cursor.x - pet.x) / 320, -1, 1), clamp((cursor.y - (pet.y - 60)) / 320, -1, 1));
+    if (sim.asleep) pet.state = 'sleep';
+    else if (pet.timer <= 0) decide(surf, all);
+  } else if (pet.state === 'walk') {
+    const dx = pet.targetX - pet.x;
+    const step = pet.speed * dt;
+    if (Math.abs(dx) <= step) { pet.x = pet.targetX; stopWalk(true); }
+    else { pet.dir = Math.sign(dx); pet.x += pet.dir * step; }
+  } else if (pet.state === 'chase') {
+    if (!ball) return rest(1);
+    const dx = ball.x - pet.x;
+    if (Math.abs(dx) > 36) {
+      pet.dir = Math.sign(dx);
+      pet.x = clamp(pet.x + pet.dir * 150 * dt, 50, innerWidth - 50);
+      dz.look(pet.dir * 0.85, clamp((ball.y - (pet.y - 60)) / 200, -1, 0.6));
+    } else if (!ball.held && ball.y > surf.y - 84 && kickCooldown <= 0) {
+      kickCooldown = 0.35;
+      kick();
+    }
+  }
+}
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  update(dt);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// ---- Clock, hello, gallery demo ----------------------------------------------------------------
+const clockEl = document.getElementById('clock');
+function paintClock() {
+  const d = new Date();
+  clockEl.innerHTML = `${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}<br>${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}`;
+}
+paintClock();
+setInterval(paintClock, 20000);
+
+// Keep Doozer on screen when the viewport changes size.
+addEventListener('resize', () => {
+  if (pet.surface === 'ground' && activity?.name !== 'peek') pet.x = clamp(pet.x, 60, Math.max(60, innerWidth - 60));
+});
+if (pet.x < 60) pet.x = Math.max(60, innerWidth / 2);
+
+syncMesses();
+paintMenu();
+if (sim.asleep) pet.state = 'sleep';
+else {
+  dz.setPose('wave');
+  speak(say(sim.away ? 'away' : 'hello'), 2200);
+  setTimeout(() => { if (pet.state === 'idle') dz.setPose(null); }, 1500);
+}
+
+if (THUMB) {
+  const demo = [() => doFeed(), () => doPlay(), () => doWash()];
+  let i = 0;
+  setInterval(() => { if (!activity) demo[i++ % demo.length](); }, 7000);
+}
+</script>
+</body>
+</html>

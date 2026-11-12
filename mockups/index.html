@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Doozer — mockup gallery</title>
+<link rel="stylesheet" href="shared/base.css">
+<style>
+  html, body { height: auto; }
+  body {
+    overflow: auto; user-select: text; -webkit-user-select: text; min-height: 100vh;
+    background:
+      radial-gradient(900px 620px at 8% 0%, #ffdfe9 0, transparent 62%),
+      radial-gradient(800px 560px at 96% 6%, #d8eeff 0, transparent 62%),
+      radial-gradient(900px 640px at 70% 100%, #e4dcff 0, transparent 62%),
+      #fdf6ee;
+    background-attachment: fixed;
+  }
+  main { max-width: 1120px; margin: 0 auto; padding: 36px 24px 90px; }
+  a { color: inherit; }
+  h1, h2, h3 { margin: 0; font-weight: 600; text-wrap: balance; }
+  h2 { font-size: 26px; margin: 64px 0 6px; }
+  .lede { color: var(--ink-soft); font-size: 16.5px; line-height: 1.55; max-width: 62ch; margin: 0; }
+
+  .hero { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: center; }
+  .hero h1 { font-size: clamp(44px, 7vw, 76px); letter-spacing: -.01em; line-height: 1; }
+  .hero p { margin-top: 14px; }
+  .hero .dz { width: clamp(120px, 20vw, 190px); }
+  .steps { margin: 26px 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; counter-reset: s; }
+  .steps li { counter-increment: s; background: rgba(255, 255, 255, .75); border-radius: 18px; padding: 14px 16px 14px 52px; position: relative; font-size: 14.5px; line-height: 1.45; box-shadow: 0 4px 14px rgba(80, 50, 90, .07); }
+  .steps li::before { content: counter(s); position: absolute; left: 14px; top: 14px; width: 28px; height: 28px; border-radius: 50%; background: #3a2a26; color: #fff; display: grid; place-items: center; font-weight: 600; font-size: 14px; }
+  code { font-family: ui-monospace, 'Cascadia Code', Consolas, monospace; font-size: .88em; background: rgba(58, 42, 38, .08); padding: 2px 6px; border-radius: 6px; white-space: nowrap; }
+
+  /* ---- Version cards ---- */
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 22px; margin-top: 22px; }
+  .card { background: #fff; border-radius: 26px; overflow: hidden; box-shadow: 0 10px 34px rgba(80, 50, 90, .1); display: flex; flex-direction: column; }
+  .preview { position: relative; display: block; aspect-ratio: 800 / 560; overflow: hidden; background: #fdf6ee; }
+  .preview iframe { position: absolute; left: 0; top: 0; width: 800px; height: 560px; border: 0; transform-origin: 0 0; transform: scale(var(--s, .5)); pointer-events: none; }
+  .preview .open {
+    position: absolute; right: 12px; bottom: 12px; padding: 8px 16px; border-radius: 14px; background: #3a2a26; color: #fff; font-weight: 600; font-size: 14px;
+    box-shadow: 0 6px 14px rgba(58, 42, 38, .3); transition: scale .2s cubic-bezier(.3, 1.6, .5, 1);
+  }
+  .preview:hover .open { scale: 1.08; }
+  .card-body { padding: 18px 22px 22px; display: grid; gap: 10px; }
+  .card h3 { font-size: 21px; display: flex; align-items: baseline; gap: 10px; }
+  .card h3 small { font-size: 13px; font-weight: 600; color: #fff; background: var(--tone, #ff8fa3); padding: 2px 9px; border-radius: 9px; }
+  .card p { margin: 0; color: var(--ink-soft); line-height: 1.5; font-size: 14.5px; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tags span { font-size: 12.5px; padding: 3px 10px; border-radius: 10px; background: #f6efe9; color: #5d4d48; }
+  .pros { display: grid; gap: 4px; font-size: 14px; line-height: 1.45; }
+  .pros b { font-weight: 600; }
+  .card.tip { background: #3a2a26; color: #fff7ef; justify-content: center; }
+  .card.tip .card-body { padding: 30px; gap: 14px; }
+  .card.tip p { color: #d9cbc4; font-size: 15px; }
+  .card.tip code { background: rgba(255, 255, 255, .14); color: #ffe7b8; font-size: 1em; padding: 4px 9px; }
+
+  /* ---- Mood sheet ---- */
+  .sheet { margin-top: 20px; background: rgba(255, 255, 255, .78); border-radius: 26px; padding: 22px; box-shadow: 0 10px 34px rgba(80, 50, 90, .08); }
+  .sheet-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; font-size: 14px; color: var(--ink-soft); }
+  .swatch { width: 28px; height: 28px; border-radius: 50%; border: 0; cursor: pointer; box-shadow: inset 0 0 0 3px rgba(255, 255, 255, .8), 0 1px 3px rgba(0, 0, 0, .15); }
+  .swatch.is-on { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .toggle { border: 0; cursor: pointer; padding: 6px 12px; border-radius: 10px; background: #f3ece6; font-size: 13px; font-weight: 500; }
+  .toggle.is-on { background: var(--ink); color: #fff; }
+  .moods { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+  .mood { display: grid; justify-items: center; gap: 2px; padding: 14px 6px 10px; border-radius: 18px; background: #fff; font-size: 13.5px; font-weight: 500; }
+  .mood .dz { width: 96px; }
+  .mood small { color: var(--ink-soft); font-weight: 400; font-size: 11.5px; }
+
+  /* ---- Comparison ---- */
+  .table-wrap { margin-top: 18px; overflow-x: auto; background: #fff; border-radius: 22px; box-shadow: 0 10px 34px rgba(80, 50, 90, .08); }
+  table { border-collapse: collapse; width: 100%; min-width: 820px; font-size: 14px; }
+  th, td { text-align: left; padding: 12px 16px; vertical-align: top; line-height: 1.4; }
+  thead th { font-weight: 600; font-size: 12.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-soft); background: #fbf5ef; }
+  tbody tr + tr td, tbody tr + tr th { border-top: 1px solid #f3ece6; }
+  tbody th { font-weight: 600; white-space: nowrap; }
+
+  /* ---- Pick and mix ---- */
+  .picks { margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px; }
+  fieldset { border: 0; margin: 0; padding: 18px 20px; background: #fff; border-radius: 22px; box-shadow: 0 10px 34px rgba(80, 50, 90, .08); min-width: 0; }
+  legend { float: left; width: 100%; padding: 0; margin-bottom: 10px; font-weight: 600; font-size: 16px; }
+  label.pick { clear: both; display: flex; gap: 10px; align-items: flex-start; padding: 6px 8px; margin: 0 -8px; border-radius: 10px; cursor: pointer; font-size: 14.5px; line-height: 1.35; }
+  label.pick:hover { background: #fbf3ee; }
+  label.pick input { width: 18px; height: 18px; margin: 1px 0 0; accent-color: #ff7a93; flex: none; }
+  label.pick small { color: var(--ink-soft); margin-left: auto; padding-left: 8px; white-space: nowrap; font-size: 12px; }
+  textarea { width: 100%; min-height: 110px; border: 2px solid #f1e7df; border-radius: 14px; padding: 10px 12px; font: inherit; font-size: 14.5px; resize: vertical; color: inherit; background: #fffdfb; }
+  textarea:focus { outline: none; border-color: #ffb3c7; }
+  .copybar { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .primary { border: 0; cursor: pointer; padding: 12px 22px; border-radius: 16px; background: #3a2a26; color: #fff; font-weight: 600; font-size: 15.5px; box-shadow: 0 8px 18px rgba(58, 42, 38, .25); }
+  .primary:hover { background: #523c36; }
+  .ghost { border: 0; cursor: pointer; padding: 12px 16px; border-radius: 16px; background: transparent; color: var(--ink-soft); font-weight: 500; }
+  .ghost:hover { background: rgba(255, 255, 255, .7); }
+  #copied { color: #2f8f5b; font-weight: 500; opacity: 0; transition: opacity .2s; }
+  #copied.show { opacity: 1; }
+  pre#out { display: none; margin: 14px 0 0; padding: 14px 16px; background: #fff; border-radius: 16px; font-size: 13px; white-space: pre-wrap; user-select: all; -webkit-user-select: all; }
+  footer { margin-top: 60px; color: var(--ink-soft); font-size: 13.5px; }
+
+  @media (max-width: 640px) { .hero { grid-template-columns: 1fr; } .hero .dz { justify-self: start; } }
+</style>
+</head>
+<body>
+<main>
+  <section class="hero">
+    <div>
+      <h1>Doozer</h1>
+      <p class="lede">Five ways to keep a small creature on your desktop. Every version runs the same pet — same needs, same moods, one shared save — so what you are choosing between is how Doozer looks, where it lives, and how you touch it.</p>
+    </div>
+    <div id="hero-pet"></div>
+  </section>
+
+  <ol class="steps">
+    <li><b>Play with each one.</b> Open a card below. The <i>Review tools</i> panel speeds up time and makes Doozer needy on demand.</li>
+    <li><b>Try it on your real desktop.</b> Run <code>npm run pet</code>, then right-click Doozer to switch version.</li>
+    <li><b>Tick what you like</b> in the checklist at the bottom and hit <i>Copy my picks</i>. Paste that back to Claude.</li>
+  </ol>
+
+  <h2>The five versions</h2>
+  <p class="lede">Previews are live. Click one to open it full size.</p>
+  <div class="cards" id="cards"></div>
+
+  <h2>Doozer’s moods</h2>
+  <p class="lede">The curl on Doozer’s head is its mood meter: perky when happy, drooping when it needs something. These are the vector faces; the pixel and 3D versions follow the same sheet.</p>
+  <div class="sheet">
+    <div class="sheet-tools">
+      <span>Colour</span><span id="swatches" style="display:flex;gap:8px"></span>
+      <span style="margin-left:14px">Line</span>
+      <button class="toggle is-on" id="line-bold" type="button">Bold outline</button>
+      <button class="toggle" id="line-soft" type="button">Soft, no outline</button>
+    </div>
+    <div class="moods" id="moods"></div>
+  </div>
+
+  <h2>Side by side</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Version</th><th>Art</th><th>Lives in</th><th>You interact by</th><th>Screen space</th><th>Build cost</th><th>Main risk</th></tr></thead>
+      <tbody id="compare"></tbody>
+    </table>
+  </div>
+
+  <h2>Pick and mix</h2>
+  <p class="lede">Tick anything you want in the final Doozer, from any version. Contradictions are fine — they tell us where a hybrid mockup is needed.</p>
+  <div class="picks" id="picks"></div>
+  <div class="copybar">
+    <button class="primary" id="copy" type="button">Copy my picks</button>
+    <button class="ghost" id="clear" type="button">Clear</button>
+    <span id="copied">Copied. Paste it into the chat.</span>
+  </div>
+  <pre id="out"></pre>
+
+  <footer>Mockup phase of the Doozer project. The plan for everything after this is in <a href="/WORK_PLAN.md">WORK_PLAN.md</a>.</footer>
+</main>
+
+<script type="module">
+import { createDoozer } from './shared/doozer-svg.js';
+import { PALETTES, PALETTE_KEYS } from './shared/art.js';
+
+// ---- Hero ----------------------------------------------------------------------
+const hero = createDoozer({ palette: 'peach', outline: true });
+document.getElementById('hero-pet').appendChild(hero.el);
+hero.setMood('joyful');
+hero.setPose('wave');
+addEventListener('pointermove', (e) => {
+  const r = hero.el.getBoundingClientRect();
+  hero.look((e.clientX - r.left - r.width / 2) / 400, (e.clientY - r.top - r.height / 2) / 300);
+});
+
+// ---- Cards -----------------------------------------------------------------------
+const VERSIONS = [
+  { id: 'v1-pocket', n: 'V1', name: 'Pocket Doozer', tone: '#a692e2',
+    pitch: 'A chunky little toy sitting on your desktop. One-bit pixel screen, four buttons, beeps. The nostalgia play.',
+    tags: ['Pixel LCD', 'Toy-shaped window', 'Buttons'],
+    best: 'you want the object itself to be the charm, and the simplest thing to build.',
+    watch: 'the least expressive Doozer; relies on good hand-drawn pixel art later.' },
+  { id: 'v2-blob', n: 'V2', name: 'Blob Doozer', tone: '#f3a27a',
+    pitch: 'A soft 3D plush on a floating island, no window frame at all. Poke it and it jiggles. Night falls when it sleeps.',
+    tags: ['3D plush', 'Frameless', 'Poke & stroke', 'Ring-gauge buttons'],
+    best: 'you want it to feel like a physical thing you can touch.',
+    watch: 'the most expensive to finish properly (real model, rig, GPU budget).' },
+  { id: 'v3-buddy', n: 'V3', name: 'Desk Buddy', tone: '#74cbac',
+    pitch: 'No window. Doozer walks along your taskbar, climbs onto windows, peeks from the edge. Pick it up and toss it.',
+    tags: ['Bold vector', 'Roams the desktop', 'Drag & throw', 'Radial menu'],
+    best: 'you want the Bonzi-style companion that shares your actual screen.',
+    watch: 'the hardest platform work, and the easiest to make annoying.' },
+  { id: 'v4-room', n: 'V4', name: 'Cozy Room', tone: '#7cb7ee',
+    pitch: 'A tiny room in a tiny window, with a real-time sky outside. You stock the bowl and toss the ball; Doozer decides the rest.',
+    tags: ['Storybook vector', 'Small window', 'Click the furniture', 'Real day & night'],
+    best: 'you want something calm to glance at, more terrarium than toy.',
+    watch: 'takes the most screen space; needs enough going on to stay interesting.' },
+  { id: 'v5-pill', n: 'V5', name: 'Pill Doozer', tone: '#f0be4e',
+    pitch: 'A small dark pill with Doozer tucked inside. It opens into a card when you want it, and earns treats when you focus.',
+    tags: ['Minimal vector', 'Pill + card', 'Focus timer', 'Gentle nudges'],
+    best: 'you want a work companion that stays out of the way.',
+    watch: 'can drift toward “widget with a face” instead of “pet”.' },
+];
+const cards = document.getElementById('cards');
+for (const v of VERSIONS) {
+  const card = document.createElement('article');
+  card.className = 'card';
+  card.style.setProperty('--tone', v.tone);
+  card.innerHTML = `
+    <a class="preview" href="${v.id}/" aria-label="Open ${v.name}">
+      <iframe src="${v.id}/?thumb" title="${v.name} preview" loading="lazy" tabindex="-1"></iframe>
+      <span class="open">Open ${v.n} →</span>
+    </a>
+    <div class="card-body">
+      <h3><small>${v.n}</small>${v.name}</h3>
+      <p>${v.pitch}</p>
+      <div class="tags">${v.tags.map((t) => `<span>${t}</span>`).join('')}</div>
+      <div class="pros"><span><b>Pick this if</b> ${v.best}</span><span><b>Watch out:</b> ${v.watch}</span></div>
+    </div>`;
+  cards.appendChild(card);
+}
+// The odd sixth slot: how to see any of them on the real desktop.
+const tip = document.createElement('article');
+tip.className = 'card tip';
+tip.innerHTML = `
+  <div class="card-body">
+    <h3>See it on your real desktop</h3>
+    <p>A browser tab can only fake the desktop. The project includes a small shell that floats any of these five over your actual windows — transparent, always on top, and clicks pass through the empty space around Doozer.</p>
+    <p><code>npm run pet</code></p>
+    <p>Right-click Doozer to switch version or quit. Start on a specific one with <code>npm run pet -- buddy</code> (or <code>pocket</code>, <code>blob</code>, <code>room</code>, <code>pill</code>).</p>
+    <p>V3 is the one that changes most: on the real desktop it walks along the top of your actual taskbar.</p>
+  </div>`;
+cards.appendChild(tip);
+
+const fit = new ResizeObserver((entries) => { for (const e of entries) e.target.style.setProperty('--s', e.contentRect.width / 800); });
+document.querySelectorAll('.preview').forEach((p) => fit.observe(p));
+
+// ---- Mood sheet --------------------------------------------------------------------
+const MOODS = [
+  ['joyful', 'Overjoyed', 'all needs high'], ['content', 'Content', 'the default'], ['meh', 'So-so', 'things slipping'],
+  ['hungry', 'Hungry', 'tummy low'], ['bored', 'Bored', 'fun low'], ['sleepy', 'Sleepy', 'energy low'],
+  ['dirty', 'Grubby', 'clean low'], ['asleep', 'Asleep', 'zzz'],
+];
+const moodsEl = document.getElementById('moods');
+let sheetPalette = 'peach';
+let sheetOutline = true;
+function paintSheet() {
+  moodsEl.innerHTML = '';
+  for (const [mood, label, note] of MOODS) {
+    const d = createDoozer({ palette: sheetPalette, outline: sheetOutline });
+    d.setMood(mood);
+    const cell = document.createElement('div');
+    cell.className = 'mood';
+    cell.appendChild(d.el);
+    cell.insertAdjacentHTML('beforeend', `<span>${label}</span><small>${note}</small>`);
+    moodsEl.appendChild(cell);
+  }
+}
+const swatches = document.getElementById('swatches');
+for (const key of PALETTE_KEYS) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'swatch';
+  b.title = PALETTES[key].name;
+  b.setAttribute('aria-label', PALETTES[key].name);
+  b.style.background = PALETTES[key].body;
+  b.addEventListener('click', () => { sheetPalette = key; hero.setPalette(key); paintSheet(); paintSwatches(); });
+  b.dataset.key = key;
+  swatches.appendChild(b);
+}
+function paintSwatches() { for (const b of swatches.children) b.classList.toggle('is-on', b.dataset.key === sheetPalette); }
+const bold = document.getElementById('line-bold'), soft = document.getElementById('line-soft');
+bold.addEventListener('click', () => { sheetOutline = true; bold.classList.add('is-on'); soft.classList.remove('is-on'); paintSheet(); });
+soft.addEventListener('click', () => { sheetOutline = false; soft.classList.add('is-on'); bold.classList.remove('is-on'); paintSheet(); });
+paintSheet();
+paintSwatches();
+
+// ---- Comparison ----------------------------------------------------------------------
+const COMPARE = [
+  ['V1 Pocket', '1-bit pixel LCD', 'Toy-shaped window, about 280 × 400', 'Four buttons, tap the glass', 'Medium', 'Lowest', 'Charm depends on hand-made pixel art'],
+  ['V2 Blob', 'Soft 3D plush', 'Frameless island, about 380 × 450', 'Poke, stroke, ring buttons', 'Medium', 'Highest', 'Idle GPU cost; needs a real Blender model'],
+  ['V3 Buddy', 'Bold-outline vector', 'The whole desktop; sprite about 110 px', 'Drag, throw, radial menu', 'Smallest when idle', 'High', 'Click-through overlay and window awareness'],
+  ['V4 Room', 'Soft storybook vector', 'Framed window, 380 × 460', 'Click the furniture', 'Largest', 'Medium', 'Needs enough to do to stay interesting'],
+  ['V5 Pill', 'Minimal vector', 'Pill 214 × 54, opens to a card', 'Click to open, buttons, timer', 'Smallest', 'Low to medium', 'May read as a widget, not a pet'],
+];
+document.getElementById('compare').innerHTML = COMPARE.map(([name, ...rest]) => `<tr><th scope="row">${name}</th>${rest.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('');
+
+// ---- Pick and mix ----------------------------------------------------------------------
+const GROUPS = [
+  { title: 'Art style', items: [['Pixel LCD', 'V1'], ['3D plush', 'V2'], ['Bold-outline vector', 'V3'], ['Soft storybook vector, no outline', 'V4'], ['Minimal, dark glass UI', 'V5']] },
+  { title: 'Where Doozer lives', items: [['A toy-shaped window', 'V1'], ['A floating island with no frame', 'V2'], ['Loose on the desktop, walking the taskbar', 'V3'], ['Its own room in a small window', 'V4'], ['A tiny pill that opens into a card', 'V5']] },
+  { title: 'How you interact', items: [['Chunky physical buttons', 'V1'], ['Buttons whose ring shows the need', 'V2'], ['Poke and stroke Doozer directly', 'V2'], ['Pick up, carry and throw', 'V3'], ['Radial menu around Doozer', 'V3'], ['Click the furniture; Doozer decides when', 'V4'], ['One card with everything', 'V5']] },
+  { title: 'Details worth keeping', items: [['Clock and words on the LCD', 'V1'], ['Stats on a side button', 'V1'], ['Night falls when Doozer sleeps', 'V2'], ['Different snacks each time', 'V2'], ['Speech bubbles', 'V3'], ['Sits on windows, rides them when dragged', 'V3'], ['Peekaboo from the screen edge', 'V3'], ['Real-time sky outside the window', 'V4'], ['Food waits in the bowl until hungry', 'V4'], ['Thought bubbles instead of meters', 'V4'], ['Focus timer that earns treats', 'V5'], ['Gentle one-line nudges', 'V5'], ['Little messes to tidy', 'all'], ['Bond hearts', 'all']] },
+  { title: 'Colour', items: [['Peach'], ['Mint'], ['Lavender'], ['Butter'], ['Sky'], ['Let me choose in settings']] },
+];
+const STORE = 'doozer:picks';
+let saved = {};
+try { saved = JSON.parse(localStorage.getItem(STORE) ?? '{}'); } catch { /* ignore */ }
+const picksEl = document.getElementById('picks');
+for (const g of GROUPS) {
+  const fs = document.createElement('fieldset');
+  fs.innerHTML = `<legend>${g.title}</legend>` + g.items.map(([text, from]) => {
+    const key = `${g.title}|${text}`;
+    return `<label class="pick"><input type="checkbox" data-key="${key}" ${saved[key] ? 'checked' : ''}><span>${text}</span>${from ? `<small>${from}</small>` : ''}</label>`;
+  }).join('');
+  picksEl.appendChild(fs);
+}
+const notesFs = document.createElement('fieldset');
+notesFs.innerHTML = `<legend>Anything else</legend><textarea id="notes" placeholder="What you loved, what annoyed you, ideas, whether Doozer is based on a real pet…"></textarea>`;
+picksEl.appendChild(notesFs);
+const notes = document.getElementById('notes');
+notes.value = saved.__notes ?? '';
+
+function collect() {
+  const state = { __notes: notes.value };
+  for (const box of picksEl.querySelectorAll('input[type=checkbox]')) if (box.checked) state[box.dataset.key] = true;
+  return state;
+}
+function summary() {
+  const state = collect();
+  const lines = ['My Doozer picks'];
+  for (const g of GROUPS) {
+    const chosen = g.items.filter(([text]) => state[`${g.title}|${text}`]).map(([text, from]) => (from && from !== 'all' ? `${text} (${from})` : text));
+    lines.push(`${g.title}: ${chosen.length ? chosen.join('; ') : 'no preference'}`);
+  }
+  if (state.__notes.trim()) lines.push(`Notes: ${state.__notes.trim()}`);
+  return lines.join('\n');
+}
+picksEl.addEventListener('input', () => { try { localStorage.setItem(STORE, JSON.stringify(collect())); } catch { /* ignore */ } });
+document.getElementById('copy').addEventListener('click', async () => {
+  const text = summary();
+  const out = document.getElementById('out');
+  out.textContent = text;
+  out.style.display = 'block';
+  const copied = document.getElementById('copied');
+  try {
+    await navigator.clipboard.writeText(text);
+    copied.textContent = 'Copied. Paste it into the chat.';
+  } catch {
+    copied.textContent = 'Select the text below and copy it.';
+  }
+  copied.classList.add('show');
+  setTimeout(() => copied.classList.remove('show'), 4000);
+});
+document.getElementById('clear').addEventListener('click', () => {
+  for (const box of picksEl.querySelectorAll('input[type=checkbox]')) box.checked = false;
+  notes.value = '';
+  document.getElementById('out').style.display = 'none';
+  try { localStorage.removeItem(STORE); } catch { /* ignore */ }
+});
+</script>
+</body>
+</html>

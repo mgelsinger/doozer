@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pocket Doozer</title>
+<link rel="stylesheet" href="../shared/base.css">
+<style>
+  body { display: grid; place-items: center; }
+
+  .toy {
+    position: relative; width: 284px; height: 408px;
+    --p: #FFC7A1; --p-hi: #FFE0C8; --p-lo: #F3A27A; --p-ear: #FFA9A0;
+    filter: drop-shadow(0 22px 22px rgba(60, 40, 90, .26));
+  }
+  html.bare .toy { filter: drop-shadow(0 8px 10px rgba(30, 20, 50, .35)); }
+
+  /* key-chain loop */
+  .chain { position: absolute; left: 50%; top: 40px; width: 24px; height: 24px; margin-left: -12px; border: 4px solid #dcd5cf; border-radius: 50%; box-shadow: inset 0 1px 1px rgba(0, 0, 0, .2); }
+  .chain::after {
+    content: ''; position: absolute; left: 10px; bottom: 16px; width: 8px; height: 30px;
+    background: radial-gradient(circle, #dcd5cf 3px, transparent 3.500px) 0 0 / 8px 9px;
+    rotate: 24deg; transform-origin: 50% 100%;
+  }
+
+  .ear {
+    position: absolute; top: 34px; width: 86px; height: 86px; border-radius: 50%;
+    background: radial-gradient(circle at 36% 30%, var(--p-hi), var(--p) 55%, var(--p-lo));
+    box-shadow: inset 0 -6px 10px rgba(0, 0, 0, .1), inset 0 3px 2px rgba(255, 255, 255, .6);
+  }
+  .ear::after { content: ''; position: absolute; inset: 21px; border-radius: 50%; background: var(--p-ear); box-shadow: inset 0 3px 5px rgba(0, 0, 0, .14); }
+  .ear-l { left: 10px; }
+  .ear-r { right: 10px; }
+
+  .shell {
+    position: absolute; left: 0; right: 0; top: 58px; bottom: 0; border-radius: 80px;
+    background: radial-gradient(120% 90% at 30% 10%, var(--p-hi) 0, var(--p) 46%, var(--p-lo) 100%);
+    box-shadow: inset 0 3px 2px rgba(255, 255, 255, .75), inset 0 -16px 24px rgba(0, 0, 0, .13), inset 0 0 0 1px rgba(0, 0, 0, .04);
+    -webkit-app-region: drag;
+  }
+  .gloss { position: absolute; left: 40px; top: 12px; width: 110px; height: 16px; border-radius: 50%; background: linear-gradient(rgba(255, 255, 255, .8), rgba(255, 255, 255, 0)); rotate: -7deg; filter: blur(2px); }
+
+  .bezel {
+    position: absolute; left: 30px; right: 30px; top: 32px; height: 224px; border-radius: 36px; padding: 16px;
+    background: #fff8ef; box-shadow: inset 0 2px 5px rgba(0, 0, 0, .16), 0 2px 0 rgba(255, 255, 255, .55);
+  }
+  .lcd {
+    position: relative; width: 192px; height: 192px; border-radius: 22px; overflow: hidden; cursor: pointer;
+    background: linear-gradient(160deg, #cdd8b6, #b4c29d);
+    box-shadow: inset 0 3px 9px rgba(40, 50, 30, .5), inset 0 0 0 1px rgba(40, 50, 30, .25);
+    -webkit-app-region: no-drag;
+  }
+  .lcd canvas { display: block; width: 192px; height: 192px; image-rendering: pixelated; }
+  .lcd::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(125deg, rgba(255, 255, 255, .26) 0 17%, rgba(255, 255, 255, 0) 17.500% 100%); }
+
+  .brand {
+    position: absolute; left: 0; right: 0; top: 262px; text-align: center; font-weight: 600; font-size: 14px; letter-spacing: .2em;
+    color: rgba(70, 40, 20, .34); text-shadow: 0 1px 0 rgba(255, 255, 255, .5);
+  }
+  .led { position: absolute; right: 62px; top: 268px; width: 8px; height: 8px; border-radius: 50%; background: rgba(0, 0, 0, .16); box-shadow: inset 0 1px 1px rgba(0, 0, 0, .25); }
+  .led.on { background: #ff5d73; box-shadow: 0 0 8px 2px rgba(255, 93, 115, .7); animation: led 1s steps(2) infinite; }
+  @keyframes led { 50% { opacity: .25; } }
+
+  .buttons { position: absolute; left: 0; right: 0; top: 286px; display: flex; justify-content: center; gap: 12px; }
+  .btn {
+    width: 44px; height: 44px; border-radius: 50%; border: 0; padding: 0; cursor: pointer; display: grid; place-items: center;
+    background: radial-gradient(circle at 35% 28%, #fff, #fff3e4 60%, #ecd9c5);
+    box-shadow: 0 4px 0 rgba(0, 0, 0, .16), 0 6px 8px rgba(0, 0, 0, .14), inset 0 1px 0 #fff;
+    transition: translate .06s, box-shadow .06s;
+    -webkit-app-region: no-drag;
+  }
+  .btn:nth-child(2), .btn:nth-child(3) { margin-top: 8px; }
+  .btn:active, .btn.down { translate: 0 3px; box-shadow: 0 1px 0 rgba(0, 0, 0, .18), 0 2px 3px rgba(0, 0, 0, .14), inset 0 1px 0 #fff; }
+  .btn canvas { width: 21px; height: 21px; image-rendering: pixelated; opacity: .78; }
+  .side {
+    position: absolute; right: -5px; top: 150px; width: 10px; height: 46px; border: 0; padding: 0; cursor: pointer; border-radius: 0 7px 7px 0;
+    background: linear-gradient(90deg, #ecd9c5, #fff8ef); box-shadow: 2px 2px 3px rgba(0, 0, 0, .18);
+    -webkit-app-region: no-drag;
+  }
+  .side:active { translate: -2px 0; }
+</style>
+</head>
+<body>
+  <div class="toy" id="widget">
+    <div class="chain"></div>
+    <div class="ear ear-l"></div><div class="ear ear-r"></div>
+    <div class="shell">
+      <div class="gloss"></div>
+      <div class="bezel"><div class="lcd" id="screen" title="Tap the glass to pet Doozer"><canvas id="lcd" width="384" height="384"></canvas></div></div>
+      <div class="brand">doozer</div>
+      <i class="led" id="led"></i>
+      <div class="buttons" id="buttons"></div>
+      <button class="side" id="side" type="button" title="Stats" aria-label="Stats"></button>
+    </div>
+  </div>
+
+<script type="module">
+import { createSim, mountReview, loadPalette, THUMB } from '../shared/env.js';
+import { NEED_KEYS, TUNING } from '../shared/sim.js';
+import { PALETTES } from '../shared/art.js';
+import { sfx } from '../shared/sfx.js';
+
+const sim = createSim();
+const $ = (id) => document.getElementById(id);
+
+function setShell(key) {
+  const p = PALETTES[key] ?? PALETTES.peach;
+  const toy = $('widget');
+  toy.style.setProperty('--p', p.body);
+  toy.style.setProperty('--p-hi', p.light);
+  toy.style.setProperty('--p-lo', p.shade);
+  toy.style.setProperty('--p-ear', p.ear);
+}
+const palette = loadPalette('v1', 'lavender');
+setShell(palette);
+mountReview(sim, {
+  version: 'v1',
+  title: 'V1 · Pocket Doozer',
+  hint: 'A toy on your desktop. Four buttons: feed, play, wash, nap. Tap the glass to pet; the side button shows stats.',
+  palette,
+  onPalette: setShell,
+});
+
+// ---- 1-bit art ---------------------------------------------------------------
+const ART = {
+  tummy:  ['...#...', '..#.#..', '.#...#.', '.#...#.', '#.###.#', '#.###.#', '.#####.'],
+  fun:    ['..###..', '.#...#.', '#.#...#', '#..#..#', '#...#.#', '.#...#.', '..###..'],
+  clean:  ['...#...', '...#...', '..#.#..', '.#...#.', '.#...#.', '.#...#.', '..###..'],
+  energy: ['..###..', '.##....', '##.....', '##.....', '##.....', '.##...#', '..####.'],
+  heart:  ['.##.##.', '#######', '#######', '.#####.', '..###..', '...#...'],
+  heartO: ['.##.##.', '#..#..#', '#.....#', '.#...#.', '..#.#..', '...#...'],
+  zBig:   ['#####', '...#.', '..#..', '.#...', '#####'],
+  zSmall: ['###', '.#.', '###'],
+  poop:   ['...#...', '..##...', '..###..', '.#####.', '.#####.', '#######'],
+  food:   ['...##...', '..#..#..', '..#..#..', '.#....#.', '.#....#.', '#.####.#', '#.####.#', '.######.'],
+  ball:   ['.####.', '#.#..#', '#..#.#', '#...##', '#....#', '.####.'],
+  bubble: ['.##.', '#..#', '#..#', '.##.'],
+  spark:  ['..#..', '..#..', '##.##', '..#..', '..#..'],
+  bang:   ['.#.', '.#.', '.#.', '.#.', '...', '.#.'],
+  moon:   ['.###.', '##...', '##...', '##...', '.###.'],
+};
+const FONT = {
+  A: '010101111101101', B: '110101110101110', C: '011100100100011', D: '110101101101110', E: '111100110100111',
+  F: '111100110100100', G: '011100101101011', H: '101101111101101', I: '111010010010111', J: '001001001101010',
+  K: '101101110101101', L: '100100100100111', M: '101111111101101', N: '110101101101101', O: '111101101101111',
+  P: '110101110100100', Q: '010101101111011', R: '110101110101101', S: '011100010001110', T: '111010010010010',
+  U: '101101101101111', V: '101101101101010', W: '101101111111101', X: '101101010101101', Y: '101101010010010',
+  Z: '111001010100111', '0': '111101101101111', '1': '010110010010111', '2': '110001010100111', '3': '110001010001110',
+  '4': '101101111001001', '5': '111100110001110', '6': '011100110101010', '7': '111001010010010', '8': '111101111101111',
+  '9': '111101111001110', '!': '010010010000010', '?': '110001010000010', '.': '000000000000010', ':': '000010000010000',
+  '-': '000000111000000', ' ': '000000000000000',
+};
+
+// ---- The LCD -----------------------------------------------------------------
+const W = 48, H = 48, CELL = 8, GROUND = 40;
+const ctx = $('lcd').getContext('2d');
+const buf = new Uint8Array(W * H);   // 0 off, 1 on, 2 half-tone
+const set = (x, y, v = 1) => { x = Math.round(x); y = Math.round(y); if (x >= 0 && y >= 0 && x < W && y < H) buf[y * W + x] = v; };
+function sprite(rows, x, y, v = 1) {
+  rows.forEach((row, j) => { for (let i = 0; i < row.length; i++) if (row[i] === '#') set(x + i, y + j, v); });
+}
+function text(str, y, x) {
+  str = String(str).toUpperCase();
+  let cx = x ?? Math.round((W - (str.length * 4 - 1)) / 2);
+  for (const ch of str) {
+    const g = FONT[ch] ?? FONT[' '];
+    for (let j = 0; j < 5; j++) for (let i = 0; i < 3; i++) if (g[j * 3 + i] === '1') set(cx + i, y + j);
+    cx += 4;
+  }
+}
+function render() {
+  ctx.clearRect(0, 0, W * CELL, H * CELL);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const v = buf[y * W + x];
+      if (v === 1) { ctx.fillStyle = 'rgba(38, 48, 34, .13)'; ctx.fillRect(x * CELL + 3, y * CELL + 3, CELL - 1, CELL - 1); }
+      ctx.fillStyle = v === 1 ? 'rgba(38, 48, 34, .93)' : v === 2 ? 'rgba(38, 48, 34, .34)' : 'rgba(38, 48, 34, .045)';
+      ctx.fillRect(x * CELL + 0.5, y * CELL + 0.5, CELL - 1, CELL - 1);
+    }
+  }
+}
+
+/** Doozer, rasterised from the same shapes as the other versions. cx = centre column, footY = ground row. */
+function drawDoozer(cx, footY, o = {}) {
+  const sq = o.squash ?? 0;
+  const rx = 10 + sq * 1.200 + (o.lying ? 2 : 0);
+  const ry = 8.500 - sq * 1.200 - (o.lying ? 2.500 : 0);
+  const cy = footY - ry - 0.500;
+  const earY = cy - ry + 0.700;
+  const earX = rx * 0.740;
+  const inside = (x, y) => {
+    const px = x + 0.5 - cx, py = y + 0.5;
+    if ((px / rx) ** 2 + ((py - cy) / ry) ** 2 <= 1) return true;
+    if ((px + earX) ** 2 + (py - earY) ** 2 <= 10.800) return true;
+    if ((px - earX) ** 2 + (py - earY) ** 2 <= 10.800) return true;
+    if (!o.lying && (((px + 5) / 3.400) ** 2 + ((py - footY + 0.400) / 1.700) ** 2 <= 1 || ((px - 5) / 3.400) ** 2 + ((py - footY + 0.400) / 1.700) ** 2 <= 1)) return true;
+    return false;
+  };
+  for (let y = Math.floor(cy - ry - 6); y <= footY + 1; y++) {
+    for (let x = cx - 15; x <= cx + 15; x++) {
+      if (!inside(x, y)) continue;
+      const edge = !inside(x - 1, y) || !inside(x + 1, y) || !inside(x, y - 1) || !inside(x, y + 1);
+      const px = x + 0.5 - cx, py = y + 0.5;
+      const belly = (px / 5.500) ** 2 + ((py - (cy + ry * 0.480)) / (ry * 0.420)) ** 2 <= 1 && (x + y) % 2 === 0;
+      set(x, y, edge ? 1 : belly ? 2 : 0);
+    }
+  }
+  const top = Math.round(cy - ry);
+  const ey = Math.round(cy - 1);
+
+  // tuft: Doozer's mood antenna
+  const tuft = o.tuft === 'droop'
+    ? [[-1, -1], [0, -2], [1, -2], [2, -1], [3, 0]]
+    : [[-1, -1], [-1, -2], [0, -3], [1, -3], [2, -2], [1, -1]];
+  for (const [dx, dy] of tuft) set(cx + dx, top + dy);
+
+  // eyes (mirrored around the centre line)
+  const eye = (pts) => { for (const [dx, dy] of pts) { set(cx - 1 - dx, ey + dy); set(cx + dx, ey + dy); } };
+  switch (o.eyes ?? 'open') {
+    case 'open': eye([[3, -1], [4, -1], [3, 0], [4, 0], [3, 1], [4, 1]]); break;
+    case 'wide': eye([[3, -2], [4, -2], [2, -1], [5, -1], [2, 0], [5, 0], [3, 1], [4, 1], [3, -1], [4, 0]]); break;
+    case 'half': eye([[2, 0], [3, 0], [4, 0], [5, 0], [3, 1], [4, 1]]); break;
+    case 'closed': eye([[2, 0], [3, 1], [4, 1], [5, 0]]); break;
+    case 'happy': eye([[2, 0], [3, -1], [4, -1], [5, 0]]); break;
+    case 'sad': eye([[3, 0], [4, 0], [3, 1], [4, 1], [2, -3], [3, -3], [4, -2]]); break;
+  }
+  // cheeks
+  set(cx - 9, ey + 2, 2); set(cx - 8, ey + 2, 2); set(cx + 7, ey + 2, 2); set(cx + 8, ey + 2, 2);
+  // mouth
+  const my = ey + 3;
+  const mouth = {
+    smile: [[-2, 0], [-1, 1], [0, 1], [1, 0]],
+    open: [[-2, 0], [-1, 0], [0, 0], [1, 0], [-1, 1], [0, 1]],
+    o: [[-1, 0], [0, 0], [-1, 1], [0, 1]],
+    flat: [[-1, 1], [0, 1]],
+    frown: [[-2, 1], [-1, 0], [0, 0], [1, 1]],
+  }[o.mouth ?? 'smile'];
+  for (const [dx, dy] of mouth) set(cx + dx, my + dy);
+}
+
+// ---- Scenes ------------------------------------------------------------------
+let frame = 0;
+const st = { mode: 'hello', t: 0, x: 24, dir: 1, page: 'main', data: {} };
+function scene(mode, data = {}) { st.mode = mode; st.t = 0; st.data = data; }
+const MESS_X = [3, 38, 12];
+const NEED_X = { tummy: 4, fun: 15, clean: 26, energy: 37 };
+const HUD_ORDER = ['tummy', 'fun', 'clean', 'energy'];
+
+const SCENES = {
+  hello: { len: 9, draw(t) {
+    drawDoozer(24, GROUND - (t % 2 ? 3 : 0), { eyes: 'happy', mouth: 'open', squash: t % 2 ? -0.5 : 0.6 });
+    return sim.away ? 'YAY!' : 'HELLO!';
+  } },
+  eat: { len: 19, draw(t) {
+    const x = 17;
+    st.x = x;
+    const fx = x + 12;
+    if (t < 3) {
+      sprite(ART.food, fx, GROUND - 7 - (3 - t) * 6);
+      drawDoozer(x, GROUND, { eyes: 'wide', mouth: 'o' });
+      return 'OOH!';
+    }
+    if (t < 15) {
+      const bite = Math.floor((t - 3) / 4);             // 0,1,2
+      const chomp = (t - 3) % 4 < 2;
+      const eaten = (bite + (chomp ? 0 : 1)) * 3 - 1;
+      ART.food.forEach((row, j) => { for (let i = 0; i < row.length; i++) if (row[i] === '#' && i > eaten) set(fx + i, GROUND - 7 + j); });
+      drawDoozer(x + (chomp ? 0 : 1), GROUND, { eyes: 'happy', mouth: chomp ? 'open' : 'flat', squash: chomp ? 0 : 0.5 });
+      if (!chomp && (t - 3) % 4 === 2) sfx.beep(330, 0.05);
+      return 'NOM';
+    }
+    drawDoozer(x, GROUND - (t % 2 ? 2 : 0), { eyes: 'happy', mouth: 'open' });
+    sprite(ART.heart, x + 9, GROUND - 26 - (t - 15));
+    return 'YUM!';
+  } },
+  play: { len: 24, draw(t) {
+    st.x = 24;
+    const phase = t % 20;
+    const bx = 5 + (phase < 10 ? phase : 20 - phase) * 3.200;
+    const by = GROUND - 5 - Math.abs(Math.sin((t * Math.PI) / 5)) * 15;
+    const near = Math.abs(bx + 3 - 24) < 9;
+    drawDoozer(24, GROUND - (near ? 5 : t % 2), { eyes: 'happy', mouth: 'open', squash: near ? -0.6 : 0.3, tuft: 'perk' });
+    sprite(ART.ball, bx, by);
+    if (t % 5 === 0) sfx.beep(t % 10 ? 1319 : 988, 0.05);
+    if (t > 19) sprite(ART.heart, 33, GROUND - 26 - (t - 19));
+    return 'WHEE!';
+  } },
+  wash: { len: 17, draw(t) {
+    const x = st.x;
+    if (t < 12) {
+      for (let k = 0; k < 8; k++) {
+        const dx = x - 11 + k * 3 + (t % 2);
+        const dy = 12 + ((t * 3 + k * 7) % 22);
+        set(dx, dy); set(dx, dy + 1, 2);
+      }
+      drawDoozer(x + (t % 2 ? 1 : -1), GROUND, { eyes: 'closed', mouth: 'smile', squash: 0.3 });
+      sprite(ART.bubble, x - 15 + (t % 3), GROUND - 12 - (t % 4) * 2);
+      sprite(ART.bubble, x + 11 - (t % 3), GROUND - 18 - ((t + 2) % 4) * 2);
+      if (t % 4 === 0) sfx.splash();
+      return 'SCRUB';
+    }
+    drawDoozer(x, GROUND - (t % 2 ? 2 : 0), { eyes: 'happy', mouth: 'open' });
+    sprite(ART.spark, x - 17, GROUND - 22 + (t % 2) * 3);
+    sprite(ART.spark, x + 12, GROUND - 16 - (t % 2) * 3);
+    return 'CLEAN!';
+  } },
+  no: { len: 7, draw(t) {
+    drawDoozer(st.x + (t % 2 ? 1 : -1), GROUND, sim.asleep ? { lying: true, eyes: 'closed', mouth: 'flat', tuft: 'droop' } : { eyes: 'sad', mouth: 'flat', tuft: 'droop' });
+    return st.data.text;
+  } },
+  pet: { len: 7, draw(t) {
+    drawDoozer(st.x, GROUND, sim.asleep
+      ? { lying: true, eyes: 'closed', mouth: 'smile', tuft: 'droop' }
+      : { eyes: 'happy', mouth: 'smile', squash: t < 2 ? 1 : t % 2 ? 0.3 : 0 });
+    sprite(ART.heart, st.x - 3, GROUND - 25 - t);
+    return '';
+  } },
+  tidy: { len: 5, draw(t) {
+    drawDoozer(st.x, GROUND, { eyes: 'happy', mouth: 'smile' });
+    sprite(ART.spark, st.data.x + 1, GROUND - 6 - t);
+    return 'TIDY!';
+  } },
+  sleep: { len: 6, draw(t) {
+    drawDoozer(st.x, GROUND, { eyes: 'closed', mouth: t < 4 ? 'open' : 'flat', tuft: 'droop', squash: t * 0.2 });
+    return 'NIGHT';
+  } },
+  wake: { len: 7, draw(t) {
+    drawDoozer(st.x, GROUND, { eyes: t < 4 ? 'closed' : 'open', mouth: t < 4 ? 'open' : 'smile', squash: t < 4 ? -0.8 : 0.3 });
+    return 'MORNIN';
+  } },
+  mess: { len: 5, draw(t) {
+    drawDoozer(st.x + (t % 2), GROUND, { eyes: 'wide', mouth: 'o' });
+    return 'OOPS';
+  } },
+};
+
+const MOOD_LOOK = {
+  joyful:  { eyes: 'happy', mouth: 'open', tuft: 'perk', hop: true, walk: true },
+  content: { eyes: 'open', mouth: 'smile', tuft: 'perk', walk: true },
+  meh:     { eyes: 'open', mouth: 'flat', tuft: 'droop', walk: true },
+  hungry:  { eyes: 'sad', mouth: 'o', tuft: 'droop', word: 'HUNGRY' },
+  bored:   { eyes: 'half', mouth: 'flat', tuft: 'droop', word: 'BORED' },
+  sleepy:  { eyes: 'half', mouth: 'o', tuft: 'droop', word: 'SLEEPY' },
+  dirty:   { eyes: 'sad', mouth: 'frown', tuft: 'droop', word: 'STINKY' },
+};
+
+function drawIdle() {
+  const mood = sim.mood;
+  const bob = Math.floor(frame / 2) % 2;
+  if (mood === 'asleep') {
+    sprite(ART.moon, 4, 14);
+    for (const [sx, sy] of [[14, 16], [22, 13], [31, 17], [40, 14], [44, 21]]) if ((frame + sx) % 7 > 1) set(sx, sy);
+    drawDoozer(st.x, GROUND, { lying: true, eyes: 'closed', mouth: bob ? 'o' : 'flat', tuft: 'droop', squash: bob ? 0.25 : 0 });
+    const z = frame % 10;
+    sprite(ART.zSmall, st.x + 9 + (z >> 2), GROUND - 14 - z);
+    if (z > 4) sprite(ART.zBig, st.x + 13, GROUND - 17 - z);
+    if (frame % 20 === 0) sfx.snore();
+    return 'ZZZ';
+  }
+  const look = MOOD_LOOK[mood];
+  if (look.walk && frame % 2 === 0) {
+    if (Math.random() < 0.06) st.dir *= -1;
+    if (Math.random() < 0.7) st.x += st.dir;
+    if (st.x < 13) { st.x = 13; st.dir = 1; }
+    if (st.x > 35) { st.x = 35; st.dir = -1; }
+  }
+  const blink = frame % 23 === 0 && look.eyes === 'open';
+  const yawn = mood === 'sleepy' && frame % 16 < 4;
+  drawDoozer(st.x, GROUND - (look.hop && bob ? 2 : 0), {
+    eyes: blink || yawn ? 'closed' : look.eyes,
+    mouth: yawn ? 'open' : look.mouth,
+    tuft: look.tuft,
+    squash: bob ? 0.5 : 0,
+  });
+  if (mood === 'dirty') { set(st.x - 13, GROUND - 14 - bob, 2); set(st.x - 14, GROUND - 16 - bob, 2); set(st.x + 12, GROUND - 16 + bob, 2); set(st.x + 13, GROUND - 18 + bob, 2); }
+  if (look.word) {
+    if (bob) sprite(ART.bang, st.x + 12, GROUND - 26);
+    return frame % 10 < 7 ? look.word : '';
+  }
+  const d = new Date();
+  return `${d.getHours() % 12 || 12}${frame % 10 < 5 ? ':' : ' '}${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function drawMain() {
+  // need icons with level bars
+  for (const key of HUD_ORDER) {
+    const x = NEED_X[key];
+    const v = sim.needs[key];
+    const low = v < TUNING.low && !sim.asleep;
+    if (!low || frame % 4 < 2) sprite(ART[key], x, 2);
+    const filled = Math.round((v / 100) * 7);
+    for (let i = 0; i < 7; i++) { set(x + i, 10, i < filled ? 1 : 2); if (i < filled) set(x + i, 11, 1); }
+  }
+  for (let x = 1; x < W - 1; x += 2) set(x, GROUND + 1, 2);
+  MESS_X.slice(0, sim.messes).forEach((mx, i) => {
+    sprite(ART.poop, mx, GROUND - 5);
+    const wig = (frame + i) % 4 < 2 ? 0 : 1;
+    set(mx + 2 + wig, GROUND - 7, 2); set(mx + 4 - wig, GROUND - 9, 2);
+  });
+  const sc = SCENES[st.mode];
+  const word = sc ? sc.draw(st.t) : drawIdle();
+  if (word) text(word, 43);
+}
+
+function drawStats() {
+  HUD_ORDER.forEach((key, r) => {
+    const y = 3 + r * 9;
+    sprite(ART[key], 4, y);
+    const filled = Math.round(sim.needs[key] / 10);
+    for (let s = 0; s < 10; s++) {
+      const x = 14 + s * 3;
+      for (let j = 1; j < 6; j++) { if (s < filled) { set(x, y + j); set(x + 1, y + j); } else if (j === 5) { set(x, y + j, 2); set(x + 1, y + j, 2); } }
+    }
+  });
+  for (let i = 0; i < 5; i++) sprite(i < sim.bondLevel ? ART.heart : ART.heartO, 5 + i * 8, 40, i < sim.bondLevel ? 1 : 2);
+}
+
+function step() {
+  frame++;
+  st.t++;
+  const sc = SCENES[st.mode];
+  if (sc && st.t >= sc.len) scene('idle');
+  buf.fill(0);
+  if (st.page === 'stats') drawStats(); else drawMain();
+  render();
+  $('led').classList.toggle('on', !sim.asleep && sim.lowest.value < TUNING.low);
+}
+setInterval(step, 190);
+
+// ---- Buttons -----------------------------------------------------------------
+const REFUSE_TEXT = { asleep: 'SHHH', full: 'FULL!', tired: 'TIRED', 'not-sleepy': 'NOT YET', 'no-treats': 'NONE' };
+const BUTTONS = [
+  { id: 'feed', art: 'tummy', title: 'Feed', run: () => { if (sim.feed().ok) scene('eat'); } },
+  { id: 'play', art: 'fun', title: 'Play', run: () => { if (sim.play().ok) scene('play'); } },
+  { id: 'wash', art: 'clean', title: 'Wash', run: () => { if (sim.wash().ok) scene('wash'); } },
+  { id: 'nap', art: 'energy', title: 'Nap / wake', run: () => sim.toggleSleep() },
+];
+for (const b of BUTTONS) {
+  const el = document.createElement('button');
+  el.type = 'button';
+  el.className = 'btn';
+  el.title = b.title;
+  el.setAttribute('aria-label', b.title);
+  const c = document.createElement('canvas');
+  c.width = c.height = 7;
+  const g = c.getContext('2d');
+  g.fillStyle = '#4b3a34';
+  ART[b.art].forEach((row, j) => { for (let i = 0; i < 7; i++) if (row[i] === '#') g.fillRect(i, j, 1, 1); });
+  el.appendChild(c);
+  el.addEventListener('click', () => { st.page = 'main'; sfx.beep(1568, 0.05); b.run(); });
+  b.el = el;
+  $('buttons').appendChild(el);
+}
+$('side').addEventListener('click', () => { sfx.beep(1175, 0.05); st.page = st.page === 'stats' ? 'main' : 'stats'; });
+$('screen').addEventListener('click', (e) => {
+  if (st.page === 'stats') { st.page = 'main'; return; }
+  const r = $('screen').getBoundingClientRect();
+  const lx = ((e.clientX - r.left) / r.width) * W;
+  const ly = ((e.clientY - r.top) / r.height) * H;
+  const hitMess = MESS_X.slice(0, sim.messes).some((mx) => lx >= mx - 2 && lx <= mx + 9 && ly > GROUND - 12);
+  if (hitMess) {
+    const x = MESS_X[sim.messes - 1];
+    sim.tidy();
+    scene('tidy', { x });
+    sfx.beep(1976, 0.05);
+    return;
+  }
+  sim.pet();
+  if (st.mode === 'idle') scene('pet');
+  sfx.beep(1760, 0.04); sfx.beep(2093, 0.06, 0.05);
+});
+
+// ---- Sim events --------------------------------------------------------------
+sim.on('refuse', ({ reason }) => { scene('no', { text: REFUSE_TEXT[reason] ?? 'NOPE' }); sfx.beep(220, 0.12); });
+sim.on('action', ({ type }) => {
+  if (type === 'sleep') { scene('sleep'); sfx.beep(660, 0.1); sfx.beep(440, 0.16, 0.12); }
+  if (type === 'wake') { scene('wake'); sfx.jingle(); }
+  if (type === 'feed' || type === 'play' || type === 'wash') setTimeout(() => sfx.jingle(), SCENES[{ feed: 'eat', play: 'play', wash: 'wash' }[type]].len * 190 - 700);
+});
+sim.on('mess', () => { if (!sim.asleep && st.mode === 'idle') scene('mess'); sfx.beep(196, 0.1); });
+sim.on('need', () => { sfx.beep(1568, 0.08); sfx.beep(1568, 0.08, 0.16); sfx.beep(1568, 0.08, 0.32); });
+
+step();
+
+if (THUMB) {
+  let i = 0;
+  setInterval(() => BUTTONS[i++ % 3].run(), 5600);
+}
+</script>
+</body>
+</html>

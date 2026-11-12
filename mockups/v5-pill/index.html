@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pill Doozer</title>
+<link rel="stylesheet" href="../shared/base.css">
+<style>
+  :root { --glass: #221b2a; --glass-2: #2f2738; --on: #fff7ef; --on-soft: #b9aebf; --accent: #ffd88a; }
+
+  /* Fake app behind the widget, to show it in a work context */
+  .fake-app {
+    position: fixed; left: 50%; top: 150px; translate: -50% 0; width: min(760px, 86vw); height: 80vh;
+    background: #fff; border-radius: 14px 14px 0 0; box-shadow: 0 18px 50px rgba(60, 40, 90, .16); padding: 46px 56px;
+  }
+  .fake-app h1 { margin: 0 0 22px; font-size: 26px; font-weight: 600; color: #4b3c46; }
+  .fake-app p { height: 11px; border-radius: 6px; background: #f1ebe6; margin: 14px 0; }
+  .fake-app p:nth-of-type(3n) { width: 72%; }
+  .fake-app p:nth-of-type(4n) { width: 88%; }
+  .fake-app p:nth-of-type(5n) { margin-bottom: 34px; width: 40%; }
+
+  #widget { position: fixed; top: 78px; left: 50%; translate: -50% 0; width: 320px; display: grid; justify-items: center; z-index: 10; pointer-events: none; }
+  html.bare #widget, html.thumb #widget { top: 30px; }
+  #widget > * { pointer-events: auto; }
+
+  /* ---- The pill ---------------------------------------------------------- */
+  .pill {
+    position: relative; height: 54px; min-width: 214px; padding: 0 12px 0 70px;
+    display: flex; align-items: center; gap: 12px;
+    background: var(--glass); color: var(--on); border-radius: 27px; cursor: pointer;
+    box-shadow: 0 10px 28px rgba(30, 20, 45, .34), inset 0 1px 0 rgba(255, 255, 255, .12);
+    transition: scale .25s cubic-bezier(.3, 1.6, .5, 1), min-width .3s;
+    -webkit-app-region: no-drag;
+  }
+  .pill:hover { scale: 1.035; }
+  .pill:active { scale: .98; }
+  .pill.nudge { animation: nudge .5s ease-in-out 3; }
+  @keyframes nudge { 0%, 100% { rotate: 0deg; } 25% { rotate: -2.500deg; } 75% { rotate: 2.500deg; } }
+  .pocket {
+    position: absolute; left: 0; bottom: 0; width: 70px; height: 54px;
+    clip-path: inset(-40px 0 0 0 round 0 0 0 27px);
+  }
+  .pocket .dz { position: absolute; left: 5px; top: -17px; }
+  .pocket::after { /* the lip Doozer is tucked behind */
+    content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 15px;
+    background: linear-gradient(to bottom, rgba(34, 27, 42, 0), #221b2a 55%);
+  }
+  .pill-text { line-height: 1.15; white-space: nowrap; }
+  .pill-text b { display: block; font-weight: 600; font-size: 14.5px; }
+  .pill-text span { font-size: 12.5px; color: var(--on-soft); font-variant-numeric: tabular-nums; }
+  .pill-text span.warn { color: #ffb86b; }
+  .ring { margin-left: auto; position: relative; width: 34px; height: 34px; flex: none; display: grid; place-items: center; }
+  .ring svg.r { position: absolute; inset: 0; rotate: -90deg; }
+  .ring circle { fill: none; stroke-width: 3.500; }
+  .ring .track { stroke: rgba(255, 255, 255, .13); }
+  .ring .val { stroke-linecap: round; transition: stroke-dasharray .5s, stroke .5s; }
+  .ring .ico svg { width: 17px; height: 17px; display: block; }
+
+  .toast {
+    margin-top: 8px; padding: 6px 13px; border-radius: 14px; background: var(--glass); color: var(--on); font-size: 12.5px;
+    opacity: 0; translate: 0 -8px; transition: opacity .2s, translate .25s; pointer-events: none !important; position: absolute; top: 54px;
+  }
+  .toast.show { opacity: 1; translate: 0 0; }
+  #widget.open .toast { opacity: 0; }
+
+  /* ---- The card ---------------------------------------------------------- */
+  .card {
+    width: 320px; margin-top: 10px; padding: 14px; border-radius: 26px; background: var(--glass); color: var(--on);
+    box-shadow: 0 18px 44px rgba(30, 20, 45, .4), inset 0 1px 0 rgba(255, 255, 255, .1);
+    transform-origin: 50% -20px; scale: .55; opacity: 0; visibility: hidden;
+    transition: scale .34s cubic-bezier(.3, 1.45, .5, 1), opacity .18s, visibility 0s .2s;
+  }
+  #widget.open .card { scale: 1; opacity: 1; visibility: visible; transition-delay: 0s; }
+  .stage {
+    position: relative; height: 132px; border-radius: 18px; display: grid; place-items: end center; overflow: hidden;
+    background: radial-gradient(120% 90% at 50% 100%, #5a4a78 0, #3a2f4c 55%, #2f2738 100%);
+    transition: filter .6s;
+  }
+  .stage.night { filter: brightness(.62) saturate(.8); }
+  .stage .dz { margin-bottom: 4px; }
+  .stage .hit { position: absolute; left: 50%; bottom: 6px; width: 96px; height: 104px; margin-left: -48px; border-radius: 46%; cursor: pointer; }
+  .bubble {
+    position: absolute; top: 10px; left: 50%; translate: -50% 0; padding: 5px 11px; border-radius: 13px;
+    background: #fff; color: #3a2a26; font-size: 12.5px; font-weight: 500; white-space: nowrap; pointer-events: none;
+    opacity: 0; scale: .6; transition: opacity .18s, scale .28s cubic-bezier(.3, 1.7, .5, 1);
+  }
+  .bubble.show { opacity: 1; scale: 1; }
+  .hearts { position: absolute; left: 10px; top: 9px; display: flex; gap: 1px; }
+  .hearts svg { width: 13px; height: 13px; }
+  .hearts svg.off { filter: grayscale(1); opacity: .28; }
+
+  .needs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; margin: 13px 4px 12px; }
+  .need { display: grid; grid-template-columns: 18px 1fr; gap: 7px; align-items: center; }
+  .need svg { width: 18px; height: 18px; }
+  .meter { height: 7px; border-radius: 4px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+  .meter b { display: block; height: 100%; border-radius: 4px; transition: width .4s, background .4s; }
+
+  .actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .act {
+    border: 0; cursor: pointer; padding: 9px 0 7px; border-radius: 15px; background: var(--glass-2); color: var(--on);
+    display: grid; justify-items: center; gap: 3px; font-size: 11.5px; font-weight: 500;
+    transition: background .12s, translate .1s;
+  }
+  .act:hover { background: #40364c; translate: 0 -1px; }
+  .act:active { translate: 0 1px; }
+  .act svg { width: 24px; height: 24px; }
+
+  .focus { margin-top: 10px; padding: 11px 12px; border-radius: 16px; background: var(--glass-2); display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; }
+  .focus small { grid-column: 1 / -1; color: var(--on-soft); font-size: 11.5px; }
+  .focus .clock { font-size: 25px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: .01em; }
+  .focus .chips { display: flex; gap: 4px; margin-top: 2px; }
+  .chip { border: 0; cursor: pointer; padding: 3px 9px; border-radius: 9px; background: rgba(255, 255, 255, .09); color: var(--on-soft); font-size: 11.5px; }
+  .chip.is-on { background: var(--accent); color: #3a2a26; font-weight: 600; }
+  .go { border: 0; cursor: pointer; padding: 9px 16px; border-radius: 13px; background: var(--accent); color: #3a2a26; font-weight: 600; font-size: 13.5px; }
+  .go:hover { filter: brightness(1.06); }
+  .go.stop { background: rgba(255, 255, 255, .13); color: var(--on); }
+  .extras { margin-top: 8px; display: flex; gap: 6px; }
+  .extras button { flex: 1; border: 0; cursor: pointer; padding: 8px; border-radius: 13px; background: transparent; color: var(--on-soft); font-size: 12.5px; display: flex; gap: 6px; justify-content: center; align-items: center; white-space: nowrap; }
+  .extras button:hover { background: var(--glass-2); color: var(--on); }
+  .extras button[hidden] { display: none; }
+  .extras svg { width: 17px; height: 17px; }
+
+  .particle { position: absolute; width: 18px; height: 18px; margin: -9px; pointer-events: none; display: grid; place-items: center; font-weight: 700; font-size: 15px; color: #cbbcff; z-index: 4; }
+  .particle svg { width: 100%; height: 100%; }
+  .p-rise { animation: p-rise 1.2s ease-out forwards; }
+  @keyframes p-rise { 0% { scale: .2; opacity: 0; } 18% { scale: 1.1; opacity: 1; } 100% { translate: var(--dx) -58px; scale: .9; opacity: 0; } }
+  .soapb { width: 13px; height: 13px; margin: -6.500px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff 0 18%, rgba(174, 227, 255, .8) 22% 100%); }
+  .spark { color: #ffd88a; }
+  .prop { position: absolute; width: 30px; height: 30px; margin: -15px; pointer-events: none; z-index: 3; }
+  .prop svg { width: 100%; height: 100%; }
+  .prop.food { left: 50%; bottom: 44px; animation: food-in .34s cubic-bezier(.3, 1.4, .5, 1); translate: 46px 0; }
+  @keyframes food-in { from { translate: 110px -40px; scale: .3; opacity: 0; } }
+  .prop.food[data-bite="1"] { mask-image: radial-gradient(circle at 8% 30%, transparent 9px, #000 9.500px); }
+  .prop.food[data-bite="2"] { mask-image: radial-gradient(circle at 8% 30%, transparent 13px, #000 13.500px); }
+  .prop.food[data-bite="3"] { mask-image: radial-gradient(circle at 8% 30%, transparent 19px, #000 19.500px); }
+  .prop.ball { left: 50%; bottom: 112px; animation: head-bounce .52s cubic-bezier(.3, 0, .7, 1) infinite alternate; }
+  @keyframes head-bounce { from { translate: 0 -30px; rotate: -30deg; } to { translate: 0 0; rotate: 30deg; } }
+</style>
+</head>
+<body>
+  <div class="fake-app mock-only">
+    <h1>Quarterly snack budget</h1>
+    <p></p><p></p><p></p><p></p><p></p><p></p><p></p><p></p><p></p><p></p><p></p><p></p><p></p><p></p><p></p>
+  </div>
+
+  <div id="widget">
+    <div class="pill" id="pill" role="button" tabindex="0" aria-expanded="false" aria-label="Doozer">
+      <div class="pocket" id="pocket"></div>
+      <div class="pill-text"><b>Doozer</b><span id="status"></span></div>
+      <div class="ring" id="ring">
+        <svg class="r" viewBox="0 0 34 34"><circle class="track" cx="17" cy="17" r="14"/><circle class="val" cx="17" cy="17" r="14"/></svg>
+        <span class="ico"></span>
+      </div>
+    </div>
+    <div class="toast" id="toast"></div>
+
+    <div class="card" id="card">
+      <div class="stage" id="stage">
+        <div class="hearts" id="hearts"></div>
+        <div class="bubble" id="bubble"></div>
+        <div class="hit" id="hit" title="Pet Doozer"></div>
+      </div>
+      <div class="needs" id="needs"></div>
+      <div class="actions" id="actions"></div>
+      <div class="focus">
+        <div>
+          <div class="clock" id="clock">25:00</div>
+          <div class="chips" id="chips"></div>
+        </div>
+        <button class="go" id="go" type="button">Focus</button>
+        <small id="focus-note">Focus together. Finish a session and Doozer earns a treat.</small>
+      </div>
+      <div class="extras">
+        <button id="treats" type="button"></button>
+        <button id="tidy" type="button" hidden></button>
+      </div>
+    </div>
+  </div>
+
+<script type="module">
+import { createSim, mountReview, loadPalette, THUMB, rand, wait } from '../shared/env.js';
+import { createDoozer } from '../shared/doozer-svg.js';
+import { say, refusalLine, NEED_KEYS, NEEDS, TUNING } from '../shared/sim.js';
+import { ICONS, NEED_ART, levelColor } from '../shared/art.js';
+import { sfx } from '../shared/sfx.js';
+
+const sim = createSim();
+const $ = (id) => document.getElementById(id);
+const widget = $('widget');
+const pill = $('pill');
+const stage = $('stage');
+const bubble = $('bubble');
+
+const palette = loadPalette('v5', 'butter');
+const mini = createDoozer({ palette, outline: true, size: 62 });
+const big = createDoozer({ palette, outline: true, size: 118 });
+$('pocket').appendChild(mini.el);
+stage.insertBefore(big.el, $('hit'));
+const both = (fn) => { fn(mini); fn(big); };
+both((d) => d.setMood(sim.mood));
+
+mountReview(sim, {
+  version: 'v5',
+  title: 'V5 · Pill Doozer',
+  hint: 'A tiny pill that stays out of your way. Click it to open. The focus timer runs on the time-warp speed.',
+  palette,
+  onPalette: (key) => both((d) => d.setPalette(key)),
+});
+
+// ---- Open / close ------------------------------------------------------------
+function setOpen(open) {
+  widget.classList.toggle('open', open);
+  pill.setAttribute('aria-expanded', String(open));
+  if (open) { $('toast').classList.remove('show'); sfx.pop(); }
+}
+pill.addEventListener('click', () => setOpen(!widget.classList.contains('open')));
+pill.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pill.click(); } });
+addEventListener('pointerdown', (e) => { if (!e.target.closest('#widget') && !e.target.closest('.review')) setOpen(false); });
+addEventListener('keydown', (e) => { if (e.key === 'Escape') setOpen(false); });
+
+// ---- Little effects ----------------------------------------------------------
+let speakTimer = 0;
+function speak(text, ms = 2000) {
+  bubble.textContent = text;
+  bubble.classList.add('show');
+  clearTimeout(speakTimer);
+  speakTimer = setTimeout(() => bubble.classList.remove('show'), ms);
+}
+function toast(text, ms = 4200) {
+  if (widget.classList.contains('open')) return;
+  const t = $('toast');
+  t.textContent = text;
+  t.classList.add('show');
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => t.classList.remove('show'), ms);
+}
+function particle(html, cls = '', n = 1) {
+  for (let i = 0; i < n; i++) {
+    setTimeout(() => {
+      const p = document.createElement('div');
+      p.className = `particle p-rise ${cls}`;
+      p.innerHTML = html;
+      p.style.left = `${160 - 14 + rand(-42, 42)}px`;
+      p.style.top = `${rand(40, 96)}px`;
+      p.style.setProperty('--dx', `${rand(-20, 20)}px`);
+      stage.appendChild(p);
+      setTimeout(() => p.remove(), 1200);
+    }, i * 110);
+  }
+}
+function prop(cls, html) {
+  const n = document.createElement('div');
+  n.className = `prop ${cls}`;
+  n.innerHTML = html;
+  stage.appendChild(n);
+  return n;
+}
+
+// ---- Actions -----------------------------------------------------------------
+let busy = false;
+async function scene(run) {
+  if (busy) return;
+  busy = true;
+  try { await run(); } finally { busy = false; }
+}
+
+const doFeed = (kind = 'meal') => scene(async () => {
+  if (!sim.feed(kind).ok) return;
+  const food = prop('food', kind === 'treat' ? ICONS.treat : ICONS.feed);
+  both((d) => { d.flash('eat', 1900); d.look(0.8, 0.5); });
+  await wait(360);
+  for (let bite = 1; bite <= 3; bite++) {
+    food.dataset.bite = bite;
+    sfx.munch();
+    await wait(480);
+  }
+  food.remove();
+  both((d) => { d.look(0, 0); d.flash('cheer', 1200); });
+  particle(ICONS.heart, '', kind === 'treat' ? 4 : 2);
+  speak(say(kind === 'treat' ? 'treat' : 'feed'));
+  sfx.chirp();
+  await wait(1200);
+});
+
+const doPlay = () => scene(async () => {
+  if (!sim.play().ok) return;
+  const ball = prop('ball', ICONS.play);
+  both((d) => { d.flash('cheer', 2300); d.look(0, -1); });
+  for (let i = 0; i < 4; i++) { sfx.boing(); await wait(520); }
+  ball.remove();
+  both((d) => d.look(0, 0));
+  particle(ICONS.heart, '', 3);
+  speak(say('play'));
+  sfx.chirp();
+  await wait(700);
+});
+
+const doWash = () => scene(async () => {
+  if (!sim.wash().ok) return;
+  both((d) => d.flash('shake', 1900));
+  for (let i = 0; i < 3; i++) { sfx.splash(); particle('', 'soapb', 6); await wait(560); }
+  particle('✦', 'spark', 5);
+  both((d) => d.flash('cheer', 1100));
+  speak(say('wash'));
+  sfx.sparkle();
+  await wait(1100);
+});
+
+const ACTIONS = [
+  { id: 'feed', label: 'Feed', icon: 'feed', run: () => doFeed() },
+  { id: 'play', label: 'Play', icon: 'play', run: doPlay },
+  { id: 'wash', label: 'Wash', icon: 'wash', run: doWash },
+  { id: 'sleep', label: 'Nap', icon: 'sleep', run: () => sim.toggleSleep() },
+];
+for (const a of ACTIONS) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'act';
+  b.addEventListener('click', a.run);
+  a.el = b;
+  $('actions').appendChild(b);
+}
+$('treats').addEventListener('click', () => doFeed('treat'));
+$('tidy').addEventListener('click', () => {
+  if (!sim.tidy().ok) return;
+  sfx.pop();
+  particle('✦', 'spark', 2);
+  if (!sim.asleep) speak(say('tidy'), 1400);
+});
+
+let lastPet = 0;
+let stroke = 0;
+function petDoozer() {
+  lastPet = performance.now();
+  sim.pet();
+  both((d) => d.flash('love', 1000));
+  big.squish(0.7);
+  particle(ICONS.heart);
+  sfx.coo();
+}
+$('hit').addEventListener('click', petDoozer);
+$('hit').addEventListener('pointermove', (e) => {
+  stroke += Math.hypot(e.movementX, e.movementY);
+  if (stroke > 130 && performance.now() - lastPet > 600) { stroke = 0; petDoozer(); }
+});
+stage.addEventListener('pointermove', (e) => {
+  if (busy) return;
+  const r = stage.getBoundingClientRect();
+  big.look((e.clientX - r.left - r.width / 2) / 110, (e.clientY - r.top - 70) / 80);
+});
+stage.addEventListener('pointerleave', () => { if (!busy) big.look(0, 0); });
+
+// ---- Focus timer -------------------------------------------------------------
+const PRESETS = [15, 25, 50];
+const focus = { minutes: 25, left: 25 * 60, running: false };
+const GLASSES = `<g fill="rgba(255,255,255,.28)" stroke="#3A2A26" stroke-width="3.500"><circle cx="74" cy="106" r="15.500"/><circle cx="126" cy="106" r="15.500"/><path d="M89.500 105Q100 99 110.500 105" fill="none"/></g>`;
+const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+PRESETS.forEach((m) => {
+  const c = document.createElement('button');
+  c.type = 'button';
+  c.className = 'chip';
+  c.textContent = `${m} min`;
+  c.dataset.m = m;
+  c.addEventListener('click', () => { if (!focus.running) { focus.minutes = m; focus.left = m * 60; paintFocus(); } });
+  $('chips').appendChild(c);
+});
+function setFocus(running) {
+  focus.running = running;
+  both((d) => { d.parts.acc.innerHTML = running ? GLASSES : ''; });
+  if (!running) focus.left = focus.minutes * 60;
+  paintFocus();
+  paint();
+}
+$('go').addEventListener('click', () => {
+  if (focus.running) { setFocus(false); speak('break already?', 1600); return; }
+  if (sim.asleep) { speak(refusalLine('asleep'), 1600); sfx.no(); return; }
+  setFocus(true);
+  speak('let’s focus!', 1600);
+  sfx.chirp();
+});
+function paintFocus() {
+  $('clock').textContent = fmt(focus.left);
+  $('go').textContent = focus.running ? 'Stop' : 'Focus';
+  $('go').classList.toggle('stop', focus.running);
+  for (const c of $('chips').children) c.classList.toggle('is-on', Number(c.dataset.m) === focus.minutes);
+  $('focus-note').textContent = focus.running
+    ? 'Doozer is concentrating with you. Shh.'
+    : 'Focus together. Finish a session and Doozer earns a treat.';
+}
+let lastTick = performance.now();
+setInterval(() => {
+  const now = performance.now();
+  const dt = Math.min(2, (now - lastTick) / 1000) * sim.speed;
+  lastTick = now;
+  if (!focus.running) return;
+  focus.left -= dt;
+  if (focus.left <= 0) {
+    setFocus(false);
+    sim.addTreats(1);
+    setOpen(true);
+    both((d) => d.flash('cheer', 2400));
+    speak('break time! we earned a treat!', 3200);
+    particle('✦', 'spark', 6);
+    sfx.jingle();
+  } else {
+    $('clock').textContent = fmt(focus.left);
+    paintStatus();
+  }
+}, 200);
+
+// ---- Painting ----------------------------------------------------------------
+const RING = 2 * Math.PI * 14;
+const STATUS = {
+  asleep: 'is napping', hungry: 'is hungry!', bored: 'wants to play', sleepy: 'is getting sleepy',
+  dirty: 'needs a bath', joyful: 'is overjoyed', content: 'is content', meh: 'is so-so',
+};
+function paintStatus() {
+  const status = $('status');
+  const mood = sim.mood;
+  const needy = ['hungry', 'bored', 'sleepy', 'dirty'].includes(mood);
+  status.textContent = focus.running && !needy ? `focusing · ${fmt(focus.left)}` : STATUS[mood];
+  status.classList.toggle('warn', needy);
+
+  const val = $('ring').querySelector('.val');
+  const low = sim.lowest;
+  if (focus.running) {
+    val.style.strokeDasharray = `${RING * (1 - focus.left / (focus.minutes * 60))} ${RING}`;
+    val.style.stroke = '#cbbcff';
+  } else {
+    val.style.strokeDasharray = `${(RING * sim.wellbeing) / 100} ${RING}`;
+    val.style.stroke = levelColor(low.value);
+  }
+  const icon = focus.running ? 'timer' : sim.asleep ? 'sleep' : low.value < TUNING.low ? NEED_ART[low.key].icon : 'heart';
+  const ico = $('ring').querySelector('.ico');
+  if (ico.dataset.icon !== icon) { ico.dataset.icon = icon; ico.innerHTML = ICONS[icon]; }
+}
+function paint() {
+  paintStatus();
+  $('needs').innerHTML = NEED_KEYS.map((k) => `<div class="need" title="${NEEDS[k].label}: ${Math.round(sim.needs[k])}%">${ICONS[NEED_ART[k].icon]}<div class="meter"><b style="width:${sim.needs[k]}%;background:${levelColor(sim.needs[k])}"></b></div></div>`).join('');
+  $('hearts').innerHTML = [1, 2, 3, 4, 5].map((n) => ICONS.heart.replace('<svg', `<svg class="${n <= sim.bondLevel ? '' : 'off'}"`)).join('');
+  $('treats').innerHTML = `${ICONS.treat} Treat · ${sim.treats} left`;
+  $('tidy').hidden = sim.messes === 0;
+  $('tidy').innerHTML = `${ICONS.mess} Tidy up · ${sim.messes}`;
+  for (const a of ACTIONS) {
+    const asleepToggle = a.id === 'sleep' && sim.asleep;
+    const key = asleepToggle ? 'wake' : a.icon;
+    if (a.el.dataset.icon !== key) {
+      a.el.dataset.icon = key;
+      a.el.innerHTML = `${ICONS[key]}<span>${asleepToggle ? 'Wake' : a.label}</span>`;
+    }
+  }
+  stage.classList.toggle('night', sim.asleep);
+}
+
+// ---- Sim events ----------------------------------------------------------------
+const NUDGE = { tummy: 'Doozer is hungry. Tap to feed.', fun: 'Doozer is bored. Tap to play.', energy: 'Doozer is sleepy. Tap for a nap.', clean: 'Doozer needs a bath.' };
+sim.on('mood', ({ mood }) => both((d) => d.setMood(mood)));
+sim.on('need', ({ need }) => {
+  pill.classList.remove('nudge');
+  void pill.offsetWidth;        // restart the wiggle
+  pill.classList.add('nudge');
+  toast(NUDGE[need]);
+  sfx.sad();
+});
+sim.on('refuse', ({ reason }) => {
+  speak(refusalLine(reason), 1700);
+  if (!sim.asleep) both((d) => d.flash('no', 900));
+  sfx.no();
+});
+sim.on('action', ({ type }) => {
+  if (type === 'sleep') { if (focus.running) setFocus(false); speak(say('sleep'), 1600); sfx.yawn(); }
+  if (type === 'wake') { both((d) => d.flash('yawn', 900)); speak(say('wake'), 1700); }
+  both((d) => d.setMood(sim.mood));
+  paint();
+});
+sim.on('mess', () => { toast('Doozer made a little mess.'); sfx.pop(); paint(); });
+sim.on('change', paint);
+sim.on('tick', paint);
+setInterval(() => { if (sim.asleep && widget.classList.contains('open')) { particle('z'); if (Math.random() < 0.3) sfx.snore(); } }, 1500);
+
+paintFocus();
+paint();
+if (sim.away) toast(say('away'));
+
+if (THUMB) {
+  setOpen(true);
+  const demo = [() => doFeed(), doPlay, doWash, petDoozer];
+  let i = 0;
+  setInterval(() => demo[i++ % demo.length](), 4200);
+}
+</script>
+</body>
+</html>

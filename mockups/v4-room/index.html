@@ -1,0 +1,682 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cozy Room Doozer</title>
+<link rel="stylesheet" href="../shared/base.css">
+<style>
+  body { display: grid; place-items: center; }
+
+  .room-win {
+    width: 380px; border-radius: 22px; overflow: hidden; background: #fffaf4;
+    box-shadow: 0 24px 60px rgba(60, 40, 90, .28), 0 0 0 1px rgba(60, 40, 90, .08);
+  }
+  html.bare .room-win { box-shadow: 0 10px 26px rgba(30, 20, 50, .35), 0 0 0 1px rgba(60, 40, 90, .12); }
+
+  .titlebar {
+    height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 10px 0 14px;
+    background: #fff3e6; font-weight: 600; font-size: 14px; -webkit-app-region: drag;
+  }
+  .titlebar .time { margin-left: auto; font-weight: 500; font-size: 12.5px; color: var(--ink-soft); }
+  .titlebar i { width: 12px; height: 12px; border-radius: 50%; background: #f3d9c6; }
+  .titlebar i:last-child { background: #ffb3c0; }
+
+  .scene { position: relative; width: 380px; height: 380px; overflow: hidden; }
+  .layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .front, .dark, .glow { pointer-events: none; }
+  .dark { transition: opacity 1.2s; }
+  .glow { mix-blend-mode: screen; transition: opacity .5s; }
+  .hot { cursor: pointer; transition: filter .15s; }
+  .hot:hover { filter: brightness(1.06) drop-shadow(0 0 5px rgba(255, 255, 255, .95)); }
+  #kibble { transform-box: fill-box; transform-origin: 50% 100%; transition: transform .3s; }
+  #cloud-a { animation: drift 46s linear infinite; }
+  #cloud-b { animation: drift 70s linear infinite -30s; }
+  @keyframes drift { from { transform: translateX(-70px); } to { transform: translateX(150px); } }
+  .star { animation: twinkle 2.6s ease-in-out infinite; }
+  .star:nth-child(odd) { animation-delay: -1.3s; }
+  @keyframes twinkle { 50% { opacity: .35; } }
+
+  #pet { position: absolute; left: 0; top: 0; width: 92px; height: 92px; will-change: transform; }
+  #pet .hit { position: absolute; left: 14%; top: 12%; width: 72%; height: 84%; border-radius: 46%; cursor: pointer; }
+  #ball { position: absolute; left: 0; top: 0; width: 24px; height: 24px; margin: -12px; cursor: pointer; filter: drop-shadow(0 2px 2px rgba(60, 40, 90, .25)); }
+  #ball svg { width: 100%; height: 100%; display: block; }
+  .poop { position: absolute; top: 0; left: 0; width: 24px; height: 24px; margin: -22px -12px; cursor: pointer; animation: pop-in .35s cubic-bezier(.3, 1.6, .5, 1); }
+  .poop svg { width: 100%; height: 100%; }
+  .poop:hover { scale: 1.2; }
+  @keyframes pop-in { from { scale: 0; } }
+
+  .thought {
+    position: absolute; bottom: 96%; left: 62%; width: 40px; height: 40px; border-radius: 50%;
+    background: #fff; display: grid; place-items: center; pointer-events: none;
+    box-shadow: 0 3px 10px rgba(60, 40, 90, .2);
+    opacity: 0; scale: .4; transform-origin: 0 100%;
+    transition: opacity .2s, scale .3s cubic-bezier(.3, 1.6, .5, 1);
+    animation: bob 2.2s ease-in-out infinite;
+  }
+  .thought::before, .thought::after { content: ''; position: absolute; background: #fff; border-radius: 50%; box-shadow: 0 2px 4px rgba(60, 40, 90, .15); }
+  .thought::before { width: 9px; height: 9px; left: -3px; bottom: -5px; }
+  .thought::after { width: 5px; height: 5px; left: -10px; bottom: -11px; }
+  .thought svg { width: 24px; height: 24px; }
+  .thought.show { opacity: 1; scale: 1; }
+  @keyframes bob { 50% { translate: 0 -3px; } }
+
+  .bubble {
+    position: absolute; bottom: 100%; left: 50%; translate: -50% 0; z-index: 3;
+    padding: 5px 11px; border-radius: 14px; background: #fff; font-size: 13px; font-weight: 500; white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(60, 40, 90, .2); pointer-events: none;
+    opacity: 0; scale: .6; transform-origin: 50% 120%;
+    transition: opacity .18s, scale .28s cubic-bezier(.3, 1.7, .5, 1);
+  }
+  .bubble.show { opacity: 1; scale: 1; }
+  #pet:has(.bubble.show) .thought { opacity: 0; }
+
+  .particle { position: absolute; width: 18px; height: 18px; margin: -9px; pointer-events: none; display: grid; place-items: center; font-weight: 700; font-size: 15px; color: #8f7bd8; z-index: 4; }
+  .particle svg { width: 100%; height: 100%; }
+  .p-rise { animation: p-rise 1.3s ease-out forwards; }
+  @keyframes p-rise { 0% { scale: .2; opacity: 0; } 18% { scale: 1.1; opacity: 1; } 100% { translate: var(--dx) -64px; scale: .9; opacity: 0; } }
+  .p-burst { animation: p-burst .6s ease-out forwards; }
+  @keyframes p-burst { 0% { scale: 1; opacity: 1; } 100% { translate: var(--dx) var(--dy); scale: .3; opacity: 0; } }
+  .crumb { width: 5px; height: 5px; margin: -2.5px; border-radius: 50%; background: #b9794a; }
+  .spark { color: #ffc94d; }
+  .soapb { width: 14px; height: 14px; margin: -7px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff 0 18%, rgba(174, 227, 255, .75) 22% 100%); box-shadow: inset 0 0 0 1px rgba(124, 183, 238, .7); }
+  .poof { width: 30px; height: 30px; margin: -15px; border-radius: 50%; background: radial-gradient(circle, #fff 30%, rgba(255, 255, 255, 0) 70%); }
+
+  .hud { height: 46px; display: grid; grid-template-columns: repeat(4, 1fr) auto; gap: 10px; align-items: center; padding: 0 14px; background: #fff3e6; }
+  .need { display: grid; grid-template-columns: 18px 1fr; gap: 6px; align-items: center; }
+  .need svg { width: 18px; height: 18px; }
+  .meter { height: 8px; border-radius: 5px; background: #f0dfd0; overflow: hidden; }
+  .meter b { display: block; height: 100%; border-radius: 5px; transition: width .4s, background .4s; }
+  .hearts { display: flex; }
+  .hearts svg { width: 13px; height: 13px; }
+  .hearts svg.off { filter: grayscale(1); opacity: .3; }
+</style>
+</head>
+<body>
+  <div class="room-win" id="widget">
+    <div class="titlebar">Doozer’s room <span class="time" id="time"></span><i></i><i></i></div>
+    <div class="scene" id="scene">
+      <svg class="layer back" viewBox="0 0 380 380">
+        <defs>
+          <pattern id="dots" width="26" height="26" patternUnits="userSpaceOnUse"><circle cx="6" cy="6" r="1.700" fill="#F7D8C4"/><circle cx="19" cy="19" r="1.700" fill="#F7D8C4"/></pattern>
+          <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop id="sky0" offset="0" stop-color="#86cdfa"/><stop id="sky1" offset="1" stop-color="#d6f0ff"/></linearGradient>
+          <clipPath id="pane"><rect x="42" y="54" width="120" height="106" rx="8"/></clipPath>
+        </defs>
+        <!-- wall + floor -->
+        <rect width="380" height="270" fill="#FCEBDD"/>
+        <rect width="380" height="270" fill="url(#dots)"/>
+        <rect y="206" width="380" height="64" fill="#F8DBC9"/>
+        <rect y="202" width="380" height="5" fill="#fff"/>
+        <rect y="270" width="380" height="110" fill="#EDC498"/>
+        <path d="M0 300h380M0 338h380M70 270v30M210 270v30M320 270v30M140 300v38M270 300v38M40 338v42M190 338v42M330 338v42" stroke="#E0B182" stroke-width="2" fill="none"/>
+        <rect y="264" width="380" height="8" fill="#fff"/>
+
+        <!-- window -->
+        <g id="window" class="hot"><title>Look outside</title>
+          <rect x="34" y="46" width="136" height="122" rx="14" fill="#fff"/>
+          <g clip-path="url(#pane)">
+            <rect x="42" y="54" width="120" height="106" fill="url(#sky)"/>
+            <g id="stars" fill="#fff">
+              <circle class="star" cx="56" cy="68" r="1.400"/><circle class="star" cx="78" cy="84" r="1"/><circle class="star" cx="92" cy="64" r="1.600"/>
+              <circle class="star" cx="118" cy="76" r="1.200"/><circle class="star" cx="140" cy="62" r="1.500"/><circle class="star" cx="152" cy="92" r="1"/>
+              <circle class="star" cx="66" cy="104" r="1.200"/><circle class="star" cx="128" cy="108" r="1.400"/><circle class="star" cx="108" cy="94" r=".9"/>
+            </g>
+            <circle id="sun" r="13" fill="#FFD25E"/>
+            <g id="moon"><circle r="11" fill="#FFF6D6"/><circle cx="-3" cy="-2" r="2.600" fill="#EFE3B8"/><circle cx="4" cy="4" r="1.800" fill="#EFE3B8"/></g>
+            <g id="clouds" fill="#fff">
+              <g id="cloud-a"><ellipse cx="52" cy="80" rx="16" ry="7"/><ellipse cx="62" cy="75" rx="10" ry="7"/></g>
+              <g id="cloud-b"><ellipse cx="40" cy="108" rx="13" ry="5.500"/><ellipse cx="49" cy="104" rx="8" ry="5.500"/></g>
+            </g>
+            <path id="hills" d="M42 160V142Q70 124 100 140T162 132V160Z" fill="#9ED8A8"/>
+          </g>
+          <rect x="99.500" y="54" width="5" height="106" fill="#fff"/>
+          <rect x="42" y="104" width="120" height="5" fill="#fff"/>
+          <rect x="27" y="164" width="150" height="10" rx="5" fill="#fff"/>
+          <rect x="34" y="174" width="136" height="3" rx="1.500" fill="#EFCDB8"/>
+        </g>
+        <path d="M22 38h160" stroke="#D9A774" stroke-width="5" stroke-linecap="round"/>
+        <path d="M28 40h30q-4 66-24 132h-6z" fill="#FFB3C7"/>
+        <path d="M176 40h-30q4 66 24 132h6z" fill="#FFB3C7"/>
+
+        <!-- picture -->
+        <rect x="196" y="44" width="54" height="54" rx="9" fill="#D9A774"/>
+        <rect x="202" y="50" width="42" height="42" rx="6" fill="#FFF6EC"/>
+        <circle cx="215" cy="66" r="4.500" fill="#FFC7A1"/><circle cx="231" cy="66" r="4.500" fill="#FFC7A1"/>
+        <ellipse cx="223" cy="76" rx="12" ry="11.500" fill="#FFC7A1"/>
+        <circle cx="219" cy="74" r="1.500" fill="#3A2A26"/><circle cx="227" cy="74" r="1.500" fill="#3A2A26"/>
+
+        <!-- shelf: plant + soap -->
+        <rect x="196" y="152" width="102" height="7" rx="3.500" fill="#D9A774"/>
+        <path d="M206 159l6 10M288 159l-6 10" stroke="#C9965F" stroke-width="3" stroke-linecap="round"/>
+        <ellipse cx="213" cy="124" rx="6" ry="14" transform="rotate(-26 213 124)" fill="#7FCB9A"/>
+        <ellipse cx="229" cy="124" rx="6" ry="14" transform="rotate(26 229 124)" fill="#7FCB9A"/>
+        <ellipse cx="221" cy="119" rx="6" ry="15" fill="#93D8A9"/>
+        <path d="M208 152l3-19h20l3 19z" fill="#FF9E7A"/>
+        <g id="soap" class="hot"><title>Bath time</title>
+          <rect x="259" y="124" width="24" height="28" rx="7" fill="#AEE3FF"/>
+          <rect x="267" y="115" width="8" height="10" fill="#fff"/>
+          <path d="M264 111h14v5h-14zM278 111h7v3.500h-7z" fill="#7CB7EE"/>
+          <circle cx="267" cy="137" r="3.400" fill="#fff"/><circle cx="275" cy="141" r="2.200" fill="#fff"/>
+        </g>
+
+        <!-- lamp -->
+        <g id="lamp" class="hot"><title>Lights</title>
+          <rect x="338" y="160" width="5" height="164" rx="2.500" fill="#C9A27A"/>
+          <ellipse cx="340.500" cy="325" rx="21" ry="6.500" fill="#B98D63"/>
+          <path id="shade" d="M322 120h37l12 48h-61z" fill="#FFD88A"/>
+          <path d="M354 168v19" stroke="#C9A27A" stroke-width="2"/><circle cx="354" cy="190" r="3.600" fill="#FF8FA3"/>
+        </g>
+
+        <!-- rug -->
+        <ellipse cx="204" cy="334" rx="112" ry="24" fill="#F9B4C4"/>
+        <ellipse cx="204" cy="334" rx="95" ry="17" fill="none" stroke="#fff" stroke-width="2.500" stroke-dasharray="2 9" stroke-linecap="round"/>
+
+        <!-- bed (back) -->
+        <g id="bed" class="hot"><title>Bed</title>
+          <ellipse cx="74" cy="308" rx="60" ry="26" fill="#7FB3E6"/>
+          <ellipse cx="74" cy="303" rx="47" ry="17" fill="#D6E9FA"/>
+          <rect x="24" y="284" width="38" height="21" rx="10" fill="#fff" transform="rotate(-14 43 294)"/>
+        </g>
+
+        <!-- bowl -->
+        <g id="bowl" class="hot"><title>Fill the bowl</title>
+          <g id="kibble"><ellipse cx="270" cy="312" rx="19" ry="10" fill="#B9794A"/><circle cx="262" cy="306" r="3" fill="#C98B5A"/><circle cx="273" cy="304" r="3" fill="#A86B3F"/><circle cx="280" cy="308" r="2.600" fill="#C98B5A"/></g>
+          <path d="M246 312h48l-6 18q-18 6-36 0z" fill="#FF8FA3"/>
+          <path d="M246 312h48" stroke="#FFC6D0" stroke-width="4.500" stroke-linecap="round"/>
+          <path d="M270 327s-5-3-5-6.500a2.700 2.700 0 0 1 5-1.400 2.700 2.700 0 0 1 5 1.400c0 3.500-5 6.500-5 6.500z" fill="#fff"/>
+        </g>
+      </svg>
+
+      <div id="pet">
+        <div class="hit" title="Pet Doozer"></div>
+        <div class="thought" id="thought"></div>
+        <div class="bubble" id="bubble"></div>
+      </div>
+
+      <svg class="layer front" viewBox="0 0 380 380">
+        <path id="bed-lip" d="M14 308A60 26 0 0 0 134 308Q74 327 14 308Z" fill="#6CA5DD"/>
+      </svg>
+      <div id="ball" title="Toss the ball"></div>
+
+      <svg class="layer dark" id="dark" viewBox="0 0 380 380" style="opacity:0; mix-blend-mode:multiply">
+        <path fill-rule="evenodd" fill="#1a2148" d="M0 0H380V380H0ZM42 54H162V160H42Z"/>
+      </svg>
+      <svg class="layer glow" id="glow" viewBox="0 0 380 380">
+        <defs><radialGradient id="lampglow"><stop offset="0" stop-color="#ffd27a" stop-opacity=".75"/><stop offset=".5" stop-color="#ffb65c" stop-opacity=".28"/><stop offset="1" stop-color="#ffb65c" stop-opacity="0"/></radialGradient></defs>
+        <circle cx="340" cy="170" r="190" fill="url(#lampglow)"/>
+      </svg>
+      <div id="fx"></div>
+    </div>
+    <div class="hud" id="hud"></div>
+  </div>
+
+<script type="module">
+import { createSim, mountReview, loadPalette, THUMB, clamp, lerp, rand, pick, wait } from '../shared/env.js';
+import { createDoozer } from '../shared/doozer-svg.js';
+import { say, refusalLine, NEED_KEYS, NEEDS } from '../shared/sim.js';
+import { ICONS, NEED_ART, levelColor } from '../shared/art.js';
+import { sfx } from '../shared/sfx.js';
+
+const sim = createSim();
+const $ = (id) => document.getElementById(id);
+const scene = $('scene');
+const petEl = $('pet');
+const fx = $('fx');
+const bubble = $('bubble');
+const thought = $('thought');
+const ballEl = $('ball');
+ballEl.innerHTML = ICONS.play;
+
+const SIZE = 92;
+const FOOT = 87;          // sprite top -> soles
+const FLOOR = 340;
+const BED = { x: 78, y: 324 };
+const BOWL_X = 270;
+const WALK = [54, 318];
+
+const dz = createDoozer({ palette: loadPalette('v4', 'peach'), outline: false, size: SIZE });
+petEl.prepend(dz.el);
+dz.setMood(sim.mood);
+
+let skyOverride = null;   // review tool: force an hour of the day
+mountReview(sim, {
+  version: 'v4',
+  title: 'V4 · Cozy Room',
+  hint: 'A little terrarium. Click the bowl, the ball, the soap, the lamp, the bed — Doozer decides the rest.',
+  palette: dz.palette,
+  onPalette: (key) => dz.setPalette(key),
+  extra: [
+    { label: 'Sky: now', run: () => { skyOverride = null; paintSky(); }, title: 'Use the real time of day' },
+    { label: 'Noon', run: () => { skyOverride = 12; paintSky(); } },
+    { label: 'Dusk', run: () => { skyOverride = 18.6; paintSky(); } },
+    { label: 'Night', run: () => { skyOverride = 23; paintSky(); } },
+  ],
+});
+
+// ---- State ---------------------------------------------------------------------
+const pet = { x: 200, y: FLOOR, state: 'idle', timer: 1.5, targetX: 0, speed: 40, onArrive: null, dir: 1 };
+let activity = null;
+let bowl = 0;             // 0 empty .. 3 full
+let lampOn = true;
+let light = 1;            // daylight 0..1
+const ball = { x: 150, y: FLOOR - 12, vx: 0, vy: 0, r: 12, spin: 0 };
+
+function begin(name) { cancelActivity(); activity = { name, cancelled: false, cleanup: [] }; return activity; }
+function cancelActivity() {
+  if (!activity) return;
+  activity.cancelled = true;
+  activity.cleanup.forEach((fn) => fn());
+  activity = null;
+  stopWalk(false);
+}
+const alive = (a) => a === activity && !a.cancelled;
+function end(a) {
+  if (activity === a) activity = null;
+  rest(rand(0.8, 2));
+}
+function rest(seconds) {
+  pet.state = 'idle';
+  pet.timer = seconds;
+  pet.y = FLOOR;
+  dz.setPose(null);
+  dz.look(0, 0);
+}
+
+// ---- Helpers -------------------------------------------------------------------
+let speakTimer = 0;
+function speak(text, ms = 2200) {
+  bubble.textContent = text;
+  bubble.classList.add('show');
+  clearTimeout(speakTimer);
+  speakTimer = setTimeout(() => bubble.classList.remove('show'), ms);
+}
+function particle(html, x, y, cls = 'p-rise', life = 1300, extra = '') {
+  const n = document.createElement('div');
+  n.className = `particle ${cls} ${extra}`;
+  n.innerHTML = html;
+  n.style.left = `${x}px`;
+  n.style.top = `${y}px`;
+  n.style.setProperty('--dx', `${rand(-22, 22)}px`);
+  n.style.setProperty('--dy', `${rand(-26, 10)}px`);
+  fx.appendChild(n);
+  setTimeout(() => n.remove(), life);
+}
+const hearts = (n = 1) => { for (let i = 0; i < n; i++) setTimeout(() => particle(ICONS.heart, pet.x + rand(-22, 22), pet.y - 80), i * 130); };
+const crumbs = (x, y) => { for (let i = 0; i < 5; i++) particle('', x, y, 'p-burst', 600, 'crumb'); };
+
+function walkTo(x, speed = 40) {
+  stopWalk(false);
+  return new Promise((resolve) => {
+    pet.state = 'walk';
+    pet.targetX = clamp(x, 40, 330);
+    pet.speed = speed;
+    pet.onArrive = resolve;
+    pet.dir = Math.sign(pet.targetX - pet.x) || 1;
+    pet.y = FLOOR;
+    dz.setPose('walk');
+    dz.look(pet.dir * 0.85, 0);
+  });
+}
+function stopWalk(arrived) {
+  const cb = pet.onArrive;
+  pet.onArrive = null;
+  if (pet.state === 'walk') { pet.state = 'idle'; pet.timer = rand(1, 2.5); dz.setPose(null); dz.look(0, 0); }
+  cb?.(arrived);
+}
+
+// ---- What Doozer does on its own -----------------------------------------------
+function decide() {
+  if (activity) { pet.timer = 0.5; return; }
+  if (sim.asleep) return void goBed();
+  if (bowl > 0 && sim.needs.tummy < 72) return void goEat();
+  const r = Math.random();
+  if (r < 0.14) lookOutside();
+  else if (r < 0.26 && sim.needs.energy > 25 && Math.abs(ball.vx) < 5) soloPlay();
+  else if (r < 0.72) walkTo(rand(...WALK));
+  else {
+    pet.timer = rand(2, 4);
+    const mood = sim.mood;
+    if (Math.random() < 0.4) speak(say(mood));
+    if (mood === 'sleepy') { dz.flash('yawn', 1100); sfx.yawn(); }
+    else if (mood === 'joyful' || mood === 'content') { dz.setPose('wave'); setTimeout(() => { if (pet.state === 'idle') dz.setPose(null); }, 1200); }
+  }
+}
+
+async function lookOutside() {
+  const a = begin('look');
+  if (!(await walkTo(104)) || !alive(a)) return;
+  pet.state = 'busy';
+  dz.look(-0.1, -1);
+  await wait(2400); if (!alive(a)) return;
+  speak(light > 0.6 ? 'what a nice day.' : light > 0.2 ? 'pretty sky…' : 'so many stars…');
+  await wait(2000);
+  end(a);
+}
+
+async function soloPlay() {
+  const a = begin('solo');
+  if (!(await walkTo(ball.x - 30 * Math.sign(ball.x - pet.x || 1), 60)) || !alive(a)) return;
+  kick();
+  sim.pet();
+  await wait(900);
+  end(a);
+}
+
+async function goEat() {
+  const a = begin('eat');
+  if (!(await walkTo(BOWL_X - 48, 62)) || !alive(a)) return;
+  if (!sim.feed().ok) return end(a);     // too full: leaves the food for later
+  pet.state = 'busy';
+  dz.look(0.9, 0.9);
+  dz.flash('eat', 1900);
+  for (let i = 0; i < 3; i++) {
+    setBowl(bowl - 1);
+    sfx.munch();
+    crumbs(BOWL_X - 14, 306);
+    await wait(540); if (!alive(a)) return;
+  }
+  dz.flash('cheer', 1300);
+  hearts(2);
+  speak(say('feed'));
+  sfx.chirp();
+  await wait(1300);
+  end(a);
+}
+
+async function goBed() {
+  const a = begin('bed');
+  if (pet.x !== BED.x && (!(await walkTo(BED.x, 58)) || !alive(a))) return;
+  pet.state = 'sleep';
+  pet.y = BED.y;
+  dz.setPose(null);
+  dz.squish(0.9);
+  // stays in bed until the sim wakes it
+}
+
+async function doPlay() {
+  const a = begin('play');
+  a.kicks = 0;
+  pet.state = 'chase';
+  dz.setPose('walk');
+  const started = performance.now();
+  while (alive(a) && a.kicks < 4 && performance.now() - started < 12000) await wait(150);
+  if (!alive(a)) return;
+  pet.state = 'busy';
+  dz.flash('cheer', 1300);
+  hearts(3);
+  speak(say('play'));
+  sfx.chirp();
+  await wait(1300);
+  end(a);
+}
+
+async function doWash() {
+  if (!sim.wash().ok) return;
+  const a = begin('wash');
+  pet.state = 'busy';
+  pet.y = FLOOR;
+  dz.flash('shake', 2300);
+  speak('scrub scrub!', 1400);
+  for (let i = 0; i < 4; i++) {
+    sfx.splash();
+    for (let k = 0; k < 5; k++) particle('', pet.x + rand(-34, 34), pet.y - rand(8, 76), 'p-rise', 1300, 'soapb');
+    await wait(560); if (!alive(a)) return;
+  }
+  syncMesses();
+  for (let k = 0; k < 6; k++) setTimeout(() => particle('✦', pet.x + rand(-36, 36), pet.y - rand(20, 80), 'p-rise', 1300, 'spark'), k * 70);
+  dz.flash('cheer', 1300);
+  speak(say('wash'));
+  sfx.sparkle();
+  await wait(1300);
+  end(a);
+}
+
+// ---- Furniture ------------------------------------------------------------------
+function setBowl(level) {
+  bowl = clamp(level, 0, 3);
+  $('kibble').style.transform = `scale(${bowl ? 0.55 + bowl * 0.15 : 0})`;
+}
+$('bowl').addEventListener('click', () => {
+  if (bowl === 3) return speak('it’s already full!', 1400);
+  setBowl(3);
+  sfx.pop();
+  for (let i = 0; i < 6; i++) particle('', BOWL_X + rand(-10, 10), 296, 'p-burst', 600, 'crumb');
+  if (!sim.asleep && !activity) { dz.flash('wow', 700); pet.timer = Math.min(pet.timer, 0.5); }
+});
+
+function setLamp(on) {
+  lampOn = on;
+  $('shade').setAttribute('fill', on ? '#FFD88A' : '#E3D2B4');
+  paintSky();
+}
+$('lamp').addEventListener('click', () => {
+  sfx.pop();
+  if (sim.asleep) { setLamp(true); sim.wake(); return; }
+  if (lampOn) {
+    if (sim.sleep().ok) setLamp(false);
+    else $('lamp').animate([{ opacity: 1 }, { opacity: 0.5 }, { opacity: 1 }, { opacity: 0.5 }, { opacity: 1 }], { duration: 380 });
+  } else setLamp(true);
+});
+$('bed').addEventListener('click', () => { sim.toggleSleep(); });
+$('soap').addEventListener('click', () => { sfx.pop(); doWash(); });
+$('window').addEventListener('click', () => { if (!sim.asleep && !activity) lookOutside(); });
+
+function kick() {
+  const away = ball.x >= pet.x ? 1 : -1;
+  const room = away > 0 ? 356 - ball.x : ball.x - 24;
+  const dir = room < 70 ? -away : away;
+  ball.vx = dir * rand(110, 210);
+  ball.vy = -rand(330, 470);
+  dz.squish(1);
+  dz.flash('cheer', 500);
+  sfx.boing();
+  if (activity?.name === 'play') activity.kicks++;
+}
+ballEl.addEventListener('click', () => {
+  ball.vx = pick([-1, 1]) * rand(120, 230);
+  ball.vy = -rand(380, 520);
+  sfx.boing();
+  if (sim.asleep || activity?.name === 'play') return;
+  if (sim.play().ok) doPlay();
+});
+function updateBall(dt) {
+  const floor = FLOOR + 2 - ball.r;
+  ball.vy += 1500 * dt;
+  ball.x += ball.vx * dt;
+  ball.y += ball.vy * dt;
+  if (ball.x < 22) { ball.x = 22; ball.vx = Math.abs(ball.vx) * 0.7; }
+  if (ball.x > 358) { ball.x = 358; ball.vx = -Math.abs(ball.vx) * 0.7; }
+  if (ball.y > floor) {
+    ball.y = floor;
+    ball.vy = ball.vy > 90 ? -ball.vy * 0.58 : 0;
+    ball.vx *= 0.97;
+    if (Math.abs(ball.vx) < 4) ball.vx = 0;
+  }
+  ball.spin += ball.vx * dt * 4;
+  ballEl.style.transform = `translate(${ball.x}px, ${ball.y}px) rotate(${ball.spin}deg)`;
+}
+
+// ---- Messes ----------------------------------------------------------------------
+const poops = [];
+function syncMesses() {
+  while (poops.length < sim.messes) {
+    const x = clamp(pet.x + pick([-1, 1]) * rand(36, 60), 30, 350);
+    const n = document.createElement('div');
+    n.className = 'poop';
+    n.innerHTML = ICONS.mess;
+    n.title = 'Tidy up';
+    n.style.transform = `translate(${x}px, ${FLOOR + 8}px)`;
+    n.addEventListener('click', () => {
+      const i = poops.indexOf(n);
+      if (i >= 0) poops.splice(i, 1);
+      particle('', x, FLOOR - 4, 'p-burst', 500, 'poof');
+      n.remove();
+      sfx.pop();
+      sim.tidy();
+      if (!sim.asleep) speak(say('tidy'), 1400);
+    });
+    scene.insertBefore(n, petEl);
+    poops.push(n);
+  }
+  while (poops.length > sim.messes) poops.pop().remove();
+}
+
+// ---- Petting ----------------------------------------------------------------------
+const hitEl = petEl.querySelector('.hit');
+let stroke = 0;
+let lastPet = 0;
+function petDoozer() {
+  lastPet = performance.now();
+  sim.pet();
+  hearts(1);
+  dz.flash('love', 1000);
+  dz.squish(0.6);
+  sfx.coo();
+}
+hitEl.addEventListener('click', petDoozer);
+hitEl.addEventListener('pointermove', (e) => {
+  stroke += Math.hypot(e.movementX, e.movementY);
+  if (stroke > 140 && performance.now() - lastPet > 650) { stroke = 0; petDoozer(); }
+});
+let cursor = null;
+scene.addEventListener('pointermove', (e) => {
+  const r = scene.getBoundingClientRect();
+  cursor = { x: e.clientX - r.left, y: e.clientY - r.top };
+});
+scene.addEventListener('pointerleave', () => { cursor = null; });
+
+// ---- Sky & light --------------------------------------------------------------------
+const SKY = [
+  [0, '#0c1230', '#1d2b5c'], [5, '#1a2452', '#45508a'], [6.5, '#f6a6a0', '#fde2b8'], [9, '#86cdfa', '#d6f0ff'],
+  [16, '#7cc6f8', '#d9f1ff'], [18.5, '#ff9a76', '#ffd7a3'], [20, '#3b3f7a', '#8a6fa8'], [21.5, '#0f1638', '#24316a'], [24, '#0c1230', '#1d2b5c'],
+];
+const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+const mix = (a, b, t) => { const A = rgb(a), B = rgb(b); return `rgb(${A.map((v, i) => Math.round(lerp(v, B[i], t))).join(',')})`; };
+function paintSky() {
+  const now = new Date();
+  const h = skyOverride ?? now.getHours() + now.getMinutes() / 60;
+  let i = 0;
+  while (i < SKY.length - 2 && h >= SKY[i + 1][0]) i++;
+  const [h0, top0, bot0] = SKY[i];
+  const [h1, top1, bot1] = SKY[i + 1];
+  const t = clamp((h - h0) / (h1 - h0), 0, 1);
+  $('sky0').setAttribute('stop-color', mix(top0, top1, t));
+  $('sky1').setAttribute('stop-color', mix(bot0, bot1, t));
+
+  const sunArc = Math.sin(((h - 6) / 12) * Math.PI);
+  light = clamp(0.5 + 2.2 * sunArc, 0, 1);
+  $('sun').setAttribute('transform', `translate(${lerp(40, 164, clamp((h - 6) / 12, 0, 1))}, ${150 - 84 * Math.max(0, sunArc)})`);
+  $('sun').style.opacity = h > 5.5 && h < 18.6 ? 1 : 0;
+  const mh = (h + 6) % 24; // moon is up from 18:00 to 06:00
+  const moonArc = Math.sin((mh / 12) * Math.PI);
+  $('moon').setAttribute('transform', `translate(${lerp(40, 164, clamp(mh / 12, 0, 1))}, ${150 - 80 * Math.max(0, moonArc)})`);
+  $('moon').style.opacity = mh < 12 ? 1 - light : 0;
+  $('stars').style.opacity = 1 - light;
+  $('clouds').style.opacity = 0.25 + 0.7 * light;
+  $('hills').setAttribute('fill', mix('#27425a', '#9ED8A8', light));
+
+  const dark = 1 - light;
+  $('dark').style.opacity = lampOn ? dark * 0.34 : 0.3 + dark * 0.42;
+  $('glow').style.opacity = lampOn ? 0.18 + dark * 0.7 : 0;
+  $('time').textContent = skyOverride === null
+    ? now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    : `${Math.floor(h) % 12 || 12}:${String(Math.round((h % 1) * 60)).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+}
+
+// ---- HUD ------------------------------------------------------------------------------
+function paintHud() {
+  $('hud').innerHTML = NEED_KEYS.map((k) => `<div class="need" title="${NEEDS[k].label}: ${Math.round(sim.needs[k])}%">${ICONS[NEED_ART[k].icon]}<div class="meter"><b style="width:${sim.needs[k]}%;background:${levelColor(sim.needs[k])}"></b></div></div>`).join('')
+    + `<div class="hearts" title="Bond">${[1, 2, 3, 4, 5].map((n) => ICONS.heart.replace('<svg', `<svg class="${n <= sim.bondLevel ? '' : 'off'}"`)).join('')}</div>`;
+}
+function paintThought() {
+  const mood = sim.mood;
+  const need = NEED_KEYS.find((k) => NEEDS[k].lowMood === mood);
+  thought.classList.toggle('show', !!need);
+  if (need && thought.dataset.need !== need) { thought.dataset.need = need; thought.innerHTML = ICONS[NEED_ART[need].icon]; }
+}
+
+// ---- Sim events ---------------------------------------------------------------------------
+sim.on('mood', ({ mood }) => {
+  dz.setMood(mood);
+  paintThought();
+  if (['hungry', 'bored', 'sleepy', 'dirty'].includes(mood) && !activity) sfx.sad();
+});
+sim.on('refuse', ({ reason }) => {
+  speak(refusalLine(reason), 1700);
+  if (!sim.asleep) dz.flash('no', 900);
+  sfx.no();
+});
+sim.on('action', ({ type, why }) => {
+  if (type === 'sleep') {
+    speak(why === 'exhausted' ? 'so sleepy…' : say('sleep'), 1600);
+    sfx.yawn();
+    goBed();
+  } else if (type === 'wake') {
+    cancelActivity();
+    rest(1.4);
+    setLamp(true);
+    dz.flash('yawn', 900);
+    speak(say('wake'), 1800);
+  }
+  dz.setMood(sim.mood);
+});
+sim.on('mess', () => { syncMesses(); sfx.pop(); if (!sim.asleep) speak(say('mess'), 1600); });
+sim.on('change', () => { syncMesses(); paintHud(); paintThought(); dz.setMood(sim.mood); });
+sim.on('tick', paintHud);
+setInterval(() => {
+  if (pet.state === 'sleep') { particle('z', pet.x + 26, pet.y - 70); if (Math.random() < 0.35) sfx.snore(); }
+}, 1500);
+setInterval(paintSky, 30000);
+
+// ---- Frame loop ------------------------------------------------------------------------------
+let kickCooldown = 0;
+function update(dt) {
+  pet.timer -= dt;
+  kickCooldown -= dt;
+  if (pet.state === 'idle') {
+    if (cursor) dz.look(clamp((cursor.x - pet.x) / 160, -1, 1), clamp((cursor.y - (pet.y - 50)) / 160, -1, 1));
+    if (pet.timer <= 0) decide();
+  } else if (pet.state === 'walk') {
+    const dx = pet.targetX - pet.x;
+    const step = pet.speed * dt;
+    if (Math.abs(dx) <= step) { pet.x = pet.targetX; stopWalk(true); }
+    else { pet.dir = Math.sign(dx); pet.x += pet.dir * step; }
+  } else if (pet.state === 'chase') {
+    const dx = ball.x - pet.x;
+    if (Math.abs(dx) > 30) {
+      pet.dir = Math.sign(dx);
+      pet.x = clamp(pet.x + pet.dir * 105 * dt, 44, 336);
+      dz.look(pet.dir * 0.85, clamp((ball.y - (pet.y - 50)) / 120, -1, 0.6));
+    } else if (ball.y > FLOOR - 70 && kickCooldown <= 0) {
+      kickCooldown = 0.35;
+      kick();
+    }
+  }
+  updateBall(dt);
+  petEl.style.transform = `translate(${pet.x - SIZE / 2}px, ${pet.y - FOOT}px)`;
+}
+let last = performance.now();
+requestAnimationFrame(function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  update(dt);
+  requestAnimationFrame(frame);
+});
+
+// ---- Start ---------------------------------------------------------------------------------------
+setBowl(0);
+paintSky();
+paintHud();
+paintThought();
+syncMesses();
+if (sim.asleep) { pet.x = BED.x; setLamp(false); goBed(); }
+else speak(say(sim.away ? 'away' : 'hello'), 2000);
+
+if (THUMB) {
+  const demo = [() => $('bowl').dispatchEvent(new Event('click')), () => ballEl.click(), () => doWash()];
+  let i = 0;
+  setInterval(() => { if (!activity || activity.name === 'look') demo[i++ % demo.length](); }, 6500);
+}
+</script>
+</body>
+</html>
