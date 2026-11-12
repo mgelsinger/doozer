@@ -46,16 +46,16 @@ The checklist said "tick anything you want", so an empty box could mean "no" or 
 
 ### 3.1 Needs
 
-Four needs, each 0–100, higher is better. Numbers are starting values to tune in the brain phase.
+Four needs, each 0–100, higher is better. The drain rates were tuned in the brain phase (see section 13); the values the app actually uses live in [app/src/core/tuning.ts](app/src/core/tuning.ts), and the reasoning is in [docs/brain-week-sim.md](docs/brain-week-sim.md).
 
 | Need | Drains while awake | Restored by | Mood when low |
 |---|---|---|---|
-| Tummy | 22 / hour | Meal +32 · treat +10 | hungry |
-| Fun | 26 / hour | Play +28 · petting +3 · treat +16 | bored |
-| Energy | 11 / hour | Sleeping +60 / hour | sleepy |
-| Clean | 8 / hour | Wash → 100 | dirty |
+| Tummy | 14 / hour | Meal +32 · treat +10 | hungry |
+| Fun | 6 / hour | Play +28 · petting +3 · treat +16 | bored |
+| Energy | 8 / hour | Sleeping +60 / hour | sleepy |
+| Clean | 4.5 / hour | Wash → 100 | dirty |
 
-Below **30** a need is *low*; below **12** it is *urgent*. While asleep, the other three drain at a fraction of the awake rate.
+Below **30** a need is *low*; below **12** it is *urgent*. While asleep, the other three drain at a fraction of the awake rate: Tummy and Clean at half, Fun at 0.15.
 
 ### 3.2 Food
 
@@ -268,7 +268,16 @@ Three components appear in more than one view and must look and behave identical
 - **Moving it:** drag to carry (it dangles), release to set it down. Released in mid-air, it floats gently down to the taskbar. It then stays near that spot.
 - **Play:** Doozer bats a ball back and forth close to where it stands for a few seconds. It does not run after it.
 - **Changes from the mockup:** calmer movement throughout; no throwing; no sitting on windows; no speech bubbles; no messes; the Radial gains Treat and More.
-- **Open point:** the owner has not yet said *which* movement was annoying. The defaults above are a best guess (question in section 12).
+
+**Never stuck.** The owner's one complaint about the mockup was that Doozer "would get stuck randomly". That was a defect, not a matter of pace, and it is the first thing this view must get right:
+
+- Every behaviour has a time limit and a guaranteed way back to idle. A watchdog returns Doozer to idle, on the taskbar line, if it has been "in the middle of something" too long or is somewhere it should not be.
+- A scene that is interrupted (Doozer is picked up, falls, or another action starts) is cleaned up completely. Nothing is left half-open.
+- A carry always ends: on mouse-up, on losing the mouse, on the window losing focus, or as soon as the mouse moves with no button held.
+- The click-through state never changes while a mouse button is down.
+- These are tested with injected input, including the case where the mouse-up never arrives.
+
+**Pace.** The *Calm* default above was written before the owner's answer, as a guess at what was annoying. Pace turned out not to be the complaint. Calm stays as the default for now, *Lively* should be built close to the mockup (including running after the ball), and the owner chooses the default by trying both when this view exists.
 
 ---
 
@@ -351,11 +360,11 @@ Messes · text speech · hearts · throwing · sitting on windows · the pixel t
 
 None of these block Milestones 1–3.
 
-1. **Which movement in the Desk Buddy was annoying?** (The constant wandering, the waddle itself, the jumping onto windows, the throw physics, the ball chase?) Section 6.4 assumes "all of it, a bit". **Needed before the Desktop view is built (M4)**, and useful earlier for the walk cycle.
-2. **Is Doozer based on something real?** Assumed no: Doozer is an original creature. A photo or drawing would redirect section 7.
-3. **Just for you, or to share?** Only affects the release phase (signing, updates).
+1. **Is Doozer based on something real?** Assumed no: Doozer is an original creature. A photo or drawing would redirect section 7.
+2. **Just for you, or to share?** Only affects the release phase (signing, updates).
+3. **Default pace of the Desktop view** — Calm or Lively. Decided by trying both when the view exists (section 6.4).
 
-Settled at sign-off: the cuts in 2.1 stand; sound is off by default.
+Settled: the cuts in 2.1 stand; sound is off by default; the Desk Buddy complaint was Doozer getting stuck (section 6.4, "Never stuck").
 
 ---
 
@@ -363,4 +372,6 @@ Settled at sign-off: the cuts in 2.1 stand; sound is off by default.
 
 Record any change made after sign-off here, with the date and who asked for it.
 
+- **2026-11-11** (owner's answer) — The annoying thing about the Desk Buddy was that it "would get stuck randomly". Section 6.4 gains the "Never stuck" requirements and a note that the Calm default was a guess about pace, to be settled by trying both. Two causes were found and fixed in the mockup: a scene that never ended when its walk was interrupted, and the desktop shell switching to click-through in the middle of a drag, which swallowed the mouse-up.
 - **2026-11-11** (Claude, clarification only) — Section 3.2 now names the foods so the brain and the views agree on them: meals are apple / bread / carrot; a plain biscuit is the treat available before any unlock; a new Doozer starts with 2 treats. The interface these feed into is fixed in [docs/brain-contract.md](docs/brain-contract.md).
+- **2026-11-11** (owner asked; Claude, Phase 4) — Section 3.1 now shows the drain rates tuned in the brain phase: Tummy 14, Fun 6, Energy 8, Clean 4.5 per awake hour (first guesses were 22, 26, 11, 8), and states the asleep fractions. With the first guesses Doozer was bored and hungry every morning; the tuned rates meet the target of three to five short visits a day. Nothing else in section 3 changed. Reasoning and the week simulation: [docs/brain-week-sim.md](docs/brain-week-sim.md).

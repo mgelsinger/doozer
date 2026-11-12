@@ -45,7 +45,7 @@ Options: `--visits N  --days N  --skip D[,D]  --focus N  --no-bowl  --open  --ji
 | Bowl | 3 servings, eats below 70 | unchanged, plus a **five-minute pause** between servings | New. Without it a very hungry Doozer empties the bowl in one instant, and a view would have three eating scenes to play at once. |
 | Bond (hidden) | +2 an hour when well, −5 an hour when a need is urgent | **+0.1** and **−1** an hour; small gains per interaction | The mockup's rate filled the bond in two days. "Rises slowly" now means two to three weeks of good care. |
 
-The spec says these are "starting values to tune in the brain phase", so no amendment to its rules is needed, but **the table in DESIGN_SPEC.md section 3.1 still shows the first guesses.** I have not edited the spec (it is not my file and had uncommitted changes from another session). Suggested amendment for section 13: "Drain rates tuned in Phase 4 to 14 / 6 / 8 / 4.5 per hour; see docs/brain-week-sim.md."
+The spec called its numbers "starting values to tune in the brain phase". **DESIGN_SPEC.md section 3.1 now shows the tuned rates,** with the change recorded in its section 13 (updated 2026-11-11 at the owner's request).
 
 ---
 

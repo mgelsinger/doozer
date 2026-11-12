@@ -148,7 +148,7 @@ Five interactive versions on one shared brain, a comparison gallery, and an Elec
 
 The owner's picks are recorded and resolved in [DESIGN_SPEC.md](DESIGN_SPEC.md), which the owner **signed off as written on 2026-11-11**, with no vetoes of the calls in its section 2.1.
 
-Still open (spec section 12): *which* Desk Buddy movement was annoying. Nothing before Phase 9 depends on it, though it would help the walk cycle in Phase 5.
+The owner has since answered the one open design question: the annoying thing about the Desk Buddy was that it **"would get stuck randomly"** — a defect, not its pace. Spec section 6.4 now carries "Never stuck" requirements, and the lesson applies to every view and to the shell (see the pitfalls in Phase 3).
 
 **For parallel work:** [docs/brain-contract.md](docs/brain-contract.md) fixes the interface between the pet brain (Phase 4) and everything that draws it (Phases 5 onward), so those phases can be built at the same time without drifting apart.
 
@@ -178,6 +178,8 @@ Still open (spec section 12): *which* Desk Buddy movement was annoying. Nothing 
 **Done when:** the test page can be cycled through all four modes ten times with no flicker and no stuck click-through state; clicks beside the blob reach the app underneath in every mode; idle cost meets the budget (under 150 MB, under 1% CPU); the save file survives a kill mid-write.
 
 **Pitfalls:** WebView2 needs both the window and the webview background transparent; other topmost windows can still cover an always-on-top one; an overlay that forgets to return to click-through makes the whole screen feel dead — add a watchdog that restores it.
+
+**A bug the mockup harness actually had — do not repeat it:** the click-through state must **never change while a mouse button is down**. During a fast drag the dragged thing lags a frame behind the cursor, the hit-test misses, the window flips to pass-through, the mouse-up is swallowed, and the drag never ends. This is what made Doozer "get stuck" for the owner. `shell/main.mjs --dragtest` reproduces it with injected input and is the model for a test here. Test runs should also keep the real mouse out (the harness does this with `injectedInputOnly`), or a person using the machine will corrupt the results.
 
 ---
 
@@ -213,7 +215,7 @@ Still open (spec section 12): *which* Desk Buddy movement was annoying. Nothing 
 **Tasks**
 
 1. **Rig** in `app/src/character/`: layered parts with proper pivots; both line styles (bold outline, soft); five palettes; the full expression list including *focus* (glasses); every animation in spec section 7 except the 3D-only ones. Hats as an attachment point.
-2. **Walk cycle to the calm standard** of spec 6.4 — a gentle waddle. This is the animation the owner was least happy with; treat it as the bar for the whole set.
+2. **Walk cycle** per spec 6.4 — a gentle waddle that still has character. (An earlier draft of this plan said the owner disliked the walk; they did not. Their complaint was Doozer getting stuck.)
 3. **UI kit** in `app/src/ui/`: Card, Radial (six buttons, need rings), meters, emotes, tooltips, settings panel, the view-switch row. Dark glass per spec section 8. Keyboard reachable; honours reduce-motion.
 4. The kit talks to the brain through a small interface, so it can be developed against a fake brain before Phase 4 lands.
 5. **A viewer page** (dev only) that shows every expression × both line styles × every palette, plays every animation on a loop, and shows the Card and Radial in every state (asleep, focusing, no treats, bowl full).
@@ -270,11 +272,11 @@ Still open (spec section 12): *which* Desk Buddy movement was annoying. Nothing 
 
 ## 12. Phase 9 — Desktop view  ·  effort: xhigh  ·  M4
 
-**Goal:** spec section 6.4. **Read the owner's answer to the movement question first** (spec section 12, item 1); if it is still unanswered, ask before building.
+**Goal:** spec section 6.4, and above all its **"Never stuck"** list — the owner's one complaint about the mockup was that Doozer "would get stuck randomly".
 
-**Tasks:** the work-area overlay mode; Doozer on the taskbar edge with correct hit regions as it moves; the *Calm* behaviour set and the Still / Calm / Lively setting; carry and set-down with the gentle float; peekaboo; in-place ball play; the Radial; focus behaviour (sits still, time on hover); correct placement with the taskbar on any edge or auto-hidden; remembering its spot per monitor.
+**Tasks:** the work-area overlay mode; Doozer on the taskbar edge with correct hit regions as it moves; the behaviour state machine with a time limit on every state and a watchdog back to idle; the Still / Calm / Lively levels (Lively close to the mockup, including running after the ball); carry and set-down with the gentle float, ending on mouse-up, lost capture, lost focus, or movement with no button held; peekaboo; ball play; the Radial; focus behaviour (sits still, time on hover); correct placement with the taskbar on any edge or auto-hidden; remembering its spot per monitor; injected-input tests for the stuck cases, modelled on `shell/main.mjs --dragtest`.
 
-**Done when:** an hour with Doozer in *Calm* while actually working produces no moment where it pulls attention uninvited; the overlay never eats a click meant for another app; the owner agrees the movement is no longer annoying.
+**Done when:** the stuck-case tests pass, including a drag whose mouse-up never arrives and a scene interrupted at every step; a soak run of several hours with random injected actions ends with Doozer idle on the taskbar; the overlay never eats a click meant for another app; the owner has tried Calm and Lively and chosen the default; the owner agrees Doozer no longer gets stuck.
 
 ---
 
@@ -324,4 +326,5 @@ Installer through the shell's bundler; app icon; decisions on code signing and a
 - **2026-11-11** — Project started. Plan written. Phase 1 built and verified: shared brain, five mockups, gallery, Electron harness.
 - **2026-11-11** — Owner reviewed the mockups. V1 cut. Direction set: one pet, four swappable homes, focus timer as a core system. `DESIGN_SPEC.md` written; plan rebuilt around milestones M1–M5.
 - **2026-11-11** — Owner signed off the spec as written. Phase 3 started in its own session. `docs/brain-contract.md` written so Phases 4 and 5 can run alongside it.
-- **2026-11-11** — Phase 4 done: the pet brain is in `app/src/core/` behind `docs/brain-contract.md` (one addition: `BrainOptions.debug`; see its change log and the new "How the real brain behaves" section). 231 tests in `app/tests/core/`. Drain rates were slowed from the spec's first guesses to tummy 14, fun 6, energy 8, clean 4.5 per hour so that three to five visits a day keep Doozer happy; the week simulation and the reasoning are in `docs/brain-week-sim.md`. Not done here: the table in DESIGN_SPEC.md 3.1 still shows the first guesses.
+- **2026-11-11** — Owner: the Desk Buddy annoyance was that it "would get stuck randomly". Two causes found and fixed in the mockup (`mockups/v3-buddy`, `mockups/shared/env.js`): a scene left open when its walk was interrupted, and the shell flipping to click-through mid-drag. Confirmed with the new `shell/main.mjs --dragtest`: the old code goes pass-through while Doozer is carried, the fixed code does not, and Doozer recovers even when the mouse-up is lost. Spec 6.4 and Phases 3, 5 and 9 updated.
+- **2026-11-11** — Phase 4 done: the pet brain is in `app/src/core/` behind `docs/brain-contract.md` (one addition: `BrainOptions.debug`; see its change log and the new "How the real brain behaves" section). 231 tests in `app/tests/core/`. Drain rates were slowed from the spec's first guesses to tummy 14, fun 6, energy 8, clean 4.5 per hour so that three to five visits a day keep Doozer happy; the week simulation and the reasoning are in `docs/brain-week-sim.md`. DESIGN_SPEC.md 3.1 was updated to the tuned rates afterwards, at the owner's request (spec section 13).
