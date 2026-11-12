@@ -1,0 +1,64 @@
+/* Styles for the development viewer only. The kit's own styles are in ../kit.css. */
+
+html, body { margin: 0; }
+body {
+  font: 500 14px/1.4 'Fredoka', 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
+  color: #3a2a26; background: #fdf6ee;
+}
+* { box-sizing: border-box; }
+
+.vw-bar {
+  position: sticky; top: 0; z-index: 50; display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center;
+  padding: 10px 20px; background: rgba(255, 250, 244, .92); backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(90, 60, 50, .12);
+}
+.vw-bar h1 { margin: 0 8px 0 0; font-size: 17px; font-weight: 600; }
+.vw-bar label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #7a6660; }
+.vw-bar select, .vw-bar button, .vw-tools button, .vw-tools select {
+  font: inherit; font-size: 13px; padding: 4px 9px; border-radius: 9px; border: 1px solid rgba(90, 60, 50, .22);
+  background: #fff; color: #3a2a26; cursor: pointer;
+}
+.vw-bar nav { margin-left: auto; display: flex; gap: 12px; font-size: 13px; }
+.vw-bar nav a { color: #7a5c8c; }
+
+.vw-section { padding: 22px 20px 6px; }
+.vw-section > h2 { margin: 0 0 3px; font-size: 19px; font-weight: 600; }
+.vw-section > p { margin: 0 0 14px; color: #7a6660; max-width: 900px; }
+.vw-tools { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; align-items: center; }
+
+/* Backdrops: Doozer has to read on anything. */
+.vw-bg { border-radius: 16px; padding: 14px; }
+body[data-bg="paper"] .vw-bg { background: #fffaf4; box-shadow: inset 0 0 0 1px rgba(90, 60, 50, .1); }
+body[data-bg="wallpaper"] .vw-bg { background: linear-gradient(120deg, #2b5876, #4e4376 55%, #c06c84); }
+body[data-bg="dark"] .vw-bg { background: #1c1622; }
+body[data-bg="room"] .vw-bg { background: linear-gradient(#e9dfe6 0 62%, #b9906f 62% 100%); }
+body[data-bg="checker"] .vw-bg { background: repeating-conic-gradient(#e9e2ea 0% 25%, #fff 0% 50%) 0 0 / 22px 22px; }
+body[data-bg="wallpaper"] .vw-cap, body[data-bg="dark"] .vw-cap { color: #efe6f2; }
+
+.vw-matrix { display: grid; gap: 4px 6px; align-items: end; justify-items: center; overflow-x: auto; }
+.vw-matrix .vw-head { font-size: 11.5px; color: inherit; opacity: .75; text-align: center; white-space: nowrap; }
+.vw-matrix .vw-row { justify-self: start; font-size: 13px; font-weight: 600; align-self: center; padding-right: 8px; }
+body[data-bg="wallpaper"] .vw-matrix, body[data-bg="dark"] .vw-matrix { color: #efe6f2; }
+.vw-cell { padding: 6px 2px 2px; cursor: pointer; border-radius: 10px; }
+.vw-cell:hover { background: rgba(255, 255, 255, .28); }
+
+.vw-grid { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+.vw-tile { display: grid; justify-items: center; gap: 4px; padding: 26px 10px 6px; min-width: 96px; }
+.vw-cap { font-size: 12px; color: #6d5a66; text-align: center; white-space: nowrap; }
+.vw-cap small { display: block; opacity: .7; font-size: 11px; }
+
+.vw-track { position: relative; height: 150px; border-bottom: 3px solid rgba(120, 90, 70, .35); margin-bottom: 8px; overflow: hidden; }
+.vw-track .dz { position: absolute; left: 0; bottom: -4px; }
+.vw-track .vw-cap { position: absolute; left: 6px; top: 4px; }
+
+.vw-kit { display: flex; flex-wrap: wrap; gap: 28px 26px; align-items: flex-start; }
+.vw-state { display: grid; gap: 8px; justify-items: center; }
+.vw-state > h3 { margin: 0; font-size: 13.5px; font-weight: 600; color: #6d5a66; }
+.vw-radial-stage { position: relative; width: 300px; height: 250px; display: grid; place-items: end center; padding-bottom: 22px; }
+.vw-radial-stage .vw-pet { position: relative; cursor: pointer; background: none; border: 0; padding: 0; border-radius: 46%; }
+.vw-log { font: 12px/1.5 ui-monospace, Consolas, monospace; background: #2a2230; color: #e9def0; border-radius: 12px; padding: 10px 12px; min-height: 60px; max-height: 180px; overflow: auto; white-space: pre-wrap; }
+
+.vw-pair { display: flex; gap: 4px; align-items: flex-end; }
+
+.vw-strip { gap: 2px; padding: 34px 14px 10px; margin-bottom: 4px; flex-wrap: nowrap; overflow-x: auto; }
+.vw-strip-cap { text-align: left; margin: 10px 0 4px; font-weight: 600; }

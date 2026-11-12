@@ -1,0 +1,270 @@
+/* The 2D Doozer rig. Parts and pivots are in rig-markup.ts; faces in expressions.ts.
+ *
+ * State lives in data attributes on the root, so what is drawn is always a pure
+ * function of them: data-style, data-eyes, data-mouth, data-pose, data-blush,
+ * data-glasses, data-extra, data-dirt, data-hat, data-lod, data-motion, data-live.
+ *
+ * There is deliberately no blanket `.dz-svg *` rule: only .dz-p parts get a transform
+ * box and origin, so shapes with their own transform attribute are never displaced.
+ */
+
+.dz {
+  position: relative; display: block; width: 120px; aspect-ratio: 1; flex: none;
+  pointer-events: none; user-select: none; -webkit-user-select: none;
+  --dz-look-x: 0; --dz-look-y: 0;   /* -1..1, where Doozer is looking */
+  --dz-dir: 0;                      /* -1 left, 0 toward you, 1 right */
+  --dz-tuft: 0deg;
+  --dz-lid: 0;                      /* 0 open .. 1 shut */
+  --dz-sw: 4.5;                     /* outline width in view-box units */
+  --dz-walk: var(--dz-walk-ms, 960ms);
+  --dz-bob: -4px; --dz-roll: 2.8deg; --dz-lift: -8px; --dz-stride: 4.5px; --dz-swing: 12deg;
+}
+.dz-svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.dz-p { transform-box: view-box; transform-origin: var(--px) var(--py); }
+
+/* ---- Paint ---------------------------------------------------------------- */
+.dz-fill { fill: var(--dz-body); }
+.dz-fill-shade { fill: var(--dz-shade); }
+.dz-stroke, .dz-rim {
+  stroke: var(--dz-line); stroke-width: calc(var(--dz-sw) * 1px);
+  stroke-linejoin: round; stroke-linecap: round;
+}
+.dz-shadow { fill: rgba(50, 30, 70, .16); transition: opacity .2s; }
+.dz-belly { fill: var(--dz-belly); opacity: .92; }
+.dz-ear-in { fill: var(--dz-ear); }
+.dz-cheek { fill: var(--dz-cheek); opacity: .62; transition: opacity .3s; }
+.dz[data-blush="1"] .dz-cheek { opacity: .96; }
+.dz-tuft-out { fill: none; stroke: var(--dz-line); stroke-width: calc(6.5px + var(--dz-sw) * 1.7px); stroke-linecap: round; stroke-linejoin: round; }
+.dz-tuft-in { fill: none; stroke: var(--dz-shade); stroke-width: 6.5px; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Soft style: the same parts with no outline. Limbs keep a tonal rim so they still read. */
+.dz[data-style="soft"] .dz-stroke { stroke: none; }
+.dz[data-style="soft"] .dz-rim { stroke: var(--dz-shade); stroke-width: 2.4px; }
+.dz[data-style="soft"] .dz-tuft-out { stroke: none; }
+.dz[data-style="soft"] .dz-tuft-in { stroke-width: 8.5px; }
+.dz[data-style="soft"] .dz-shadow { fill: rgba(50, 30, 70, .2); }
+
+/* Small sizes (the pill): a heavier line and slightly bigger features. */
+.dz[data-lod="small"] { --dz-sw: 6.2; }
+.dz[data-lod="small"] .dz-eye { scale: 1.14; }
+.dz[data-lod="small"] .e-hl2, .dz[data-lod="small"] .g-glint, .dz[data-lod="small"] .dz-scuff { display: none; }
+.dz[data-lod="small"] .m-line { stroke-width: 5px; }
+.dz[data-lod="small"] .e-line { stroke-width: 6px; }
+.dz[data-lod="small"] .g-lens, .dz[data-lod="small"] .g-bridge { stroke-width: 4.6px; }
+
+/* ---- Following the pointer, the mood -------------------------------------- */
+.dz-face { translate: calc(var(--dz-look-x) * 8px) calc(var(--dz-look-y) * 5px); transition: translate .28s ease-out; }
+.dz-belly { translate: calc(var(--dz-look-x) * 3px) 0; transition: translate .28s ease-out; }
+.dz-ear { translate: calc(var(--dz-look-x) * -1.5px) 0; transition: translate .28s ease-out, transform .35s ease-out; }
+.e-hl { translate: calc(var(--dz-look-x) * 1.2px) calc(var(--dz-look-y) * 1px); transition: translate .28s ease-out; }
+.dz-tuft { rotate: var(--dz-tuft); transition: rotate .7s cubic-bezier(.3, 1.6, .5, 1), opacity .2s; }
+.dz-root { rotate: calc(var(--dz-dir) * var(--dz-lean, 0deg)); transition: rotate .35s ease-out; }
+.dz-arm, .dz-foot { transition: transform .25s ease-out; }
+
+/* ---- Eyes ------------------------------------------------------------------ */
+.dz .e-ball { fill: var(--dz-ink); }
+.dz .e-hl { fill: #fff; }
+.dz .e-line { fill: none; stroke: var(--dz-ink); stroke-width: 5px; stroke-linecap: round; stroke-linejoin: round; display: none; }
+.dz .e-open { transition: scale .12s ease-out; }
+.dz .e-lidclip { clip-path: inset(calc(var(--dz-lid) * 100%) 0 0 0); transition: clip-path .2s ease-out; }
+.dz .e-lid { display: block; stroke-width: 4px; opacity: 0; translate: 0 calc(var(--dz-lid) * 21.6px); transition: translate .2s ease-out, opacity .12s; }
+.dz[data-eyes="calm"]  { --dz-lid: .2; }
+.dz[data-eyes="half"]  { --dz-lid: .44; }
+.dz[data-eyes="heavy"] { --dz-lid: .62; }
+.dz[data-eyes="calm"] .e-lid, .dz[data-eyes="half"] .e-lid, .dz[data-eyes="heavy"] .e-lid { opacity: 1; }
+.dz[data-eyes="calm"] .e-lid { scale: .78 1; transform-box: fill-box; transform-origin: center; }
+.dz[data-eyes="happy"] .e-open, .dz[data-eyes="closed"] .e-open, .dz[data-eyes="squeeze"] .e-open { display: none; }
+.dz[data-eyes="happy"] .e-happy { display: block; }
+.dz[data-eyes="closed"] .e-closed { display: block; }
+.dz[data-eyes="squeeze"] .e-squeeze { display: block; }
+.dz[data-eyes="sad"] .e-brow { display: block; }
+.dz[data-eyes="sad"] .e-open { scale: .92; }
+.dz[data-eyes="wide"] .e-open { scale: 1.2; }
+
+/* ---- Mouths ---------------------------------------------------------------- */
+.dz .m { display: none; }
+.dz .m-line { fill: none; stroke: var(--dz-ink); stroke-width: 4px; stroke-linecap: round; stroke-linejoin: round; }
+.dz .m-fill { fill: #7A2E3A; stroke: var(--dz-ink); stroke-width: 3px; stroke-linejoin: round; }
+.dz .m-tongue { fill: #FF8FA3; }
+.dz[data-mouth="w"] .m-w, .dz[data-mouth="smile"] .m-smile, .dz[data-mouth="open"] .m-open,
+.dz[data-mouth="o"] .m-o, .dz[data-mouth="flat"] .m-flat, .dz[data-mouth="frown"] .m-frown,
+.dz[data-mouth="wavy"] .m-wavy, .dz[data-mouth="chew"] .m-chew, .dz[data-mouth="yawn"] .m-yawn { display: block; }
+@keyframes dz-chew { 0%, 100% { transform: scale(1.05, .28); } 50% { transform: scale(1, 1); } }
+.dz[data-mouth="chew"] .m-chew { transform: scale(1, .6); animation: dz-chew .3s ease-in-out infinite; }
+
+/* ---- Extras: drool, grime, glasses, book, hats ------------------------------ */
+.dz-drool { fill: #BFE8FF; stroke: var(--dz-ink); stroke-width: 1.6px; stroke-linejoin: round; display: none; }
+.dz[data-extra="drool"] .dz-drool { display: block; }
+.dz-dirt { opacity: 0; transition: opacity .5s; }
+.dz[data-extra="dirt"] .dz-dirt, .dz[data-dirt="1"] .dz-dirt { opacity: 1; }
+.dz-smudge { fill: rgba(122, 92, 62, .5); }
+.dz-scuff { fill: none; stroke: rgba(122, 92, 62, .6); stroke-width: 2.6px; stroke-linecap: round; }
+
+.dz-glasses { opacity: 0; scale: .7; transition: opacity .16s, scale .32s cubic-bezier(.3, 1.6, .5, 1); }
+.dz[data-glasses="1"] .dz-glasses { opacity: 1; scale: 1; }
+.g-lens { fill: rgba(255, 255, 255, .26); stroke: var(--dz-ink); stroke-width: 3.5px; }
+.g-bridge { fill: none; stroke: var(--dz-ink); stroke-width: 3.5px; stroke-linecap: round; }
+.g-glint { fill: none; stroke: #fff; stroke-width: 2.4px; stroke-linecap: round; opacity: .85; }
+
+.dz-book { opacity: 0; scale: .7; translate: 0 10px; transition: opacity .16s, scale .3s cubic-bezier(.3, 1.5, .5, 1), translate .3s ease-out; }
+.dz[data-pose="read"] .dz-book { opacity: 1; scale: 1; translate: 0 0; }
+.dz-book-cover { fill: #D4627A; }
+.dz-book-pages { fill: #FFF6E6; stroke: rgba(90, 60, 50, .45); stroke-width: 1.4px; stroke-linejoin: round; }
+.dz-book-spine { fill: none; stroke: rgba(70, 30, 45, .45); stroke-width: 2.4px; stroke-linecap: round; }
+.dz-book-mark { fill: #FFE9C9; }
+
+.dz[data-hat="nightcap"] .dz-tuft { opacity: 0; }
+.dz-cap { fill: #7684E0; }
+.dz-cap-star { fill: #FFE08A; }
+.dz-cap-band-out { fill: none; stroke: var(--dz-line); stroke-width: calc(12px + var(--dz-sw) * 2px); stroke-linecap: round; }
+.dz-cap-band { fill: none; stroke: #FFF8EC; stroke-width: 12px; stroke-linecap: round; }
+.dz-cap-pom { fill: #FFF8EC; }
+.dz[data-style="soft"] .dz-cap-band-out { stroke: none; }
+.dz[data-style="soft"] .dz-cap-band, .dz[data-style="soft"] .dz-cap-pom { fill: #FFF8EC; filter: drop-shadow(0 1px 0 rgba(60, 50, 110, .28)); }
+.dz-bow { fill: #FF7A9E; }
+.dz-bow-knot { fill: #F2557F; }
+.dz-bow-crease { fill: none; stroke: #D8436D; stroke-width: 2.2px; stroke-linecap: round; }
+
+/* ---- Poses: looping animation selected by data-pose -------------------------- */
+/* Each pose has a static base (so it still reads with motion reduced) plus a loop. */
+
+@keyframes dz-breathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.028, .972); } }
+@keyframes dz-settle  { 0%, 100% { transform: scale(1.012, .988); } 50% { transform: scale(1.024, .976); } }
+@keyframes dz-tuft-sway { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(4deg); } }
+.dz-tuft-sway { animation: dz-tuft-sway 3.4s ease-in-out infinite; }
+.dz[data-pose="idle"] .dz-bodywrap, .dz[data-pose="wave"] .dz-bodywrap, .dz[data-pose="peek"] .dz-bodywrap { animation: dz-breathe 2.8s ease-in-out infinite; }
+.dz[data-pose="settle"] .dz-bodywrap { transform: scale(1.012, .988); animation: dz-settle 4.4s ease-in-out infinite; }
+.dz[data-pose="settle"] .dz-tuft-sway, .dz[data-pose="sleep"] .dz-tuft-sway, .dz[data-pose="read"] .dz-tuft-sway { animation-duration: 6.5s; }
+
+/* Sulk and drowsy: low moods. Ears and arms droop. */
+@keyframes dz-sulk { 0%, 100% { transform: scale(1.03, .95) rotate(-1.5deg); } 50% { transform: scale(1.04, .94) rotate(1.5deg); } }
+.dz[data-pose="sulk"] .dz-bodywrap { transform: scale(1.03, .95); animation: dz-sulk 4s ease-in-out infinite; }
+.dz[data-pose="sulk"] .dz-ear-l, .dz[data-pose="drowsy"] .dz-ear-l { transform: rotate(-11deg) translateY(2px); }
+.dz[data-pose="sulk"] .dz-ear-r, .dz[data-pose="drowsy"] .dz-ear-r { transform: rotate(11deg) translateY(2px); }
+@keyframes dz-drowsy {
+  0% { transform: translateY(0) scale(1, 1); }
+  62% { transform: translateY(2px) scale(1.05, .92); }
+  74% { transform: translateY(2px) scale(1.05, .92); }
+  82% { transform: translateY(-1px) scale(.985, 1.02); }
+  100% { transform: translateY(0) scale(1, 1); }
+}
+@keyframes dz-drowsy-face { 0%, 100% { transform: translateY(0); } 62%, 74% { transform: translateY(5px); } 82% { transform: translateY(-1px); } }
+.dz[data-pose="drowsy"] .dz-bodywrap { animation: dz-drowsy 4.2s ease-in-out infinite; }
+.dz[data-pose="drowsy"] .dz-face { animation: dz-drowsy-face 4.2s ease-in-out infinite; }
+
+@keyframes dz-sleep { 0%, 100% { transform: scale(1.1, .84); } 50% { transform: scale(1.135, .8); } }
+.dz[data-pose="sleep"] .dz-bodywrap { transform: scale(1.1, .84); animation: dz-sleep 3.8s ease-in-out infinite; }
+.dz[data-pose="sleep"] .dz-ear-l { transform: rotate(-8deg); }
+.dz[data-pose="sleep"] .dz-ear-r { transform: rotate(8deg); }
+
+/* Walk: a gentle waddle (spec 6.4). The weight rolls from foot to foot like a slow
+   pendulum, with a small dip as the feet swap; ears, tail and belly follow a beat late,
+   which is where the character comes from. `trot` is the same cycle, quicker and bouncier. */
+.dz[data-pose="trot"] { --dz-walk: var(--dz-walk-ms, 520ms); --dz-bob: -5.5px; --dz-roll: 3.2deg; --dz-lift: -9.5px; --dz-stride: 5px; --dz-swing: 16deg; }
+@keyframes dz-walk-roll { from { rotate: calc(var(--dz-roll) * -1); } to { rotate: var(--dz-roll); } }
+@keyframes dz-walk-bob {
+  0%, 100% { translate: 0 0; animation-timing-function: ease-out; }
+  50% { translate: 0 var(--dz-bob); animation-timing-function: ease-in; }
+}
+@keyframes dz-walk-foot {
+  0%   { transform: translate(calc(var(--dz-dir) * var(--dz-stride)), 0) rotate(0deg); animation-timing-function: linear; }
+  50%  { transform: translate(calc(var(--dz-dir) * var(--dz-stride) * -1), 0) rotate(0deg); animation-timing-function: ease-out; }
+  76%  { transform: translate(0, var(--dz-lift)) rotate(calc(var(--dz-dir) * -7deg - 3deg)); animation-timing-function: ease-in; }
+  100% { transform: translate(calc(var(--dz-dir) * var(--dz-stride)), 0) rotate(0deg); }
+}
+@keyframes dz-walk-arm-l { from { transform: rotate(var(--dz-swing)); } to { transform: rotate(calc(var(--dz-swing) * -.8)); } }
+@keyframes dz-walk-arm-r { from { transform: rotate(calc(var(--dz-swing) * .8)); } to { transform: rotate(calc(var(--dz-swing) * -1)); } }
+@keyframes dz-walk-ear { from { transform: rotate(-5deg); } to { transform: rotate(5deg); } }
+@keyframes dz-walk-tail { from { transform: translate(-2.5px, 1px); } to { transform: translate(2.5px, -1px); } }
+@keyframes dz-walk-belly { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(1.8px); } }
+.dz[data-pose="walk"] .dz-bodywrap, .dz[data-pose="trot"] .dz-bodywrap {
+  animation: dz-walk-roll calc(var(--dz-walk) / 2) ease-in-out calc(var(--dz-walk) * -.75) infinite alternate,
+             dz-walk-bob calc(var(--dz-walk) / 2) linear infinite;
+}
+.dz[data-pose="walk"] .dz-foot-l, .dz[data-pose="trot"] .dz-foot-l { animation: dz-walk-foot var(--dz-walk) linear infinite; }
+.dz[data-pose="walk"] .dz-foot-r, .dz[data-pose="trot"] .dz-foot-r { animation: dz-walk-foot var(--dz-walk) linear calc(var(--dz-walk) / -2) infinite; }
+.dz[data-pose="walk"] .dz-arm-l, .dz[data-pose="trot"] .dz-arm-l { animation: dz-walk-arm-l calc(var(--dz-walk) / 2) ease-in-out infinite alternate; }
+.dz[data-pose="walk"] .dz-arm-r, .dz[data-pose="trot"] .dz-arm-r { animation: dz-walk-arm-r calc(var(--dz-walk) / 2) ease-in-out infinite alternate; }
+.dz[data-pose="walk"] .dz-ear, .dz[data-pose="trot"] .dz-ear { animation: dz-walk-ear calc(var(--dz-walk) / 2) ease-in-out calc(var(--dz-walk) * -.62) infinite alternate; }
+.dz[data-pose="walk"] .dz-tail, .dz[data-pose="trot"] .dz-tail { animation: dz-walk-tail calc(var(--dz-walk) / 2) ease-in-out calc(var(--dz-walk) * -.6) infinite alternate; }
+.dz[data-pose="walk"] .dz-belly, .dz[data-pose="trot"] .dz-belly { animation: dz-walk-belly calc(var(--dz-walk) / 2) ease-in-out calc(var(--dz-walk) * -.12) infinite; }
+.dz[data-pose="walk"], .dz[data-pose="trot"] { --dz-lean: 1.6deg; }
+
+@keyframes dz-hop {
+  0% { transform: translateY(0) scale(1.1, .88); } 28% { transform: translateY(-34px) scale(.93, 1.09); }
+  52% { transform: translateY(-40px) scale(1, 1); } 82% { transform: translateY(0) scale(1.12, .86); } 100% { transform: translateY(0) scale(1, 1); }
+}
+@keyframes dz-hop-shadow { 0%, 82%, 100% { transform: scale(1); opacity: 1; } 40% { transform: scale(.7); opacity: .55; } }
+@keyframes dz-arms-up-l { 0%, 100% { transform: rotate(0); } 30%, 60% { transform: rotate(60deg) translateY(-6px); } }
+@keyframes dz-arms-up-r { 0%, 100% { transform: rotate(0); } 30%, 60% { transform: rotate(-60deg) translateY(-6px); } }
+.dz[data-pose="hop"] .dz-root { animation: dz-hop .62s cubic-bezier(.3, .6, .4, 1) infinite; }
+.dz[data-pose="hop"] .dz-shadow { animation: dz-hop-shadow .62s ease-in-out infinite; }
+.dz[data-pose="hop"] .dz-arm-l { transform: rotate(40deg) translateY(-4px); animation: dz-arms-up-l .62s ease-in-out infinite; }
+.dz[data-pose="hop"] .dz-arm-r { transform: rotate(-40deg) translateY(-4px); animation: dz-arms-up-r .62s ease-in-out infinite; }
+
+@keyframes dz-eat { 0%, 100% { transform: translateY(0) scale(1, 1); } 50% { transform: translateY(3px) scale(1.04, .95); } }
+@keyframes dz-cheek-puff { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.16, 1.1); } }
+.dz[data-pose="eat"] .dz-bodywrap { animation: dz-eat .3s ease-in-out infinite; }
+.dz[data-pose="eat"] .dz-cheek { animation: dz-cheek-puff .3s ease-in-out infinite; }
+
+/* Play: bouncing on the spot, batting upward with alternate paws. */
+@keyframes dz-play { 0%, 100% { transform: translateY(0) scale(1.06, .93); } 50% { transform: translateY(-7px) scale(.97, 1.04); } }
+@keyframes dz-bat-l { 0%, 100% { transform: rotate(48deg) translateY(-3px); } 50% { transform: rotate(104deg) translateY(-7px); } }
+@keyframes dz-bat-r { 0%, 100% { transform: rotate(-104deg) translateY(-7px); } 50% { transform: rotate(-48deg) translateY(-3px); } }
+.dz[data-pose="play"] .dz-bodywrap { animation: dz-play .52s ease-in-out infinite; }
+.dz[data-pose="play"] .dz-arm-l { transform: rotate(70deg) translateY(-5px); animation: dz-bat-l 1.04s ease-in-out infinite; }
+.dz[data-pose="play"] .dz-arm-r { transform: rotate(-70deg) translateY(-5px); animation: dz-bat-r 1.04s ease-in-out infinite; }
+.dz[data-pose="play"] .dz-ear { animation: dz-walk-ear .26s ease-in-out infinite alternate; }
+
+@keyframes dz-shake { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(7deg); } }
+@keyframes dz-ear-flap-l { 0%, 100% { transform: rotate(10deg); } 50% { transform: rotate(-12deg); } }
+@keyframes dz-ear-flap-r { 0%, 100% { transform: rotate(12deg); } 50% { transform: rotate(-10deg); } }
+.dz[data-pose="shake"] .dz-bodywrap { animation: dz-shake .16s linear infinite; }
+.dz[data-pose="shake"] .dz-ear-l { animation: dz-ear-flap-l .16s linear infinite; }
+.dz[data-pose="shake"] .dz-ear-r { animation: dz-ear-flap-r .16s linear infinite; }
+
+/* No: a small head-shake. The face slides side to side while the body twists against it. */
+@keyframes dz-no-body { 0%, 100% { transform: rotate(-2.6deg); } 50% { transform: rotate(2.6deg); } }
+@keyframes dz-no-face { 0%, 100% { transform: translateX(-6px); } 50% { transform: translateX(6px); } }
+.dz[data-pose="no"] .dz-bodywrap { animation: dz-no-body .3s ease-in-out infinite; }
+.dz[data-pose="no"] .dz-face { animation: dz-no-face .3s ease-in-out infinite; }
+
+/* Carried: hanging from the top of the head, feet dangling. */
+@keyframes dz-carried-body { 0%, 100% { transform: rotate(-4deg) scale(.95, 1.07); } 50% { transform: rotate(4deg) scale(.95, 1.07); } }
+@keyframes dz-dangle { 0%, 100% { transform: rotate(-16deg) translateY(5px); } 50% { transform: rotate(16deg) translateY(5px); } }
+.dz[data-pose="carried"] .dz-bodywrap { transform-origin: 100px 60px; transform: scale(.95, 1.07); animation: dz-carried-body .9s ease-in-out infinite; }
+.dz[data-pose="carried"] .dz-foot { transform-origin: var(--px) 170px; transform: translateY(5px); animation: dz-dangle .45s ease-in-out infinite; }
+.dz[data-pose="carried"] .dz-foot-r { animation-delay: -.22s; }
+.dz[data-pose="carried"] .dz-arm-l { transform: rotate(70deg) translateY(-8px); }
+.dz[data-pose="carried"] .dz-arm-r { transform: rotate(-70deg) translateY(-8px); }
+.dz[data-pose="carried"] .dz-shadow { opacity: 0; }
+
+@keyframes dz-wave { 0%, 100% { transform: translate(12px, -8px) rotate(-125deg); } 50% { transform: translate(12px, -8px) rotate(-165deg); } }
+.dz[data-pose="wave"] .dz-arm-r { transform: translate(12px, -8px) rotate(-145deg); animation: dz-wave .4s ease-in-out infinite; }
+.dz[data-pose="wave"] .dz-root { rotate: -2.5deg; }
+
+/* Read: sitting behind a book, eyes over the top; now and then a page turns. */
+@keyframes dz-read { 0%, 100% { transform: scale(1.03, .965); } 50% { transform: scale(1.042, .953); } }
+@keyframes dz-read-turn {
+  0%, 86%, 100% { transform: translate(-9px, 8px) rotate(80deg); }
+  90% { transform: translate(-13px, 0px) rotate(64deg); }
+  95% { transform: translate(-20px, 3px) rotate(74deg); }
+}
+@keyframes dz-read-book { 0%, 88%, 100% { transform: rotate(0deg); } 93% { transform: rotate(-2.5deg); } }
+.dz[data-pose="read"] .dz-bodywrap { transform: scale(1.03, .965); animation: dz-read 4.6s ease-in-out infinite; }
+.dz[data-pose="read"] .dz-face { transform: translateY(3px); }
+.dz[data-pose="read"] .dz-arm-l { transform: translate(9px, 8px) rotate(-80deg); }
+.dz[data-pose="read"] .dz-arm-r { transform: translate(-9px, 8px) rotate(80deg); animation: dz-read-turn 7s ease-in-out infinite; }
+.dz[data-pose="read"] .dz-book { animation: dz-read-book 7s ease-in-out infinite; }
+
+/* Peek: leaning in the direction Doozer faces, ears up. The view does the hiding. */
+@keyframes dz-peek { 0%, 100% { translate: 0 0; } 50% { translate: calc(var(--dz-dir) * 3px) -2px; } }
+.dz[data-pose="peek"] { --dz-lean: 10deg; }
+.dz[data-pose="peek"] .dz-root { animation: dz-peek 1.8s ease-in-out infinite; }
+.dz[data-pose="peek"] .dz-ear-l { transform: rotate(6deg); }
+.dz[data-pose="peek"] .dz-ear-r { transform: rotate(-6deg); }
+
+/* ---- Paused, and reduced motion -------------------------------------------- */
+.dz[data-live="0"] .dz-svg, .dz[data-live="0"] .dz-svg * { animation-play-state: paused !important; }
+.dz[data-motion="reduce"] .dz-svg, .dz[data-motion="reduce"] .dz-svg * { animation: none !important; transition-duration: .01s !important; }
+.dz[data-motion="reduce"][data-mouth="chew"] .m-chew { transform: scale(1, .6); }
