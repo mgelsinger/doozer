@@ -153,7 +153,11 @@ export interface BrainEvents {
   focus:
     | { type: 'start' | 'pause' | 'resume' | 'stop' }
     | { type: 'complete'; treats: number; streak: number; unlocked: readonly UnlockId[] };
-  /** Fired once, just after start-up, if Doozer was left alone for more than 90 seconds. */
+  /**
+   * Doozer was left alone for more than 90 seconds. Fired on the first `tick()` after
+   * start-up if the app was closed that long (so subscribe before the first tick), and
+   * again after any later gap of that size between two ticks, such as the machine sleeping.
+   */
   away: { seconds: number; ateFromBowl: number; slept: boolean };
   settings: { key: keyof Settings };
 }
@@ -217,6 +221,7 @@ export interface BrainOptions {
   save?: unknown;
   now?: () => number;              // ms since epoch; defaults to Date.now
   random?: () => number;           // 0..1; defaults to Math.random
+  debug?: boolean;                 // true adds `brain.debug`; leave it out in production
 }
 
 /** Implemented by app/src/core/index.ts. Runs the offline catch-up before returning. */
@@ -228,7 +233,8 @@ export type CreateBrain = (options?: BrainOptions) => Brain;
 ## What the host does (not the brain)
 
 - Calls `tick()` on an interval, and after resume.
-- Persists `serialize()` shortly after each `change` (debounced) and on quit; passes it back as `save` on the next start.
+- Subscribes to events and mounts the view **before** the first `tick()`: the `away` event and a focus session that completed while the app was closed are delivered on that first tick.
+- Persists `serialize()` shortly after each `change` or `settings` event (debounced) and on quit; passes it back as `save` on the next start. Settings are not part of `state`, so a setting on its own fires `settings` but not `change`.
 - Owns anything that is about the *window* rather than the *pet*: per-view window positions, which monitor, tray state.
 
 ## What a view does (not the brain)
@@ -244,6 +250,25 @@ export type CreateBrain = (options?: BrainOptions) => Brain;
 
 ---
 
+## How the real brain behaves
+
+Things the types cannot say, fixed by the Phase 4 implementation in `app/src/core/`. The numbers live in `app/src/core/tuning.ts`.
+
+- **`state.needs` are whole numbers** (the exact value, rounded). That is why `state` stays the same object for a while: with nothing happening it changes about once a minute, and once a second while a focus session runs (`remainingMs` moves in whole seconds). `mood`, `wellbeing`, `lowest` and the refusals are all worked out from these same whole numbers, so a view can predict a refusal from `state` alone: `feed` is refused when `needs.tummy > 94`, `play` when `needs.energy < 10`, `sleep` when `needs.energy > 92`.
+- **Order of events.** State is always fully updated before any handler runs. Within one call the order is: `away`, then `action` / `refuse` / `focus` / `settings` in the order they happened, then `need`, then `mood`, then `change`.
+- **`need` events are held back, not dropped,** while `quiet` or asleep: one fires when the session ends or Doozer wakes, if the need is still worse than the last level announced. None fire for time away; `away` covers that.
+- **`refuse.action`** is the name of the Brain method that was called: `'feed'`, `'fillBowl'`, `'giveTreat'`, `'play'`, `'wash'`, `'sleep'`, `'startFocus'`.
+- **`unlocked`** starts as `['biscuit', 'ball']` and gains each unlock in the order it is earned.
+- **The bowl.** Filling it while Doozer is awake and below 70 makes it eat one serving at once (`fill-bowl` then `auto-eat` in the same call), then one more every five minutes while it is still below 70. `fillBowl` works while Doozer is asleep.
+- **`sleep()` when already asleep and `wake()` when already awake** return `{ ok: true }` and fire nothing. Waking Doozer at energy 4 or less is allowed; it dozes straight off again (`wake` then `sleep` with `why: 'exhausted'`).
+- **Focus and the clock.** `startFocus` is refused with `'focus-running'` before `'asleep'`. A session that ran out while the app was closed completes on start-up and counts for the day it ended on. `focus.complete.treats` is what was earned, even if the jar was too full to hold it all. If the system clock is moved back, a running session keeps the time it had left.
+- **Streak.** `streak.current` drops to 0 once a whole calendar day has passed with no completed session.
+- **Time away** is simulated for at most 12 hours, always at real speed (the debug time scale only stretches live ticks).
+- **A handler that throws** does not stop the others; the first error is rethrown from the call once every event has been delivered.
+
+---
+
 ## Change log
 
 - **2026-11-11** — First version, written from DESIGN_SPEC.md sections 3–5 and 9.
+- **2026-11-11** — Phase 4 (brain). `BrainOptions.debug` added: the contract said `brain.debug` is absent in production but gave no way to choose. The `away` comment now says when it is delivered (first `tick()`, and after a long gap between ticks). Host notes: subscribe before the first tick; persist on `settings` as well as `change`. New section "How the real brain behaves". No existing type changed.

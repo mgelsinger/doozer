@@ -15,7 +15,7 @@ This file says **how and in what order** Doozer gets built. [DESIGN_SPEC.md](DES
 | 1 | Mockups: five versions, gallery, desktop harness | — | **Done** | — |
 | 2 | Review and design spec | — | **Done — signed off 2026-11-11** | — |
 | 3 | Shell spike: one transparent window that changes shape | M1 | **Next** | **xhigh** |
-| 4 | Pet brain: needs, bowl, treats, focus, streaks, unlocks, save | M1 | Not started | high |
+| 4 | Pet brain: needs, bowl, treats, focus, streaks, unlocks, save | M1 | **Done** — `app/src/core/`, 231 tests; tuning notes in [docs/brain-week-sim.md](docs/brain-week-sim.md) | high |
 | 5 | 2D Doozer rig and the dark-glass UI kit | M1 | Not started | **xhigh** |
 | 6 | Pill view and app basics (tray, settings, view switching) | M1 | Not started | high |
 | 7 | Room view | M2 | Not started | high |
@@ -324,3 +324,4 @@ Installer through the shell's bundler; app icon; decisions on code signing and a
 - **2026-11-11** — Project started. Plan written. Phase 1 built and verified: shared brain, five mockups, gallery, Electron harness.
 - **2026-11-11** — Owner reviewed the mockups. V1 cut. Direction set: one pet, four swappable homes, focus timer as a core system. `DESIGN_SPEC.md` written; plan rebuilt around milestones M1–M5.
 - **2026-11-11** — Owner signed off the spec as written. Phase 3 started in its own session. `docs/brain-contract.md` written so Phases 4 and 5 can run alongside it.
+- **2026-11-11** — Phase 4 done: the pet brain is in `app/src/core/` behind `docs/brain-contract.md` (one addition: `BrainOptions.debug`; see its change log and the new "How the real brain behaves" section). 231 tests in `app/tests/core/`. Drain rates were slowed from the spec's first guesses to tummy 14, fun 6, energy 8, clean 4.5 per hour so that three to five visits a day keep Doozer happy; the week simulation and the reasoning are in `docs/brain-week-sim.md`. Not done here: the table in DESIGN_SPEC.md 3.1 still shows the first guesses.

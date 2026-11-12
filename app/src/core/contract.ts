@@ -135,7 +135,11 @@ export interface BrainEvents {
   focus:
     | { type: 'start' | 'pause' | 'resume' | 'stop' }
     | { type: 'complete'; treats: number; streak: number; unlocked: readonly UnlockId[] };
-  /** Fired once, just after start-up, if Doozer was left alone for more than 90 seconds. */
+  /**
+   * Doozer was left alone for more than 90 seconds. Fired on the first `tick()` after
+   * start-up if the app was closed that long (so subscribe before the first tick), and
+   * again after any later gap of that size between two ticks, such as the machine sleeping.
+   */
   away: { seconds: number; ateFromBowl: number; slept: boolean };
   settings: { key: keyof Settings };
 }
@@ -199,6 +203,7 @@ export interface BrainOptions {
   save?: unknown;
   now?: () => number;              // ms since epoch; defaults to Date.now
   random?: () => number;           // 0..1; defaults to Math.random
+  debug?: boolean;                 // true adds `brain.debug`; leave it out in production
 }
 
 /** Implemented by app/src/core/index.ts. Runs the offline catch-up before returning. */
