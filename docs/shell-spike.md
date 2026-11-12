@@ -15,9 +15,9 @@ What would change the decision: a problem found with a real hand on the mouse (s
 | Asked for | Result | How it is known |
 |---|---|---|
 | One window: frameless, transparent, always on top, shown without taking focus, not in Alt-Tab | Done | Window styles read back from Windows; the focused window never changed across start-up, 40 switches, hide and show (section 5) |
-| `setWindowMode` between docked, floating and overlay with no flash or black frame | Done | Filmed at the display's full 120 frames a second: 180 switches, no flash, no transitional picture (section 2.3) |
+| `setWindowMode` between docked, floating and overlay with no flash or black frame | Done | Filmed at the display's full 120 frames a second: 220 switches, no flash, no transitional picture (section 2.3) |
 | Click-through by region, tracked natively | Done | 440 of 440 probes correct, with Windows' own hit-test agreeing (section 5) |
-| A watchdog so the overlay cannot get stuck swallowing clicks | Done, four layers | Each one triggered on purpose and seen to recover (section 4.5) |
+| A watchdog so the overlay cannot get stuck swallowing clicks | Done, in both directions | The window cannot stay catching, and a drag in the page cannot outlive the button. Each safety net triggered on purpose and seen to recover (section 4.5) |
 | Manual window dragging from a page-defined handle | Done | Dragged with injected input in both floating modes: followed the cursor to the pixel |
 | `load` / `save`, atomic, keeping the last good copy | Done | Killed mid-write 242 times; the save was complete and current every time |
 | Tray icon with a menu that switches modes and quits | Done | Menu items drive the page; Quit ends the process. Not yet clicked by a person (section 6) |
@@ -74,9 +74,8 @@ Timing the code says nothing about what reaches the screen, so the switches were
 
 | Run | Switches | Frames seen | Pictures that should not be there |
 |---|---|---|---|
-| Final build, 10 cycles | 40 | 1,938 at 118/s (22 composed frames not seen individually) | **0** |
-| Same protocol, one build earlier, 10 cycles | 40 | 1,961 at 119/s (8 not seen individually) | **0** |
-| Same protocol, one build earlier, 25 cycles | 100 | 4,774 at 119/s (25 not seen individually) | **0** |
+| Final build, 10 cycles | 40 | 1,948 at 118/s (20 composed frames not seen individually) | **0** |
+| Same three-frame wait, the two builds before it: 10, 10 and 25 cycles | 180 | 8,673 at 118–119/s (55 not seen individually) | **0** |
 | Earlier builds, two-frame wait, five runs | 260 | 109–119/s | **0** |
 | **Control:** switch without hiding the old view first | 12 | 119/s | **6**, each one frame long |
 | Hide, but wait no frames before changing the window | 40 | 111/s | **1** |
@@ -88,9 +87,9 @@ From the same films, in the final build:
 
 - Doozer is off the screen for **25 ms** in a typical switch (median; 95th percentile 34–51 ms, worst 75 ms).
 - The new view is on screen **33 ms** after the request (median; worst 83 ms).
-- In 177 of 180 switches the old view had already left the screen before the window changed. In the other three it left within one frame after, and no wrong picture appeared in any of them.
+- In 217 of 220 switches the old view had already left the screen before the window changed. In the other three it left within one frame after, and no wrong picture appeared in any of them.
 
-**Limits of the film.** It ran on one machine at one refresh rate. A few composed frames per run were folded into the next frame rather than seen on their own (55 of about 8,700 in the three runs of the final protocol), most of them during switches, when the graphics card is busiest. And it films the composed desktop, not the light leaving the panel.
+**Limits of the film.** It ran on one machine at one refresh rate. A few composed frames per run were folded into the next frame rather than seen on their own (75 of about 10,600 in the four runs with the three-frame wait), most of them during switches, when the graphics card is busiest. And it films the composed desktop, not the light leaving the panel.
 
 ### 2.4 Start-up
 
@@ -133,7 +132,7 @@ await shell.fullscreenInFront();          // is a game or video in front?
 const { data, source } = await shell.load();
 await shell.save(json);
 shell.showMenu();                         // the native menu, at the cursor
-shell.on('view-requested', (view) => …);  // also: settings-requested, drag-end,
+shell.on('view-requested', (view) => …);  // also: settings-requested, drag-end, pointer-released,
                                           // display-changed, fullscreen-changed, watchdog
 ```
 
@@ -149,7 +148,7 @@ The view host must do this, in this order, every time:
 
 Between steps 2 and 3 the window lets every click through. A view that never reports regions cannot be clicked; that is the safe way round.
 
-Why three frames: section 2.3. With none, the old view was caught inside the new window in 1 switch of 40. With one or two it never was (0 of 300), but in about two thirds of those switches the old view was still on screen at the instant the window changed, and what saved it was Windows applying the window change and the already-submitted blank frame together. With three the old view was gone first in 177 of 180. The real host will play Doozer's pop-out animation before step 1, so it will have far more margin than the test page.
+Why three frames: section 2.3. With none, the old view was caught inside the new window in 1 switch of 40. With one or two it never was (0 of 300), but in about two thirds of those switches the old view was still on screen at the instant the window changed, and what saved it was Windows applying the window change and the already-submitted blank frame together. With three the old view was gone first in 217 of 220. The real host will play Doozer's pop-out animation before step 1, so it will have far more margin than the test page.
 
 Hiding the window and showing it again around the change (the work plan's fallback) turned out not to be needed.
 
@@ -160,6 +159,8 @@ Windows can make a whole window click-through or not, nothing finer. So a thread
 The cursor is sampled every 16 ms while it is moving, every 100 ms once it has been still for a second and a half, and every 6 ms while the window is being dragged.
 
 **The state never changes while a mouse button is down.** A press that starts on Doozer keeps going to the page when the cursor strays outside the region (carrying Doozer, dragging a slider), and a drag that starts in another application is not hijacked as it crosses Doozer. This is the rule whose absence made Doozer "get stuck" in the mockup harness. The shell reads the buttons directly from Windows, so it does not depend on a mouse-up message arriving anywhere.
+
+**And a drag in the page cannot outlive the button.** When a press that went to the page ends, the shell sends `pointer-released` with where the pointer was. It comes from the same reading of the buttons, so it arrives even if the page never gets its own `pointerup` (capture lost, focus taken by something else). Every view that drags anything should end the drag on this event as well as on its own pointer events. A press on another application is not reported, and dragging the whole window ends with `drag-end` instead.
 
 One consequence of sampling: for up to one sample (16 ms) after the cursor crosses a region's edge the window is still in its previous state. A click landing inside that sliver of time goes to the wrong side. It takes a deliberate effort to hit.
 
@@ -175,6 +176,7 @@ It is a tool window, which keeps it out of Alt-Tab and off the taskbar.
 |---|---|---|
 | The page hangs or crashes with regions set | The page checks in every 2 s. After 6 s of silence the shell drops the regions and the window is click-through everywhere. When the page comes back it is told to send them again. | Stopping the page's check-ins: regions dropped after 5.8 s, back within 0.7 s of resuming |
 | Something else changes the window's style | Every sample compares the real style with the wanted one and rewrites it | Breaking the style on purpose six times: repaired in 9–93 ms |
+| The page believes a drag is still going after the button has come up | The shell sends `pointer-released` the moment no button is down any more | A carry in the Desktop view whose mouse-up is never delivered to the page: ended 4–17 ms after the button came up, six runs of six. With the page told to ignore the signal, the same carry stays stuck. |
 | A mode change leaves stale regions behind | Every mode change clears the regions and goes click-through before the window moves; the bridge also refuses to send regions queued for the old view | Unit tests on both sides |
 | The tracker thread itself fails | It restarts with no regions and the window click-through. In a release build any panic ends the process, which removes the window. | By design; not triggered |
 
@@ -209,17 +211,18 @@ Everything here ran on the release build unless it says otherwise. "Injected" me
 | What | How | Result |
 |---|---|---|
 | Window bounds for every mode, anchor, margin, scaling, off-screen position, auto-hidden taskbar | Unit tests, `mode.rs` | 11 pass |
-| Hit regions (rectangles, rounded corners, pills, circles) and the button-held rule | Unit tests, `hit.rs` | 8 pass |
+| Hit regions (rectangles, rounded corners, pills, circles), the button-held rule, and when the page is told a press has ended | Unit tests, `hit.rs` | 11 pass |
 | Which window style goes with which state | Unit tests, `shell.rs` | 5 pass |
 | Save: round trip, backup rotation, damaged and missing files, refusing bad input | Unit tests, `save.rs` | 9 pass |
 | Save survives a kill mid-write | A writer process killed at a random point of the save cycle | 230 kills over two payload sizes; 162 landed while a file was being written, 13 between rotating the backup and swapping in the new save, 7 just after the swap; both files intact after every one |
 | The same, whole app | `save-kill-test.ps1`: the real app saving in a loop, killed, restarted, asked what it found | 12 kills, 8 mid-write; complete and current every time |
 | The bridge: region batching and ordering, the wait for the page's new size, check-ins, events, the browser stand-in | Vitest, `tests/shell.test.ts` | 29 pass |
-| Ten cycles of four modes, no flicker | Filmed at 118–119 frames a second | 180 switches, nothing that should not be there (section 2.3) |
+| Ten cycles of four modes, no flicker | Filmed at 118–119 frames a second | 220 switches, nothing that should not be there (section 2.3) |
 | Ten cycles, no stuck click-through | After every switch: style is click-through, regions are set, the view is on screen (pixel read off the screen), page is visible | 40 of 40 |
 | Click-through in every mode | Injected cursor through 11 cases per mode per cycle: beside Doozer, on Doozer, pressed and dragged off, pressed elsewhere and dragged across, a rounded corner, the controls | **440 of 440.** For each, Windows was also asked which window a click at that point would go to: the application underneath when it should be, Doozer when it should be. |
 | – on the final build | Same run | 440 of 440 on the window style. Windows' hit-test could not be asked: by then another program had left a Windows Security prompt up, whose dimming layer sits above every window. |
 | Dragging | Injected press on the handle, 30 moves, release; room and island | Moved exactly as far as the cursor; never let go while held; one `drag-end`; position remembered; off-screen position rescued |
+| A carry whose mouse-up never arrives | Injected press on Doozer in the Desktop view, the page told it is carrying, injected release far away, and no `pointerup` ever given to the page | Carry ended, Doozer back on the ground, window click-through again: six runs of six. Control run (page ignores `pointer-released`): stays stuck, as it must. |
 | Watchdog, style repair | Section 4.5 | All recover |
 | Focus | The focused window recorded at every step: start, four switches, hide, show, always-on-top off and on, focusable on and off | Never Doozer. It stayed with StarCraft II through one whole run. |
 | Native menu | Menu clicks produced in code: each view item, Settings, Quit | Page switches, the tick follows, Quit ends the process with code 0 |
@@ -254,7 +257,7 @@ The person who owns this machine was using it, and then away, while the spike ra
 
 In one filmed run, the first switch (pill to pill, so the window did not move) showed the pill for two frames and then an empty strip until the next switch brought everything back. It did not happen in the next run, in 240 further re-applications of the same view, or in 30 replays of that run's exact opening, under the old code or the new.
 
-It is unexplained. Two guesses, neither confirmed: the web view repainting an older frame after being invalidated without any change to draw, or the test's own always-on-top backdrop ending up in front (a person was at the machine when the pink strip appeared, and a click on it might have raised it). Two changes followed. The shell no longer moves or invalidates the window when its rectangle is unchanged, which removes the one thing that switch did differently. And the film now records the stacking order and any clicks on the backdrop, so that a recurrence would explain itself. In the 572 switches filmed with that check in place, the backdrop was never in front, it was never clicked, and no view vanished.
+It is unexplained. Two guesses, neither confirmed: the web view repainting an older frame after being invalidated without any change to draw, or the test's own always-on-top backdrop ending up in front (a person was at the machine when the pink strip appeared, and a click on it might have raised it). Two changes followed. The shell no longer moves or invalidates the window when its rectangle is unchanged, which removes the one thing that switch did differently. And the film now records the stacking order and any clicks on the backdrop, so that a recurrence would explain itself. In the 612 switches filmed with that check in place, the backdrop was never in front, it was never clicked, and no view vanished.
 
 ### 7.2 A system prompt covers everything
 
@@ -271,6 +274,7 @@ Desktop Duplication returned lighter colours than a plain screen copy of the sam
 - Follow the three steps in section 4.2. `src/spike/test-page.ts` is a working example, including a drag handle and an in-page carry that ends on every exit path.
 - Report hit regions after every layout change. Calls are batched, so reporting on every frame while something moves is fine.
 - Each view remembers its own position: store `x` and `y` from `drag-end` and pass them back in the floating mode.
+- Anything the page drags (a slider, Doozer itself) ends on `pointer-released` as well as on its own pointer events.
 - When the tray asks for a view (`view-requested`) the host decides; the tick in the menu follows the `view` passed to `setWindowMode`.
 - **Idle Doozer must not animate continuously** (section 2.1): one never-ending animation costs 13–26 % of a core. Measure with `scripts/measure-idle.ps1` as soon as the real rig is in the pill.
 - Tuck-away: `fullscreenInFront()` and `fullscreen-changed` say when; `setVisible` does it. Stop the view's animations while hidden (section 4.8, last point).
@@ -279,7 +283,7 @@ Desktop Duplication returned lighter colours than a plain screen copy of the sam
 
 **Phase 8 (Island)**: idle cost for the island above is for a 2D stand-in. three.js will add GPU memory and, while it animates, real CPU. Measure again with the same script.
 
-**Phase 9 (Desktop)**: the overlay is a 3840 × 2088 transparent surface costing 30 MB more than the pill (section 2.1). If that matters, a docked strip along the bottom edge (`{ kind: 'docked', anchor: 'bottom-center', … }`) is already supported and costs in proportion to its height. Regions can be reported every frame as Doozer walks. The button-held rule in section 4.3 is already what the spec's "never stuck" list asks of the shell; the view still has to end a carry on every exit path, as the test page does.
+**Phase 9 (Desktop)**: the overlay is a 3840 × 2088 transparent surface costing 30 MB more than the pill (section 2.1). If that matters, a docked strip along the bottom edge (`{ kind: 'docked', anchor: 'bottom-center', … }`) is already supported and costs in proportion to its height. Regions can be reported every frame as Doozer walks. The two rules in section 4.3 are what the spec's "never stuck" list asks of the shell: the click-through state does not change while a button is down, and `pointer-released` ends a carry whose mouse-up never arrives. The view still has to listen for it and end a carry on every other exit path too, as the test page does.
 
 ## 9. Running it again
 
@@ -311,7 +315,7 @@ node ..\scripts\analyze-film.mjs "$env:TEMP\doozer-spike\film.json"
 | Scenario | What it does |
 |---|---|
 | `cycle` | Ten cycles of the four modes, checking click-through in each (`{"probe":false}` skips that). `{"film":true}` films it; `{"sabotage":true}` is the control run. |
-| `drag`, `watchdog`, `repair`, `focus`, `menu` | The checks in section 5 |
+| `drag`, `release`, `watchdog`, `repair`, `focus`, `menu` | The checks in section 5. `release` with `{"control":true}` is its control run. |
 | `reapply`, `prologue` | The hunts for section 7.1 |
 | `camera` | Films another copy of the app starting up |
 | `real` | The one test that uses the real pointer. Refuses unless the machine has been idle for 45 s and nothing fullscreen is in front. |

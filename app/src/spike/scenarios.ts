@@ -35,6 +35,7 @@ interface Status {
   styleToolWindow: boolean;
   visible: boolean;
   dragging: boolean;
+  holding: boolean;
   isForeground: boolean;
   foreground: number;
   foregroundClass: string;
@@ -835,6 +836,112 @@ const camera: Scenario = async (page, args) => {
   return { failures: [], rect, pictures, film: { ...film, frames: undefined } };
 };
 
+/**
+ * A carry whose mouse-up never arrives. In the Desktop view the page is told a
+ * press has started on Doozer and is carrying it; then the button comes up, as
+ * far as Windows is concerned, but no `pointerup` is ever delivered to the page.
+ * The shell's `pointer-released` has to end the carry.
+ *
+ * `{"control":true}` runs it with the page ignoring that signal. The carry must
+ * then stay stuck, which proves the mouse-up really never arrived and that the
+ * signal is what ends it.
+ */
+const release: Scenario = async (page, args) => {
+  const failures: string[] = [];
+  const control = args.control === true;
+  page.setReleaseBackstop(!control);
+  await park();
+  await page.switchTo('desktop');
+  await sleep(300);
+  const { blob } = page.parts();
+  const start = centre(blob);
+  const events: ({ x: number; y: number } | null)[] = [];
+  const off = shell.on('pointer-released', (at) => events.push(at));
+  const pointer = (type: string, at: Point, buttons: number): void => {
+    blob.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 77, isPrimary: true, button: 0, buttons, clientX: at.x, clientY: at.y }));
+  };
+
+  // The press: Windows sees the button go down on Doozer, and so does the page.
+  await invoke('spike_inject', { cursor: { ...start, down: false } });
+  await sleep(140);
+  await invoke('spike_inject', { cursor: { ...start, down: true } });
+  pointer('pointerdown', start, 1);
+  await sleep(120);
+  const pressed = await status();
+  const carriedAtPress = blob.classList.contains('carried');
+
+  // Carry it up and to the left, fast. The cursor runs ahead of what the page hears.
+  let at = start;
+  let leftRegionWhileHeld = 0;
+  for (let i = 1; i <= 12; i++) {
+    at = { x: start.x - 55 * i, y: start.y - 38 * i };
+    await invoke('spike_inject', { cursor: { ...at, down: true } });
+    if (i % 3 === 0) pointer('pointermove', { x: at.x + 40, y: at.y + 30 }, 1);
+    await sleep(16);
+    if (i % 4 === 0) {
+      const s = await status();
+      if (s.styleClickThrough || !s.catching || !s.holding) leftRegionWhileHeld++;
+    }
+  }
+  const carriedMidAir = blob.classList.contains('carried');
+  const eventsWhileHeld = events.length;
+
+  // The button comes up, far from where it went down. The page is told nothing.
+  await invoke('spike_inject', { cursor: { ...at, down: false } });
+  const t0 = performance.now();
+  while (blob.classList.contains('carried') && performance.now() - t0 < 1500) await sleep(4);
+  const endedAfterMs = blob.classList.contains('carried') ? -1 : performance.now() - t0;
+  if (control) {
+    // Stuck, as it should be without the backstop. Put things right and stop here.
+    const shellSaidSo = events.length;
+    pointer('pointerup', at, 0);
+    page.setReleaseBackstop(true);
+    await park();
+    off();
+    await sleep(450);
+    await page.switchTo('pill');
+    if (endedAfterMs >= 0) failures.push('the carry ended although the page ignores the shell: something else ended it, so the main run proves nothing');
+    if (shellSaidSo !== 1) failures.push(`the shell sent ${shellSaidSo} release events, expected 1`);
+    return { failures, control: true, carryStayedStuck: endedAfterMs < 0, shellReleaseEvents: shellSaidSo };
+  }
+  await sleep(450); // the blob floats back down
+  const landed = await status();
+  await park();
+  await sleep(200);
+  const rested = await status();
+  const onTheGround = Math.abs(blob.offsetTop + blob.offsetHeight - window.innerHeight) <= 1;
+
+  // A press that starts beside Doozer is another application's business: the page hears nothing.
+  const beside = blankPoint(page.regions());
+  const before = events.length;
+  await invoke('spike_inject', { cursor: { ...beside, down: false } });
+  await sleep(140);
+  await invoke('spike_inject', { cursor: { ...beside, down: true } });
+  await sleep(140);
+  await invoke('spike_inject', { cursor: { ...beside, down: false } });
+  await sleep(200);
+  const strayEvents = events.length - before;
+  await park();
+  off();
+
+  const reported = events[0] ?? null;
+  const checks = {
+    pressWentToThePage: pressed.holding && pressed.catching && carriedAtPress,
+    stillCarriedAndCaughtWhileHeld: carriedMidAir && leftRegionWhileHeld === 0,
+    nothingSentWhileHeld: eventsWhileHeld === 0,
+    carryEndedWithoutAMouseUp: endedAfterMs >= 0,
+    toldExactlyOnce: before === 1,
+    toldWhereItWasReleased: reported !== null && Math.abs(reported.x - at.x) <= 1 && Math.abs(reported.y - at.y) <= 1,
+    doozerBackOnTheGround: onTheGround,
+    notHoldingAfterwards: !landed.holding && !rested.holding,
+    clickThroughAgainAtRest: rested.styleClickThrough && !rested.catching,
+    pressElsewhereNotReported: strayEvents === 0,
+  };
+  for (const [name, ok] of Object.entries(checks)) if (!ok) failures.push(name);
+  await page.switchTo('pill');
+  return { failures, endedAfterMs: Math.round(endedAfterMs * 10) / 10, releasedAt: reported, expectedAt: at, checks };
+};
+
 /** The native menu (tray and right-click share it): view items ask the page to switch, ticks follow. */
 const menu: Scenario = async (page) => {
   const failures: string[] = [];
@@ -866,7 +973,7 @@ const menu: Scenario = async (page) => {
   return { failures, trayIconExists: start.trayIconExists, steps, settingsEvents: settings };
 };
 
-const SCENARIOS: Record<string, Scenario> = { cycle, drag, watchdog, repair, focus, menu, reapply, prologue, camera, idle, 'save-loop': saveLoop, 'save-check': saveCheck, real };
+const SCENARIOS: Record<string, Scenario> = { cycle, drag, release, watchdog, repair, focus, menu, reapply, prologue, camera, idle, 'save-loop': saveLoop, 'save-check': saveCheck, real };
 
 export async function runSpikeScenarios(page: TestPage): Promise<void> {
   if (!shell.native) return;

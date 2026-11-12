@@ -44,6 +44,15 @@ pub const EVENT_DRAG_END: &str = "shell://drag-end";
 pub const EVENT_WATCHDOG: &str = "shell://watchdog";
 pub const EVENT_DISPLAY_CHANGED: &str = "shell://display-changed";
 pub const EVENT_FULLSCREEN_CHANGED: &str = "shell://fullscreen-changed";
+pub const EVENT_POINTER_RELEASED: &str = "shell://pointer-released";
+
+/// Where the pointer was when a press on the page ended, in CSS pixels relative
+/// to the viewport. It can be outside the window.
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct ReleasedAt {
+  pub x: f64,
+  pub y: f64,
+}
 
 #[derive(Debug, Clone, Copy)]
 struct Drag {
@@ -82,6 +91,8 @@ struct Inner {
   visible: bool,
   topmost: bool,
   drag: Option<Drag>,
+  /// A button is down on a press that went to the page (see `hit::hold_step`).
+  holding: bool,
   last_heartbeat: Instant,
   last_cursor: (i32, i32),
   last_cursor_move: Instant,
@@ -147,6 +158,8 @@ pub struct Status {
   pub focusable: bool,
   pub topmost: bool,
   pub dragging: bool,
+  /// A button is held on a press that went to the page.
+  pub holding: bool,
   pub is_foreground: bool,
   /// Handle of the window that has keyboard focus, to see whether it ever changes.
   pub foreground: isize,
@@ -198,6 +211,7 @@ impl Shell {
         visible: true,
         topmost: true,
         drag: None,
+        holding: false,
         last_heartbeat: now,
         last_cursor: (i32::MIN, i32::MIN),
         last_cursor_move: now,
@@ -417,6 +431,7 @@ impl Shell {
       focusable: s.focusable,
       topmost: s.topmost,
       dragging: s.drag.is_some(),
+      holding: s.holding,
       is_foreground: win::foreground_window() == s.hwnd.0,
       foreground: win::foreground_window(),
       foreground_class: win::class_name(Hwnd(win::foreground_window())),
@@ -525,6 +540,7 @@ fn tick(shell: &Shell) -> Duration {
   let mut flipped = false;
   let mut check_display = None;
   let mut slow_checks_due = false;
+  let mut released: Option<Option<ReleasedAt>> = None;
 
   let (hwnd, catching, focusable, layered_always, pause) = {
     let mut s = shell.lock();
@@ -579,6 +595,18 @@ fn tick(shell: &Shell) -> Duration {
       flipped = true;
     }
 
+    // The other half of "never stuck": a press that went to the page has ended.
+    // The page is told, so a drag it is running ends even if it never sees the mouse-up.
+    let (holding, press_ended) = hit::hold_step(s.holding, s.catching, button_down, s.drag.is_some());
+    s.holding = holding;
+    if press_ended {
+      let at = cursor.and_then(|(cx, cy)| win::screen_to_client(s.hwnd, cx, cy)).map(|(px, py)| {
+        let scale = win::scale_of(s.hwnd);
+        ReleasedAt { x: f64::from(px) / scale, y: f64::from(py) / scale }
+      });
+      released = Some(at);
+    }
+
     if now.duration_since(s.last_display_check) >= DISPLAY_CHECK {
       s.last_display_check = now;
       slow_checks_due = true;
@@ -592,7 +620,9 @@ fn tick(shell: &Shell) -> Duration {
 
     let pause = if s.drag.is_some() {
       TICK_DRAGGING
-    } else if now.duration_since(s.last_cursor_move) < ACTIVE_FOR || crate::spike::always_fast_ticks() {
+    } else if s.holding || now.duration_since(s.last_cursor_move) < ACTIVE_FOR || crate::spike::always_fast_ticks() {
+      // While a button is held on the page, stay fast even if the cursor is still:
+      // the release has to be noticed promptly.
       TICK_ACTIVE
     } else {
       TICK_RESTING
@@ -628,6 +658,9 @@ fn tick(shell: &Shell) -> Duration {
     if let Some(info) = info {
       let _ = shell.app.emit(EVENT_DRAG_END, info);
     }
+  }
+  if let Some(at) = released {
+    let _ = shell.app.emit(EVENT_POINTER_RELEASED, at);
   }
   if watchdog_tripped {
     let _ = shell.app.emit(EVENT_WATCHDOG, "page-silent");

@@ -95,6 +95,15 @@ export interface ShellEvents {
   watchdog: string;
   /** A fullscreen app (game, video, presentation) came to the front (true) or went away (false). */
   'fullscreen-changed': boolean;
+  /**
+   * A press that started on one of the hit regions has ended: every mouse button
+   * is up. Sent by the native side, which reads the buttons from Windows, so it
+   * arrives even when the page never gets its `pointerup` (capture lost, focus
+   * taken). **End any drag here.** The payload is where the pointer was, in CSS
+   * pixels relative to the viewport (it may be outside the window), or null if
+   * the pointer could not be read.
+   */
+  'pointer-released': { x: number; y: number } | null;
 }
 
 export interface Shell {

@@ -58,6 +58,8 @@ export interface TestPage {
   setHideFrames(n: number): void;
   /** For the film test's control run only: switch without hiding the old view first. */
   setHideOldView(hide: boolean): void;
+  /** For the carry test's control run only: ignore the shell's `pointer-released`. */
+  setReleaseBackstop(on: boolean): void;
   /** Where the pill docks. The film test moves it to a corner so one strip of screen covers every mode. */
   setPillAnchor(anchor: Anchor): void;
   onMark(fn: (label: string) => void): void;
@@ -91,6 +93,7 @@ export async function mountTestPage(host: HTMLElement): Promise<TestPage> {
   let hideFrames = DEFAULT_HIDE_FRAMES;
   let pillAnchor: Anchor = 'top-center';
   let hideOldView = true;
+  let releaseBackstop = true;
   let switching: Promise<unknown> = Promise.resolve();
   let mark: (label: string) => void = () => undefined;
   let note = '';
@@ -239,7 +242,11 @@ export async function mountTestPage(host: HTMLElement): Promise<TestPage> {
     b.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
       grab = { dx: e.clientX - b.offsetLeft, dy: e.clientY - b.offsetTop, id: e.pointerId };
-      b.setPointerCapture(e.pointerId);
+      try {
+        b.setPointerCapture(e.pointerId);
+      } catch {
+        // A pointer made up by a test cannot be captured. The carry works without it.
+      }
       b.classList.add('carried');
     });
     b.addEventListener('pointermove', (e) => {
@@ -251,6 +258,13 @@ export async function mountTestPage(host: HTMLElement): Promise<TestPage> {
     b.addEventListener('pointercancel', setDown);
     b.addEventListener('lostpointercapture', setDown);
     window.addEventListener('blur', setDown, { signal: viewLife.signal });
+    // The backstop: the shell says every button is up, whether or not a pointerup ever arrived here.
+    viewLife.signal.addEventListener(
+      'abort',
+      shell.on('pointer-released', () => {
+        if (releaseBackstop) setDown();
+      }),
+    );
   };
 
   const build = (v: ViewId): void => {
@@ -383,6 +397,9 @@ export async function mountTestPage(host: HTMLElement): Promise<TestPage> {
     },
     setHideOldView(hide) {
       hideOldView = hide;
+    },
+    setReleaseBackstop(on) {
+      releaseBackstop = on;
     },
     onMark(fn) {
       mark = fn;

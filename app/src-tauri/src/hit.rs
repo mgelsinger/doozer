@@ -57,6 +57,22 @@ pub fn decide(catching: bool, inside: bool, button_down: bool) -> bool {
   if button_down { catching } else { inside }
 }
 
+/// Follows a press that belongs to the page, one tick at a time.
+///
+/// Returns `(holding, released)`. `holding` is true while a button is down on a
+/// window that is catching the mouse, which means the press went to the page.
+/// `released` is true on the one tick where such a press has ended.
+///
+/// The page is told about that tick, so a drag it is running always ends, even
+/// if the mouse-up itself never reaches it (capture lost, focus taken by
+/// something else). A press on another application is none of the page's
+/// business, and a drag of the whole window has its own ending.
+pub fn hold_step(was_holding: bool, catching: bool, button_down: bool, dragging_window: bool) -> (bool, bool) {
+  let released = was_holding && !button_down;
+  let holding = catching && button_down && !dragging_window;
+  (holding, released)
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -118,6 +134,55 @@ mod tests {
     assert!(!decide(true, false, false));
     assert!(decide(true, true, false));
     assert!(!decide(false, false, false));
+  }
+
+  /// Feed a sequence of (cursor over a region, button down) samples through the
+  /// two rules, starting from rest, and collect what happened on each tick.
+  fn run(samples: &[(bool, bool)]) -> Vec<(bool, bool)> {
+    let (mut catching, mut holding) = (false, false);
+    samples
+      .iter()
+      .map(|&(inside, down)| {
+        catching = decide(catching, inside, down);
+        let (now_holding, released) = hold_step(holding, catching, down, false);
+        holding = now_holding;
+        (catching, released)
+      })
+      .collect()
+  }
+
+  #[test]
+  fn a_press_on_doozer_is_followed_until_the_button_comes_up_wherever_that_is() {
+    // Over Doozer, press, the cursor outruns Doozer for three ticks, release far away, rest.
+    let ticks =
+      run(&[(true, false), (true, true), (false, true), (false, true), (false, true), (false, false), (false, false)]);
+    let catching: Vec<bool> = ticks.iter().map(|t| t.0).collect();
+    let released: Vec<bool> = ticks.iter().map(|t| t.1).collect();
+    assert_eq!(catching, [true, true, true, true, true, false, false], "caught for as long as the button was down");
+    assert_eq!(
+      released,
+      [false, false, false, false, false, true, false],
+      "the page is told once, on the tick the button came up"
+    );
+  }
+
+  #[test]
+  fn a_press_that_starts_elsewhere_is_never_reported_to_the_page() {
+    // Beside Doozer, press, drag across Doozer, release on Doozer.
+    let ticks = run(&[(false, false), (false, true), (true, true), (true, true), (true, false), (true, false)]);
+    assert!(ticks.iter().all(|t| !t.1), "not the page's press, so no release for the page");
+    assert_eq!(ticks.iter().map(|t| t.0).collect::<Vec<_>>(), [false, false, false, false, true, true]);
+  }
+
+  #[test]
+  fn dragging_the_whole_window_has_its_own_ending() {
+    // The window drag starts on the second held tick; its release is `drag-end`, not this.
+    let (holding, released) = hold_step(false, true, true, false);
+    assert!(holding && !released);
+    let (holding, released) = hold_step(holding, true, true, true);
+    assert!(!holding && !released);
+    let (holding, released) = hold_step(holding, false, false, false);
+    assert!(!holding && !released);
   }
 
   #[test]
