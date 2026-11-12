@@ -1,18 +1,13 @@
 // The view host: mounts exactly one view at a time (WORK_PLAN.md, section 3).
-// Placeholder until the shell spike (Phase 3) and the Pill view (Phase 6) land.
-import { shell } from './shell';
+//
+// Until the Pill view exists (Phase 6) the host shows the shell spike test page:
+// a coloured blob and buttons that move the window between its shapes.
+import { runSpikeScenarios } from './spike/scenarios';
+import { mountTestPage } from './spike/test-page';
 
 const host = document.getElementById('host');
 if (!host) throw new Error('missing #host');
 
-const blob = document.createElement('div');
-blob.textContent = 'Doozer';
-blob.style.cssText = [
-  'position:fixed', 'left:50%', 'top:50%', 'translate:-50% -50%',
-  'width:150px', 'height:130px', 'display:grid', 'place-items:center',
-  'border-radius:50% 50% 46% 46% / 58% 58% 42% 42%',
-  'background:#ffb38a', 'border:4px solid #3a2a35', 'color:#3a2a35', 'font-weight:700',
-].join(';');
-host.append(blob);
-
-console.info(`[doozer] placeholder page, shell: ${shell.native ? 'tauri' : 'browser'}`);
+const page = await mountTestPage(host);
+// Does nothing unless this is a spike build started with DOOZER_SPIKE set.
+void runSpikeScenarios(page).catch((error: unknown) => console.error('[spike]', error));

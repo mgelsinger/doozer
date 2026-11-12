@@ -13,17 +13,21 @@
     "windows": [
       {
         "label": "main",
+        "create": false,
         "title": "Doozer",
-        "width": 380,
-        "height": 464,
+        "width": 214,
+        "height": 54,
         "decorations": false,
         "transparent": true,
         "shadow": false,
         "resizable": false,
         "maximizable": false,
+        "minimizable": false,
         "alwaysOnTop": true,
         "skipTaskbar": true,
-        "focus": false
+        "focus": false,
+        "visible": true,
+        "dragDropEnabled": false
       }
     ],
     "security": {
@@ -32,7 +36,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

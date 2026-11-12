@@ -1,0 +1,170 @@
+/* Shell spike test page. Throwaway styling: the real look comes from Phase 5.
+   No pure black, pure white or magenta anywhere: the flicker test treats those
+   colours as "something went wrong". */
+
+.stage {
+  position: fixed;
+  inset: 0;
+  font: 500 12px/1.3 system-ui, "Segoe UI", sans-serif;
+  color: #fff7ea;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ---- The stand-in for Doozer ---- */
+
+.blob {
+  position: absolute;
+  box-sizing: border-box;
+  width: 110px;
+  height: 96px;
+  border: 4px solid #3a2a35;
+  border-radius: 50% 50% 46% 46% / 58% 58% 42% 42%;
+  background: #ffb38a;
+  cursor: pointer;
+  touch-action: none;
+}
+.blob::before,
+.blob::after {
+  content: "";
+  position: absolute;
+  top: 38%;
+  width: 9%;
+  height: 14%;
+  border-radius: 50%;
+  background: #3a2a35;
+}
+.blob::before { left: 29%; }
+.blob::after { right: 29%; }
+.blob.hover { background: #ffd0b3; }
+.blob.carried { cursor: grabbing; background: #ffc29f; }
+.blob.breathe { animation: breathe 3.2s ease-in-out infinite; }
+@keyframes breathe {
+  50% { transform: scale(1.03, 0.97) translateY(1.5%); }
+}
+
+/* ---- The control chip, present in every view ---- */
+
+.chip {
+  position: absolute;
+  box-sizing: border-box;
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: #2f2738;
+  white-space: nowrap;
+}
+.chip .row { display: flex; gap: 5px; align-items: center; }
+.chip button {
+  all: unset;
+  padding: 4px 8px;
+  border-radius: 9px;
+  background: #443a50;
+  color: #fff7ea;
+  font: 600 12px/1.2 system-ui, "Segoe UI", sans-serif;
+  cursor: pointer;
+}
+.chip button:hover { background: #5a4d6a; }
+.chip button.on { background: #f6d36b; color: #3a2a35; }
+.chip .readout {
+  margin: 0;
+  min-height: 5em; /* four lines: the chip must not change height once it is placed */
+  font: 500 11px/1.25 ui-monospace, Consolas, monospace;
+  color: #cfc4dc;
+  white-space: pre;
+}
+
+/* ---- Pill: docked top-centre ---- */
+
+.pill {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  translate: -50% 0;
+  box-sizing: border-box;
+  width: 214px;
+  height: 54px;
+  padding: 0 16px 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 27px;
+  background: #221b2a;
+  box-shadow: 0 6px 16px rgba(34, 27, 42, 0.45);
+  cursor: pointer;
+}
+/* relative, not static: the blob's eyes are positioned against it */
+.pill .blob { position: relative; left: auto; top: auto; flex: none; width: 44px; height: 38px; border-width: 3px; }
+.pill .name { font: 700 14px/1.1 system-ui, "Segoe UI", sans-serif; }
+.pill .status { font-size: 11px; color: #cfc4dc; }
+.view-pill .chip { left: 50%; top: 64px; translate: -50% 0; }
+
+/* ---- Room: a framed, opaque little window ---- */
+
+.room {
+  position: absolute;
+  inset: 8px;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #f6e7d3;
+  border: 3px solid #3a2a35;
+  box-sizing: border-box;
+}
+.room .titlebar {
+  height: 34px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #e2c9a8;
+  color: #3a2a35;
+  font: 700 13px/1 system-ui, "Segoe UI", sans-serif;
+  cursor: grab;
+}
+.room .blob { left: 50%; top: 120px; translate: -50% 0; width: 150px; height: 130px; }
+.room .rug {
+  position: absolute;
+  left: 50%;
+  top: 226px;
+  translate: -50% 0;
+  width: 220px;
+  height: 46px;
+  border-radius: 50%;
+  background: #d9a7a0;
+}
+.view-room .chip { left: 50%; bottom: 14px; translate: -50% 0; }
+
+/* ---- Island: frameless and see-through ---- */
+
+.island {
+  position: absolute;
+  left: 50%;
+  top: 196px;
+  translate: -50% 0;
+  box-sizing: border-box;
+  width: 250px;
+  height: 78px;
+  border: 4px solid #3a2a35;
+  border-radius: 50%;
+  background: #9bd18b;
+}
+.view-island .blob { left: 50%; top: 96px; translate: -50% 0; width: 150px; height: 130px; }
+.grip {
+  position: absolute;
+  left: 50%;
+  top: 40px;
+  translate: -50% 0;
+  padding: 4px 14px;
+  border-radius: 12px;
+  background: #221b2a;
+  color: #cfc4dc;
+  font: 600 11px/1.3 system-ui, "Segoe UI", sans-serif;
+  cursor: grab;
+}
+.view-island .chip { left: 50%; top: 300px; translate: -50% 0; }
+
+/* ---- Desktop: the whole work area; the blob stands on its bottom edge ---- */
+
+.view-desktop .blob { transition: top 0.28s cubic-bezier(0.3, 0, 0.4, 1); }
+.view-desktop .blob.carried { transition: none; }

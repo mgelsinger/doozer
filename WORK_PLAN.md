@@ -14,7 +14,7 @@ This file says **how and in what order** Doozer gets built. [DESIGN_SPEC.md](DES
 |---|---|---|---|---|
 | 1 | Mockups: five versions, gallery, desktop harness | — | **Done** | — |
 | 2 | Review and design spec | — | **Done — signed off 2026-11-11** | — |
-| 3 | Shell spike: one transparent window that changes shape | M1 | **Next** | **xhigh** |
+| 3 | Shell spike: one transparent window that changes shape | M1 | **Done — Tauri stays.** `app/src-tauri/`, `app/src/shell.ts`; results in [docs/shell-spike.md](docs/shell-spike.md). Tested with injected input only: not yet tried with a real hand on the mouse (its section 6 lists what to try) | **xhigh** |
 | 4 | Pet brain: needs, bowl, treats, focus, streaks, unlocks, save | M1 | **Done** — `app/src/core/`, 231 tests; tuning notes in [docs/brain-week-sim.md](docs/brain-week-sim.md) | high |
 | 5 | 2D Doozer rig and the dark-glass UI kit | M1 | **Done** — `app/src/character/`, `app/src/ui/`; viewer at `/viewer.html` (`npm run dev`); 116 tests. Motion not yet watched by a person or seen inside the app window | **xhigh** |
 | 6 | Pill view and app basics (tray, settings, view switching) | M1 | Not started | high |
@@ -76,7 +76,7 @@ This file says **how and in what order** Doozer gets built. [DESIGN_SPEC.md](DES
 | 2D | SVG + CSS + the Web Animations API | As in the mockups |
 | 3D | three.js, **Island view only**, loaded on demand | Released completely when the Island is left |
 | Shell | **Tauri 2** (Rust + WebView2) | Small footprint; Rust toolchain is installed |
-| Shell fallback | Electron | Already proven by the mockup harness in [shell/](shell/). Use if Tauri fails Phase 3. |
+| Shell fallback | Electron | Already proven by the mockup harness in [shell/](shell/). Not needed: Tauri passed Phase 3 ([docs/shell-spike.md](docs/shell-spike.md)). Kept in reserve; it costs about twice the memory. |
 | Not used | Godot, Unity | Considered in Phase 1; wrong fit once three of four views are 2D UI |
 
 ### Target layout
@@ -181,6 +181,12 @@ The owner has since answered the one open design question: the annoying thing ab
 
 **A bug the mockup harness actually had — do not repeat it:** the click-through state must **never change while a mouse button is down**. During a fast drag the dragged thing lags a frame behind the cursor, the hit-test misses, the window flips to pass-through, the mouse-up is swallowed, and the drag never ends. This is what made Doozer "get stuck" for the owner. `shell/main.mjs --dragtest` reproduces it with injected input and is the model for a test here. Test runs should also keep the real mouse out (the harness does this with `injectedInputOnly`), or a person using the machine will corrupt the results.
 
+**Result (2026-11-11): done, and Tauri stays.** The full write-up is [docs/shell-spike.md](docs/shell-spike.md). In short: 180 mode switches filmed at 120 frames a second with nothing wrong reaching the screen; 440 of 440 click-through checks correct, with Windows' own hit-test agreeing; the click-through state never changes while a button is held; the save survived 242 kills mid-write; idle in the pill is 73 MB and under 1 % of one core; a switch takes 33 ms.
+
+Task 10, the checks by hand, **was not done**: the owner was using the machine and then away, so every test used injected input and kept the real mouse out. Detecting a fullscreen app in front was confirmed against a real game. Everything else that needs a person (real clicks, the tray icon, multi-monitor, taskbar positions, sleep/resume, Win+D) is listed with what to try in that document's section 6.
+
+One finding matters for the next phase: an animation that never stops costs 13–26 % of a processor core. Idle Doozer must not animate continuously.
+
 ---
 
 ## 7. Phase 4 — Pet brain  ·  effort: high  ·  M1  ·  parallel with 3 and 5
@@ -228,7 +234,7 @@ The owner has since answered the one open design question: the annoying thing ab
 
 **Goal:** the first shippable Doozer.
 
-**Inputs:** Phases 3, 4, 5; spec sections 4, 5, 6.1, 9.
+**Inputs:** Phases 3, 4, 5; spec sections 4, 5, 6.1, 9; **[docs/shell-spike.md](docs/shell-spike.md) sections 4 and 8** — the bridge in `app/src/shell.ts`, the three-step view switch every host must follow, and the notes left for this phase. `app/src/main.ts` currently mounts the shell test page (`app/src/spike/`), which is a working example of a host; replace it.
 
 **Tasks**
 
@@ -313,11 +319,11 @@ Installer through the shell's bundler; app icon; decisions on code signing and a
 | Node 22 / npm 12 | on PATH |
 | Rust (cargo, rustc) | on PATH (`~\.cargo\bin`) |
 | Python 3.11 | on PATH |
-| Git | on PATH — **the project folder is not a git repo yet** (Phase 3, task 1) |
+| Git | on PATH; the project folder is a git repository (since Phase 3) |
 | Blender 5.2 | `C:\Program Files\Blender Foundation\Blender 5.2\` (not on PATH) |
 | Unity 6000.4.9f1 | via Unity Hub (not used) |
 | Godot 4.7.1 | zip in Downloads, not extracted (not used) |
-| Display | 4K at 150% scaling (work area 2560 × 1392 in CSS pixels) |
+| Display | 4K at 150% scaling, 120 Hz (work area 2560 × 1392 in CSS pixels) |
 
 ---
 
@@ -329,3 +335,4 @@ Installer through the shell's bundler; app icon; decisions on code signing and a
 - **2026-11-11** — Owner: the Desk Buddy annoyance was that it "would get stuck randomly". Two causes found and fixed in the mockup (`mockups/v3-buddy`, `mockups/shared/env.js`): a scene left open when its walk was interrupted, and the shell flipping to click-through mid-drag. Confirmed with the new `shell/main.mjs --dragtest`: the old code goes pass-through while Doozer is carried, the fixed code does not, and Doozer recovers even when the mouse-up is lost. Spec 6.4 and Phases 3, 5 and 9 updated.
 - **2026-11-11** — Phase 4 done: the pet brain is in `app/src/core/` behind `docs/brain-contract.md` (one addition: `BrainOptions.debug`; see its change log and the new "How the real brain behaves" section). 231 tests in `app/tests/core/`. Drain rates were slowed from the spec's first guesses to tummy 14, fun 6, energy 8, clean 4.5 per hour so that three to five visits a day keep Doozer happy; the week simulation and the reasoning are in `docs/brain-week-sim.md`. DESIGN_SPEC.md 3.1 was updated to the tuned rates afterwards, at the owner's request (spec section 13).
 - **2026-11-11** — Phase 5 done: the 2D rig (`app/src/character/`: both line styles from one set of parts, five palettes, sixteen expressions including *focus*, nightcap and bow on a hat attachment point, every animation in spec section 7, a calm waddle plus a livelier trot) and the dark-glass kit (`app/src/ui/`: Card, Radial, meters, emotes, tooltips, settings panel, focus chip), written against `docs/brain-contract.md` with a fake brain in `app/src/ui/dev/` and also tested against the real one. "Never stuck" is built in rather than patched on: what is drawn is a function of attributes, everything temporary is ended by a timer (never by an animation event or frame), one scene at a time, menus close when Doozer does anything; 116 tests on a fake clock cover it and the viewer has a bench for doing the same by hand. Checked by eye in a browser at 62, 112 and 190 px, both styles, all palettes; **not** checked: the motion in real time by a person (judged from frozen frames, since the browser pane drew frames only some of the time), anything inside the Tauri window, a screen reader. Two things differ from the mockup on purpose: the tuft is drawn in front of the head so a drooping tuft stays visible, and Feed's icon is an apple now that onigiri is an unlockable treat. Fredoka is vendored in `app/src/ui/fonts/` (OFL) because `app/package.json` was off limits; Phase 6 may prefer the npm package.
+- **2026-11-11** — Phase 3 done: the shell spike says **stay on Tauri 2**. One frameless, transparent, always-on-top window (`app/src-tauri/`, bridge in `app/src/shell.ts`) is a docked pill, a floating window and a work-area overlay. It lets clicks through everywhere except the regions the page reports, never takes keyboard focus, and has a watchdog against stuck click-through. Filmed at 120 frames a second: 180 switches with no flash and no transitional picture, and a control run that switches wrongly on purpose is caught. 440 of 440 click-through checks, with Windows' own hit-test agreeing. The save survived 242 kills mid-write. Idle in the pill: 73 MB and under 1 % of one core; a switch takes 33 ms; cold start 0.44 s. Found on the way: an animation that never stops costs 13–26 % of a core, so idle Doozer must not animate continuously (Phase 6). **Not done:** the checks that need a hand on the mouse (real clicks, tray icon, multi-monitor, sleep/resume, Win+D). The owner was at the machine, so tests used injected input only. Everything is in [docs/shell-spike.md](docs/shell-spike.md); its section 6 is the list to try.
