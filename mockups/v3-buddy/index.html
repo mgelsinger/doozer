@@ -244,8 +244,34 @@ let cursor = { x: innerWidth / 2, y: innerHeight / 2 };
 
 function begin(name) {
   cancelActivity();
-  activity = { name, cancelled: false, cleanup: [] };
+  activity = { name, cancelled: false, cleanup: [], t0: performance.now() };
   return activity;
+}
+/** A scene could not continue (its walk was interrupted by a fall or a jump): clear up and let Doozer go. */
+function abort(a) {
+  if (activity !== a) return;
+  a.cancelled = true;
+  a.cleanup.forEach((fn) => fn());
+  activity = null;
+  if (pet.state === 'busy' || pet.state === 'chase') rest(rand(0.8, 2));
+}
+/** Walk as one step of a scene. False means the scene is over - never leave it half-open. */
+async function sceneWalk(a, x, opts) {
+  const arrived = await walkTo(x, opts);
+  if (!alive(a)) return false;
+  if (!arrived) { abort(a); return false; }
+  return true;
+}
+/**
+ * Safety net, run every frame: Doozer must never be left stuck. No scene may hold it for
+ * more than a minute, and no "in the middle of something" state may outlive its cause.
+ */
+function watchdog(now) {
+  if (activity && now - activity.t0 > 60000) cancelActivity();
+  if (!activity && (pet.state === 'busy' || pet.state === 'chase')) rest(1);
+  if (pet.state === 'held' && !drag) startFall();
+  if (pet.state === 'jump' && !pet.jump) startFall();
+  if (pet.state === 'sleep' && !sim.asleep) rest(1);
 }
 function cancelActivity() {
   if (!activity) return;
@@ -371,7 +397,7 @@ function decide(surf, all) {
 async function peek() {
   const a = begin('peek');
   const left = pet.x < innerWidth / 2;
-  if (!(await walkTo(left ? -12 : innerWidth + 12, { speed: 70 })) || !alive(a)) return;
+  if (!(await sceneWalk(a, left ? -12 : innerWidth + 12, { speed: 70 }))) return;
   pet.state = 'busy';
   dz.look(left ? 1 : -1, -0.2);
   await wait(1000); if (!alive(a)) return;
@@ -406,7 +432,7 @@ async function doFeed(kind = 'meal') {
   dz.flash('wow', 800);
   speak(kind === 'treat' ? say('treat') : 'ooh! food!', 1400);
   await wait(700); if (!alive(a)) return;
-  if (!(await walkTo(fx - side * 46, { speed: 95 })) || !alive(a)) return;
+  if (!(await sceneWalk(a, fx - side * 46, { speed: 95 }))) return;
   pet.state = 'busy';
   dz.look(side * 0.9, 0.7);
   dz.flash('eat', 1900);
@@ -507,6 +533,7 @@ function spawnBall(x, y) {
   };
   el.addEventListener('pointerup', release);
   el.addEventListener('pointercancel', release);
+  el.addEventListener('lostpointercapture', release);
 }
 function removeBall() {
   if (!ball) return;
@@ -705,7 +732,14 @@ function release() {
 }
 hitEl.addEventListener('pointerup', release);
 hitEl.addEventListener('pointercancel', release);
-addEventListener('pointermove', (e) => { cursor = { x: e.clientX, y: e.clientY }; });
+hitEl.addEventListener('lostpointercapture', release);   // the mouse-up can be lost; a drag must still end
+addEventListener('blur', release);
+addEventListener('pointermove', (e) => {
+  cursor = { x: e.clientX, y: e.clientY };
+  // The mouse is moving with no button down but we still think Doozer is being carried:
+  // the mouse-up was lost somewhere. Put Doozer down rather than leave it hanging.
+  if (drag && e.buttons === 0) release();
+});
 
 // Fake windows can be dragged around; Doozer rides along if it is sitting on one.
 for (const bar of document.querySelectorAll('.win-bar')) {
@@ -844,6 +878,7 @@ let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
+  watchdog(now);
   update(dt);
   requestAnimationFrame(frame);
 }

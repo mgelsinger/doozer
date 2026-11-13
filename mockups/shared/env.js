@@ -43,7 +43,12 @@ export function setupShell() {
   const shell = window.doozerShell;
   if (!shell) return;
   let through = null;
+  let buttons = 0;
   const update = (x, y) => {
+    // Never change click-through in the middle of a press or drag. A dragged thing can lag
+    // one frame behind the cursor; flipping to pass-through then would swallow the mouse-up
+    // and leave the drag stuck forever.
+    if (buttons) return;
     const el = document.elementFromPoint(x, y);
     let hit = !!el && el !== document.documentElement && el !== document.body;
     if (hit && el.dataset.hit === 'custom' && typeof window.__dzHit === 'function') hit = !!window.__dzHit(x, y);
@@ -52,7 +57,10 @@ export function setupShell() {
       shell.setClickThrough(through);
     }
   };
-  addEventListener('mousemove', (e) => update(e.clientX, e.clientY), { passive: true });
+  addEventListener('mousemove', (e) => { buttons = e.buttons; update(e.clientX, e.clientY); }, { passive: true });
+  addEventListener('mousedown', (e) => { buttons = e.buttons; }, true);
+  addEventListener('mouseup', (e) => { buttons = e.buttons; update(e.clientX, e.clientY); }, true);
+  addEventListener('blur', () => { buttons = 0; });
   addEventListener('contextmenu', (e) => { e.preventDefault(); shell.showMenu(); });
 }
 
