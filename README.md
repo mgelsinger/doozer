@@ -11,6 +11,8 @@ A TypeScript/Vite page inside a Tauri 2 shell. **Milestone 1 is built:** Doozer 
 
 **Milestone 2 is built:** the **Room**, a framed little room you can put anywhere on the screen. Pick it in the tray menu or in the Card's row of views, and everything carries over, a running focus session included. Click the bowl to fill it, the ball to toss it, the soap for a bath, the lamp or the bed for bedtime, the treat jar for a treat, the clock to start or stop a session; Doozer decides the rest. The sky in its window follows the real time of day. Drag the room by its title bar; the button in the title bar opens the Card.
 
+**Milestone 4 is built:** the **Desktop**. No window at all: Doozer stands on the top edge of the taskbar, and every click beside it goes to whatever is underneath. It strolls a little, peeks in from the edge of the screen now and then, and sits still with its glasses on during a focus session (rest the pointer on it to see the time left). Click it for the quick menu, drag it to carry it somewhere else and let go: it floats down and stays near that spot. *Desktop activity* in Settings is how much it moves on its own: Still, Calm (the default for now) or Lively. Two things about it are waiting for the owner: which of those should be the default, and whether Doozer still ever gets stuck ([docs/desktop-checks.md](docs/desktop-checks.md), section 9).
+
 Run everything from the `app` folder; first time only: `npm install`.
 
 | Do this | Command |
@@ -23,6 +25,7 @@ Run everything from the `app` folder; first time only: `npm install`.
 | See the rig and the UI kit on one page | `npm run dev`, then `/viewer.html` |
 | Scripted checks of the built app (a day's use, never stuck, the window) | `pwsh scripts/run-app-checks.ps1` (needs the build described at the top of that script) |
 | The same for the Room (the furniture, an hour alone, switching views, never stuck) | `pwsh scripts/run-room-checks.ps1` (same build) |
+| The same for the Desktop (never stuck, click-through probes, a soak) | `pwsh scripts/build-desktop-checks.ps1`, then `pwsh scripts/run-desktop-checks.ps1` (builds into its own folders) |
 
 Using it:
 
@@ -40,9 +43,10 @@ Where things are, each with its own `README.md`:
 | `app/src/host/` | The view host: one view at a time, the clock, the save, tuck-away. |
 | `app/src/views/pill/` | The Pill view. |
 | `app/src/views/room/` | The Room view. |
+| `app/src/views/desktop/` | The Desktop view. |
 | `app/src-tauri/` | The native shell: one transparent window, click-through by region, tray, save file. |
 
-What was measured and what still needs a hand on the mouse: [docs/pill-checks.md](docs/pill-checks.md) for the app and the Pill, [docs/room-checks.md](docs/room-checks.md) for the Room, [docs/shell-spike.md](docs/shell-spike.md) for the shell.
+What was measured and what still needs a hand on the mouse: [docs/pill-checks.md](docs/pill-checks.md) for the app and the Pill, [docs/room-checks.md](docs/room-checks.md) for the Room, [docs/desktop-checks.md](docs/desktop-checks.md) for the Desktop, [docs/shell-spike.md](docs/shell-spike.md) for the shell.
 
 ## The mockups (Phase 1, reference only)
 
