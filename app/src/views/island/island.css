@@ -1,0 +1,57 @@
+/* The Island view (DESIGN_SPEC.md 6.3): a 3D Doozer on a floating island, drawn on a
+ * canvas, with the kit's Radial, focus chip, Card and settings panel laid over it.
+ * The numbers here come from layout.ts, which sets the island's box as inline styles.
+ *
+ * As in the kit, state lives in attributes (data-open, data-hover, data-gone...) and what
+ * is drawn is a function of them. Nothing in this file animates forever.
+ */
+
+.islv { position: absolute; inset: 0; pointer-events: none; }
+
+/* The island's own drawing. Its position and size are set by the view. */
+.islv-scene { position: absolute; }
+.islv-scene canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
+/* Everything the pointer does to the island lands here; what it touched is worked out from the camera. */
+.islv-touch { position: absolute; inset: 0; pointer-events: auto; touch-action: none; }
+
+/* Emotes float up from Doozer's head: the view keeps this box's top-left corner on it. */
+.islv-emotes { position: absolute; width: 0; height: 0; pointer-events: none; --dzk-emote: 22px; }
+.islv-emotes .dzk-emotes { inset: auto; left: -90px; top: -76px; width: 180px; height: 180px; }
+
+.islv-scene .dzk-radial { z-index: 5; }
+.islv-scene .dzk-rb { pointer-events: none; }
+.islv-scene .dzk-radial[data-open="1"] .dzk-rb { pointer-events: auto; }
+
+/* The grip: shown while the pointer is on the island, for moving the window. */
+.dzk .islv-grip {
+  position: absolute; left: 50%; top: 4px; translate: -50% 0; width: 50px; height: 16px; border-radius: 9px;
+  background: var(--dzk-surface); box-shadow: 0 4px 12px rgba(30, 20, 45, .3), inset 0 1px 0 rgba(255, 255, 255, .12);
+  opacity: 0; pointer-events: none; cursor: grab; transition: opacity .2s;
+}
+.dzk .islv-grip::after { content: ''; position: absolute; left: 15px; right: 15px; top: 7px; height: 2px; border-radius: 1px; background: var(--dzk-soft); }
+.islv[data-hover="1"] .islv-grip, .islv[data-dragging="1"] .islv-grip { opacity: 1; pointer-events: auto; }
+.islv[data-dragging="1"] .islv-grip { cursor: grabbing; }
+.islv[data-open="card"] .islv-grip, .islv[data-open="settings"] .islv-grip { opacity: 0; pointer-events: none; }
+
+/* The focus chip: under the island while a session is on. It is only shown, never clicked. */
+.islv-chip { position: absolute; left: 0; right: 0; bottom: 4px; display: grid; justify-items: center; pointer-events: none; }
+
+/* The Card and the settings panel: over the island, in the band the window keeps for them. */
+.islv-panel { position: absolute; width: 320px; height: 0; z-index: 20; pointer-events: none; }
+.islv-panel > .dzk-card, .islv-panel > .dzk-settings { position: absolute; left: 0; top: 0; pointer-events: auto; }
+.islv-panel > .dzk-card[data-open="0"], .islv-panel > .dzk-settings[data-open="0"] { pointer-events: none; }
+.islv-panel[data-tight="1"] > .dzk-card { max-height: var(--islv-panel-max); overflow-y: auto; scrollbar-width: thin; }
+.islv-panel > .dzk-settings { --dzk-settings-max: var(--islv-panel-max, 560px); }
+.dzk .islv-close {
+  position: absolute; right: -14px; top: -12px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--dzk-raised); color: var(--dzk-text); box-shadow: 0 6px 16px rgba(30, 20, 45, .42), inset 0 1px 0 rgba(255, 255, 255, .12);
+  pointer-events: auto; transition: opacity .15s, scale .25s var(--dzk-spring), visibility 0s;
+}
+.dzk .islv-close .dzk-ico { width: 15px; height: 15px; }
+.dzk .islv-close:hover { scale: 1.1; background: var(--dzk-raised-hi); }
+.islv[data-open="none"] .islv-close { opacity: 0; scale: .6; visibility: hidden; pointer-events: none; transition: opacity .12s, scale .12s, visibility 0s linear .12s; }
+/* With a panel open the island steps back a little. */
+.islv-scene canvas { transition: opacity .2s; }
+.islv[data-open="card"] .islv-scene canvas, .islv[data-open="settings"] .islv-scene canvas { opacity: .55; }
+
+.islv[data-motion="reduce"] .islv-close, .islv[data-motion="reduce"] .islv-grip, .islv[data-motion="reduce"] .islv-scene canvas { transition-duration: .01s; }

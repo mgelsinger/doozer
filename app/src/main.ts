@@ -13,6 +13,7 @@ import { parseSave } from './host/store';
 import { shell } from './shell';
 import { isAppRun, readTestRun, scenarioNames, type TestRun } from './spike/config';
 import { createDesktopView, type DesktopView } from './views/desktop';
+import { createIslandView, type IslandView } from './views/island';
 import { createPillView, type PillView } from './views/pill';
 import { createRoomView, type RoomView } from './views/room';
 
@@ -21,6 +22,7 @@ export interface App {
   brain: Brain;
   pill: PillView;
   room: RoomView;
+  island: IslandView;
   desktop: DesktopView;
 }
 
@@ -55,21 +57,22 @@ async function startApp(root: HTMLElement, run: TestRun): Promise<App> {
 
   const pill = createPillView();
   const room = createRoomView();
+  // The Island only loads three.js when it is switched to (views/island/index.ts).
+  const island = createIslandView();
   const desktop = createDesktopView();
   const host = createHost({
     root,
     shell,
     brain,
-    // The Island arrives in a later milestone; until then it is shown as "coming soon".
     // The first view in the list is the home on first run.
-    views: [pill, room, desktop],
+    views: [pill, room, island, desktop],
     hostData: saved.host,
     sound: createSound(() => brain.settings.sound),
     // If the save could not even be read, do not write over it with a new pet.
     persist: readable,
   });
   await host.start();
-  return { host, brain, pill, room, desktop };
+  return { host, brain, pill, room, island, desktop };
 }
 
 const root = document.getElementById('host');
@@ -88,6 +91,10 @@ if (run.enabled && !isAppRun(run)) {
     // The Desktop view's own scripted runs (docs/desktop-checks.md).
     const { runDesktopChecks } = await import('./views/desktop/checks');
     void runDesktopChecks(app, run).catch((error: unknown) => console.error('[spike]', error));
+  } else if (run.enabled && scenarioNames(run).some((name) => name.startsWith('app-island'))) {
+    // The Island view's own scripted runs (docs/island-checks.md).
+    const { runIslandChecks } = await import('./views/island/checks');
+    void runIslandChecks(app, run).catch((error: unknown) => console.error('[spike]', error));
   } else if (run.enabled) {
     const { runAppScenarios } = await import('./spike/app-scenarios');
     void runAppScenarios(app, run).catch((error: unknown) => console.error('[spike]', error));
