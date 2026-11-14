@@ -539,9 +539,8 @@ export function createDesktopView(options: DesktopViewOptions = {}): DesktopView
       const sameMonitor = stage.monitor === before.monitor;
       const across = before.w > 0 ? stage.w / before.w : 1;
       if (theBody.onGround) {
-        // Anything measured against the old screen ends here.
+        // A scene measured against the old screen ends here.
         theDirector.interrupt();
-        setOpen('none');
         const x = sameMonitor ? theBody.x * across : spotOn(spots, stage);
         home = sameMonitor ? standAt(stage, home * across) : spotOn(spots, stage);
         theBody.setStage(stage);
@@ -550,6 +549,13 @@ export function createDesktopView(options: DesktopViewOptions = {}): DesktopView
       } else {
         home = sameMonitor ? standAt(stage, home * across) : spotOn(spots, stage);
         theBody.setStage(stage);
+      }
+      // What is open stays open (the Size row is in the settings panel) and moves with Doozer.
+      if (open === 'radial') {
+        const arc = radialArc(stage, theBody.x);
+        radial.setArc(arc.center, arc.span);
+      } else if (open === 'card' || open === 'settings') {
+        placePanel();
       }
       services.regionsChanged();
     }

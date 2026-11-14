@@ -680,9 +680,40 @@ describe('placement', () => {
       expect(s.y).toBeLessThanOrEqual(s.ground);
       pointer(window, 'pointerup', { x: 600, y: 300 });
       r.brain.setSetting('desktopActivity', 'still');
+      r.view.setOpen('none');
       expect(await settle(r)).toBe(true);
       expect(restReport(r)).toEqual(AT_REST);
       r.view.unmount();
     }
+  });
+
+  it('what is open stays open through a change of size or display, and moves with Doozer', async () => {
+    const r = mountDesktop();
+    // The Size row is in the settings panel: choosing a size must not close the panel.
+    r.view.openSettings?.();
+    r.brain.setSetting('size', { ...r.brain.settings.size, desktop: 'large' });
+    expect(r.snap()).toMatchObject({ open: 'settings', stage: { size: SIZE_PX.large } });
+    expect(r.parts().settings.isOpen).toBe(true);
+    expect(r.host.state.focusable).toBe(true);
+    r.view.setOpen('card');
+    const before = r.view.hitRegions()[1]!;
+    r.view.windowChanged?.(infoFor({ x: 0, y: 0, w: 1920, h: 1200 }, { x: 0, y: 0, w: 1920, h: 1160 }));
+    expect(r.snap().open).toBe('card');
+    const after = r.view.hitRegions()[1]!;
+    const s = r.snap();
+    // The Card is over Doozer's head on the new screen.
+    expect(after.x).not.toBe(before.x);
+    expect(Math.abs(after.x + after.w / 2 - s.x)).toBeLessThan(2);
+    expect(after.y + after.h).toBeLessThan(s.y - 80);
+    expect(after.x + after.w).toBeLessThanOrEqual(s.stage.w);
+    // A click on Doozer puts the Card away; the next one opens the Radial.
+    tap(r);
+    tap(r);
+    expect(r.snap().open).toBe('radial');
+    r.view.windowChanged?.(INFO);
+    expect(r.snap().open).toBe('radial');
+    expect(r.view.hitRegions()).toHaveLength(7);
+    r.view.setOpen('none');
+    expect(restReport(r)).toEqual(AT_REST);
   });
 });
