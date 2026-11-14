@@ -9,9 +9,9 @@ The Desktop view is the roamer: Doozer on the top edge of the taskbar, in an ove
 | Asked for | Result | How it is known |
 |---|---|---|
 | Stuck-case tests pass with injected input: a drag whose mouse-up never arrives, and every scene interrupted at each of its steps (picked up, dropped, another action started, view switched) | Pass | On a fake clock: 16 scenes cut at 365 moments in 8 ways, 2,920 interruptions, each ending idle on the taskbar line with the watchdog having nothing to do (section 2). In the real window with injected input: the mockup's drag test, a mouse-up that never arrives (the carry ended 9 ms after the button came up), 300 scene interruptions including real view switches, and rapid clicks: all pass (section 3) |
-| A soak of several hours with random injected actions, cloaked and in the background, ends with Doozer idle on the taskbar line | **Running as this is written** (started 21:35 on the 13th, three hours). Section 4 has the numbers so far | Section 4 |
+| A soak of several hours with random injected actions, cloaked and in the background, ends with Doozer idle on the taskbar line | **Running as this is written** (three hours, started 22:04 on the 13th). Its first half hour found one bug, now fixed (section 8) | Section 4 |
 | The overlay never catches a click meant for another application | It does not: 709 probe points across the work area in 13 states, none wrong | Section 5 |
-| Idle cost at each pace, on a release build, against the budget (150 MB, 1 % of one core) | **Being measured as this is written.** At Still: 123–129 MB and 0.4–1.1 % of one core. Section 6 has what is known so far | Section 6 |
+| Idle cost at each pace, on a release build, against the budget (150 MB, 1 % of one core) | Memory is inside the budget at every pace (123–143 MB). CPU: **Still 0.4–1.1 %** of one core, at the line; **Calm under 1 % between strolls and 3.6 % averaged over twelve minutes**; **Lively about 23 %**, because it is nearly always walking | Section 6 |
 | Switching to and from the Pill in the middle of a focus session loses nothing | Yes | In the real window and under the real host on a fake clock (section 7) |
 | `npm test`, `npm run typecheck`, `cargo test` | 1,013 page tests (176 of them this view's), type-check clean, 49 native tests | Section 1 |
 | The owner tries Calm and Lively and chooses the default; the owner agrees Doozer no longer gets stuck | **Not done: these are the owner's** | Section 9 says exactly what to try |
@@ -96,7 +96,9 @@ The run takes twenty minutes. The unit tests go further on the same ground, on a
 
 ## 4. The soak
 
-*The soak is running as this is written: started 21:35 on 13 November 2026, three hours, cloaked, in the background. This section is filled in when it ends.*
+*The soak is running as this is written: `app-desktop-soak`, three hours, seed 20261113, cloaked, in the background, started at 22:04 on 13 November 2026 on the build of commit `6d4c6f7`. This section is filled in when it ends.*
+
+So far: an earlier run on the build before was stopped after 25 minutes and 741 actions, because one of its 18 hands-off checks had found the sliding described in section 8. Up to then the watchdog had rescued nothing and no scene had been ended by its time limit. Its twin on a fake clock (`soak.test.ts`) has run in full: 4,500 random actions over three seeds, 565 scenes and 416 carries, the watchdog asked after every action and never with anything to put right, 78 hands-off checks all finding Doozer at rest, and Doozer idle on the taskbar line at the end of each.
 
 ## 5. Click-through: the overlay never catches a click meant for another application
 
@@ -140,7 +142,32 @@ Two of those rows are the shell's rule that the click-through state never change
 
 ## 6. Idle cost at each pace
 
-*Being measured as this is written. This section is filled in when the measurements are done.*
+Release build with the test hooks, `app/scripts/measure-idle.ps1` with the `app-desktop-idle` scenario: 20 s to settle, then the windows listed; every process counted (the app and its six WebView2 processes, in a browser profile of their own so that no other copy's processes are mixed in). Memory is private working set, the figure Task Manager shows; CPU is a share of one core (this machine has 24). The window was cloaked and the pretend pointer parked. The machine was in use the whole time: its owner was watching a video, two other sessions were building and testing, and this view's own soak was running. See [shell-spike.md](shell-spike.md) section 2.1 for why these are the right numbers, and for the empty overlay of Phase 3: 107 MB and 1.1–1.5 %.
+
+| Pace and state | Memory | CPU, share of one core | What Doozer did meanwhile |
+|---|---|---|---|
+| **Still** | **123–129 MB** | **0.4–1.1 %** (six 30 s windows: 0.36, 0.41, 0.57, 0.72, 1.03, 1.09; mean 0.70) | Stood, blinked, glanced about |
+| **Calm**, a minute with no stroll in it | 124–137 MB | **0.1–1.0 %** (0.10, 0.34, 0.67, 1.04) | The same as Still |
+| **Calm**, a minute with a stroll in it | | 1.8–5.7 % (seven such minutes) | One short walk at 30 px/s |
+| **Calm**, the minute with the peek | | 13.1 % | To the edge of the screen and back, 720 px each way at 50 px/s |
+| **Calm, all twelve minutes** | | **3.6 %** on average | 7 strolls and 1 peek |
+| **Lively** | **133–143 MB** | **16–32 %** (eight 30 s windows; mean **23 %**) | 10 strolls and 3 peeks in four minutes: it is walking most of the time |
+| A focus session running (Calm) | 124–131 MB | 0.3–0.6 % (four 30 s windows; mean 0.48) | Sat still, glasses on |
+| Asleep (Calm) | 128–132 MB | 0.2–0.6 % (mean 0.37) | Slept; no blinking, no z's |
+| Budget | under 150 MB | under 1 % | |
+
+**Against the budget.**
+
+- **Memory is inside it at every pace**, with less to spare than the Pill has (94–97 MB): the overlay is a transparent surface the size of the work area, which costs about 30 MB by itself (shell-spike 2.1).
+- **At rest the view is at the line, not over it**: 0.4–1.1 % at Still, and the same in a Calm minute with no stroll, during a focus session and asleep. The view adds nothing measurable to the empty overlay, which was measured at 1.1–1.5 % in Phase 3. At these levels single windows wander between 0.1 and 1.1 for the same state.
+- **Walking is not idle, and it is not cheap.** While Doozer walks the app uses a third to a half of one core: about half of it in the page (the rig redraws all its moving parts 120 times a second on this display), about a third in the graphics process, and the rest in passing the hit region to the shell thirty times a second. That is what one animation costs in this window (13–26 % for a single moving blob in shell-spike 2.1, 40–52 % for the mockup in Electron), not something this view does on top.
+- So **the pace decides the cost.** Calm walks for about a tenth of the time and averages 3.6 % of one core, which is 0.15 % of this machine. Lively walks most of the time and averages 23 %, which is 1 % of this machine: the same order as the mockup it is modelled on. The owner should know that when choosing the default (section 9).
+
+**What was done about it here.** At rest nothing animates: Doozer blinks in two redraws every 4–9 s and glances to one side in two redraws every 14–34 s. The first measurement of Still read 0.5–1.3 % (mean 0.88) with the glance *eased* across, a quarter of a second of full-rate drawing each way; making it a plain change of where the eyes are brought that to 0.4–1.1 % (mean 0.70). A sleepy Doozer yawns at most every two minutes. A pointer that merely crosses Doozer on its way to the taskbar starts nothing: it has to rest 180 ms.
+
+**What would help most, for Phase 10.** Drawing the walk at 30 or 60 frames a second instead of 120 would cut the cost of every stroll by half or more; that is a change to the rig, which every view shares. Reporting the hit region ten times a second instead of thirty while walking would save a little more.
+
+**A limit.** A cloaked window is not put on the screen, so whatever Windows itself spends compositing a visible overlay is not in these numbers (it would not be in the app's own processes either way). The Pill measured the same cloaked and visible ([pill-checks.md](pill-checks.md) section 3). Nobody has measured this view visible.
 
 ## 7. A focus session carried between views, and the spot
 
@@ -170,6 +197,10 @@ Bugs in the view, found by its own tests before the real window was involved:
 
 Found by the click-through probes in the real window: the five corner points described in section 5.
 
+Found by the soak, half an hour into its first run: **with Reduce motion on, Doozer slid.** The kit's reduced-motion rule gives every element under a kit root a 0.12 s transition, so that things fade rather than spring. On the one transform that says where Doozer is, that eased every change of position: put down, Doozer slid into place for an eighth of a second, and carried, it lagged that far behind the pointer, with Reduce motion on of all times. The soak's hands-off check saw it as "drawn somewhere other than where it is" in the instant after a landing. The view now switches transitions off on Doozer, on its props and on the panel's position. The soak was started again on the corrected build, and it is that run which section 4 reports.
+
+Found by re-reading the view while the checks ran: **choosing a Size closed the settings panel**, because a change of size re-laid the stage and closed whatever was open, and the Size row is in the settings. What is open now stays open through a change of size or display and moves with Doozer.
+
 Found about building, and worth knowing for anyone else who builds into their own folders: the two notes at the end of section 10. They cost this phase its first three on-screen runs, which sat showing a folder listing instead of the app.
 
 **A wrong turn, recorded so that nobody takes it again.** While those runs stalled I suspected the app's start-up: the owner was watching a fullscreen video, the app tucks itself away behind one, and the shell bridge waits for an animation frame after changing the window. If a hidden window drew no frames, that wait would never end. I changed the bridge to give the wait a time limit before checking, then measured it: **a hidden window still gets its frames** (120 a second, counted with the window hidden; `visibilityState` stays `visible`, as [shell-spike.md](shell-spike.md) 4.8 already says). The change was taken back; nothing in the shell is different. The same measurement is why `setAwake(false)` has to stop every timer of a view by hand, and it is checked that this view's does.
@@ -186,7 +217,7 @@ Run `npm run tauri dev` in `app/` (or the release `doozer.exe`), then right-clic
 
 | | What to do |
 |---|---|
-| **Calm or Lively as the default** (spec 6.4 "Pace", spec 12 item 3) | Leave it at Calm, the default, for a quarter of an hour of ordinary work. It should mostly stay where it is, take a short slow stroll every minute or two, and about every ten minutes walk to the edge of the screen, slip half-way off and peek back in. Then: click Doozer, *More* (the three dots), *Settings*, **Desktop activity → Lively**, and give that a quarter of an hour. It is off again a second or three after it arrives, anywhere along the taskbar; feed it (click Doozer, the apple) and it runs to the food; play (the ball) and it chases the ball and kicks it. *Still* is the third choice: it never leaves its spot. Say which should be the default. It is one word to change: `desktopActivity` in `DEFAULT_SETTINGS`, `app/src/core/tuning.ts`. |
+| **Calm or Lively as the default** (spec 6.4 "Pace", spec 12 item 3) | Leave it at Calm, the default, for a quarter of an hour of ordinary work. It should mostly stay where it is, take a short slow stroll every minute or two, and about every ten minutes walk to the edge of the screen, slip half-way off and peek back in. Then: click Doozer, *More* (the three dots), *Settings*, **Desktop activity → Lively**, and give that a quarter of an hour. It is off again a second or three after it arrives, anywhere along the taskbar; feed it (click Doozer, the apple) and it runs to the food; play (the ball) and it chases the ball and kicks it. *Still* is the third choice: it never leaves its spot. Say which should be the default. It is one word to change: `desktopActivity` in `defaultSettings()`, `app/src/core/tuning.ts`. |
 | **That Doozer no longer gets stuck** | Try to get it stuck, the way the mockup did and any other way. Pick it up with a fast flick right across the screen and let go in mid-air, twenty times, quickly: over another window, over the taskbar, in the corners, at the very top. Pick it up and, still holding, press Alt-Tab or the Windows key, then let go. Pick it up while it is walking, eating, chasing the ball, peeking at the edge, asleep. Click it fast, many times; press the Radial's buttons fast; start one thing and at once another. Switch to the Pill from the tray menu in the middle of any of that, and back. Leave it on Lively for an afternoon. Each time it should end up standing on the taskbar. If it ever does not within a few seconds, that is the bug this phase exists to prevent: note what you had just done. (In a development build, `window.doozer.desktop.snapshot()` in the console lists under `rescues` anything the watchdog had to put right.) |
 
 **The rest**

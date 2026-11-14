@@ -20,7 +20,7 @@ This file says **how and in what order** Doozer gets built. [DESIGN_SPEC.md](DES
 | 6 | Pill view and app basics (tray, settings, view switching) | M1 | **Done — Milestone 1 is built.** `app/src/host/`, `app/src/views/pill/`, `app/src/main.ts`; 522 page tests and 46 native tests; checks and measurements in [docs/pill-checks.md](docs/pill-checks.md). Checked with scripted input in the real window, not yet by a person at the mouse (its last section lists what to try) | high |
 | 7 | Room view | M2 | **Done — Milestone 2 is built.** `app/src/views/room/`; 109 new page tests and 3 native ones; checks and measurements in [docs/room-checks.md](docs/room-checks.md). Checked with scripted input in the real window, not yet by a person at the mouse (its section 7 lists what to try) | high |
 | 8 | 3D Doozer and the Island view | M3 | Not started | **xhigh** |
-| 9 | Desktop view (the calm roamer) | M4 | Not started | **xhigh** |
+| 9 | Desktop view (the calm roamer) | M4 | **Built and checked; two things wait for the owner.** `app/src/views/desktop/`; 176 page tests; checks and measurements in [docs/desktop-checks.md](docs/desktop-checks.md). Stuck cases, click-through and idle cost done with scripted input in the real window; the three-hour soak was still running when this row was written. **Not done, and only the owner can:** trying Calm and Lively to choose the default, and agreeing that Doozer no longer gets stuck (section 9 of that document says what to try) | **xhigh** |
 | 10 | Sound, polish, accessibility, performance | M5 | Not started | high |
 | 11 | Packaging and release | M5 | Not started | high |
 
