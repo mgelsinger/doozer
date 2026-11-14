@@ -85,6 +85,8 @@ export interface Behaviour {
   readonly desired: Station;
   /** The scene playing now, or null. */
   readonly scene: string | null;
+  /** The scene playing now moves nothing (a glance about): there is nothing to animate. */
+  readonly still: boolean;
   /** The behaviour's own timers that are armed. */
   timers(): string[];
   /** Tucked away (false): everything stops. Back (true): Doozer is put where it belongs. */
@@ -105,13 +107,18 @@ export interface Behaviour {
   destroy(): void;
 }
 
-// How long before Doozer does something by itself. Left alone it mostly rests: each
-// little outing costs a few seconds of animation, and the room has to stay cheap to
-// leave open all day (docs/room-checks.md). With somebody watching it is livelier.
-export const ALONE_MS: readonly [number, number] = [80_000, 200_000];
+// How long before Doozer does something by itself. A second of animation costs about a
+// third of a processor core in this window, so an outing (a stroll, a look out of the
+// window) costs one to three core-seconds, and the room has to stay cheap to leave open
+// all day (docs/room-checks.md section 6). So, left alone, most of what Doozer does is a
+// still glance about, which is two redraws and costs nothing; only now and then does it
+// really go somewhere. With somebody watching, everything it does is a proper outing.
+export const ALONE_MS: readonly [number, number] = [60_000, 140_000];
+/** Left alone, the share of the things it does that are real outings rather than a glance. */
+export const ALONE_OUTING_SHARE = 0.28;
 export const ATTENDED_MS: readonly [number, number] = [5_000, 11_000];
 /** While reading: how often it stirs to turn a page, and for how long. */
-export const PAGE_MS: readonly [number, number] = [60_000, 120_000];
+export const PAGE_MS: readonly [number, number] = [150_000, 330_000];
 const PAGE_TURN_MS = 2600;
 
 /** Pixels a second. */
@@ -135,6 +142,8 @@ export function createBehaviour(options: BehaviourOptions): Behaviour {
   /** Above zero while a scene is being swapped for another: the old one's ending must not start a third. */
   let swapping = 0;
   let refuseCooling = false;
+  /** The scene that is playing moves nothing: a few redraws, no animation needed. */
+  let still = false;
 
   const armed = new Map<string, unknown>();
   const disarm = (name: string): void => {
@@ -175,6 +184,7 @@ export function createBehaviour(options: BehaviourOptions): Behaviour {
 
   function afterScene(outcome: SceneOutcome): void {
     rested = null;
+    still = false;
     if (swapping > 0 || scope.disposed) return;
     fx.changed();
     // A scene that ran out of time or broke is not tried again: put Doozer where it belongs.
@@ -183,13 +193,14 @@ export function createBehaviour(options: BehaviourOptions): Behaviour {
   }
 
   /** Play a scene. Whatever was playing ends first, completely. */
-  function play(name: string, script: (scene: SceneContext) => Promise<void> | void, limit = SCENE_LIMIT_MS): void {
+  function play(name: string, script: (scene: SceneContext) => Promise<void> | void, limit = SCENE_LIMIT_MS, motionless = false): void {
     if (!canPlay()) return;
     disarm('act');
     swapping++;
     try {
       void scenes.play(name, (scene) => {
         rested = null;
+        still = motionless;
         // However the scene ends, Doozer stands still where it has got to and looks ahead.
         scene.cleanup(() => {
           walker.stop();
@@ -345,6 +356,8 @@ export function createBehaviour(options: BehaviourOptions): Behaviour {
   function act(): void {
     if (!canPlay() || scenes.active !== null || station !== 'free' || desired() !== 'free') { reconcile(); return; }
     const sleepy = brain.state.mood === 'sleepy';
+    // Nobody there: mostly a glance about, which costs nothing to draw.
+    if (!attended && random() >= ALONE_OUTING_SHARE) { glance(); return; }
     const roll = random();
     if (roll < 0.2) lookOut();
     else if (roll < (sleepy ? 0.45 : 0.62)) wander();
@@ -389,17 +402,23 @@ export function createBehaviour(options: BehaviourOptions): Behaviour {
 
   function fidget(sleepy: boolean): void {
     play('fidget', async (scene) => {
-      if (sleepy) {
-        await scene.until(doozer.perform('yawn'));
-      } else if (attended) {
-        await scene.until(doozer.perform('wave'));
-      } else {
-        doozer.lookAt(-0.8, -0.1);
-        await scene.wait(1000);
-        doozer.lookAt(0.8, -0.1);
-        await scene.wait(1000);
-      }
+      await scene.until(doozer.perform(sleepy ? 'yawn' : attended ? 'wave' : 'hop'));
     });
+  }
+
+  /** Its eyes go to two things in the room, one after the other. Nothing else moves. */
+  function glance(): void {
+    const sights: readonly (readonly [number, number])[] = [[-0.85, -0.1], [0.85, -0.1], [-0.6, -0.85], [0.75, 0.5], [0.3, -0.9]];
+    const pick = (): readonly [number, number] => sights[Math.min(sights.length - 1, Math.floor(random() * sights.length))] as readonly [number, number];
+    play('glance', async (scene) => {
+      const first = pick();
+      let second = pick();
+      if (second === first) second = [-first[0], first[1]];
+      doozer.lookAt(first[0], first[1]);
+      await scene.wait(between(900, 1500));
+      doozer.lookAt(second[0], second[1]);
+      await scene.wait(between(900, 1500));
+    }, SCENE_LIMIT_MS, true);
   }
 
   // ---- what happens when the brain says something happened --------------------------
@@ -615,6 +634,7 @@ export function createBehaviour(options: BehaviourOptions): Behaviour {
     get station() { return station; },
     get desired() { return desired(); },
     get scene() { return scenes.active; },
+    get still() { return still && scenes.active !== null; },
     timers: () => [...armed.keys()],
 
     setAwake(next) {

@@ -429,25 +429,53 @@ describe('what Doozer does on its own', () => {
     expect(await settle(r)).toBe('');
   });
 
+  it('left alone, most of what it does is a glance about, which animates nothing', async () => {
+    const r = mount({ seed: 6 });
+    await pass(r, 5000);
+    const seen = { glances: 0, outings: 0, livelyDuringGlance: 0, looked: false };
+    let last: string | null = null;
+    for (let i = 0; i < 45 * 60 * 4; i++) {
+      await pass(r, 250);
+      const s = r.snap();
+      if (s.scene === 'glance') {
+        if (s.lively || r.parts().doozer.el.dataset.live !== '0') seen.livelyDuringGlance++;
+        if (r.parts().doozer.el.style.getPropertyValue('--dz-look-x') !== '0.00') seen.looked = true;
+        // Its feet stay where they are.
+        expect(s.pose).toBe('idle');
+      }
+      if (s.scene && s.scene !== last) { if (s.scene === 'glance') seen.glances++; else seen.outings++; }
+      last = s.scene;
+    }
+    expect(seen.glances).toBeGreaterThan(10);
+    expect(seen.outings).toBeGreaterThan(1);
+    expect(seen.glances).toBeGreaterThan(seen.outings);
+    expect(seen.livelyDuringGlance).toBe(0);
+    expect(seen.looked).toBe(true);
+    expect(await settle(r)).toBe('');
+    // And its eyes are back where they were.
+    expect(r.parts().doozer.el.style.getPropertyValue('--dz-look-x')).toBe('0.00');
+  });
+
   it('is livelier with somebody watching than alone', async () => {
+    /** Things it really went and did (not glances) in ten minutes. */
     const count = async (watched: boolean): Promise<number> => {
       const r = mount({ seed: 9 });
-      let acts = 0;
+      let outings = 0;
       let last: string | null = null;
-      for (let i = 0; i < 5 * 60 * 4; i++) {
+      for (let i = 0; i < 10 * 60 * 4; i++) {
         if (watched) pointer(r.parts().scene, 'pointermove');
         await pass(r, 250);
         const scene = r.snap().scene;
-        if (scene && scene !== last) acts++;
+        if (scene && scene !== last && scene !== 'glance') outings++;
         last = scene;
       }
       r.view.unmount();
-      return acts;
+      return outings;
     };
     const alone = await count(false);
     const watched = await count(true);
     expect(alone).toBeLessThanOrEqual(4);
-    expect(watched).toBeGreaterThan(alone * 3);
+    expect(watched).toBeGreaterThan(40);
   });
 
   it('goes to bed when it is worn out, without being told, and the light goes out', async () => {

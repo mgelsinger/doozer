@@ -267,7 +267,8 @@ export function createRoomView(options: RoomViewOptions = {}): RoomView {
 
     // ---- liveliness ----------------------------------------------------------------
     function applyLively(): void {
-      const lively = awake && (attention.lively || (behaviour?.scene ?? null) !== null);
+      // A scene that moves nothing (a glance about) needs no animation.
+      const lively = awake && (attention.lively || (!!behaviour && behaviour.scene !== null && !behaviour.still));
       if (lively !== wasLively) {
         wasLively = lively;
         doozer.setLive(lively);
