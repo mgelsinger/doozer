@@ -18,6 +18,7 @@ import { parseSave } from '../host/store';
 import { shell } from '../shell';
 import type { PillSnapshot } from '../views/pill';
 import { scenarioNames, type TestRun } from './config';
+import { ROOM_SCENARIOS } from './room-scenarios';
 
 interface Status {
   kind: string | null;
@@ -632,7 +633,11 @@ const idle: Scenario = async (app, args) => {
   return new Promise(() => undefined);
 };
 
-const SCENARIOS: Record<string, Scenario> = { 'app-day1': day1, 'app-day2': day2, 'app-stuck': stuck, 'app-window': windowChecks, 'app-idle': idle };
+const SCENARIOS: Record<string, Scenario> = {
+  'app-day1': day1, 'app-day2': day2, 'app-stuck': stuck, 'app-window': windowChecks, 'app-idle': idle,
+  // The Room view's runs (Phase 7): `app-room-*`, in room-scenarios.ts.
+  ...ROOM_SCENARIOS,
+};
 
 export async function runAppScenarios(app: App, run: TestRun): Promise<void> {
   const args = run.args ?? {};
@@ -649,7 +654,7 @@ export async function runAppScenarios(app: App, run: TestRun): Promise<void> {
   }
   report.finishedAt = new Date().toISOString();
   report.endStatus = await status();
-  report.endSnapshot = app.pill.snapshot();
+  report.endSnapshot = app.pill.snapshot() ?? app.room.snapshot();
   await invoke('spike_inject', { cursor: null });
   await invoke('spike_report', { name: `${String(args.tag ?? names.join('+'))}.json`, json: JSON.stringify(report, null, 1) });
   if (args.exit === false) return;
