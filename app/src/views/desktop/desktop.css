@@ -31,6 +31,9 @@
 .deskv-pet[data-gone="1"] .deskv-hit { pointer-events: none; }
 
 .deskv-pet > .dzk-radial { left: 50%; top: 52%; }
+/* A need ring is a square drawing inside a round button. Only the round button is the
+   button: the square's corners must not answer where the window lets the click through. */
+.deskv-pet > .dzk-radial .dzk-ring { pointer-events: none; }
 .deskv-pet > .deskv-emotes { position: absolute; left: -45%; right: -45%; top: -70%; bottom: 0; z-index: 3; }
 .deskv-pet > .deskv-emotes .dzk-emote { --dzk-emote: 22px; }
 
@@ -44,7 +47,9 @@
 .deskv-panel { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 20; }
 .deskv-panel > .dzk-card, .deskv-panel > .dzk-settings { position: absolute; left: 0; top: 0; pointer-events: auto; }
 .deskv-panel > .dzk-card { max-height: var(--deskv-panel-max, 720px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .22) transparent; }
-.deskv-panel > .dzk-settings { --dzk-settings-max: min(560px, var(--deskv-panel-max, 560px)); }
+/* Clipped to its rounded corners, so that its square header does not answer in a corner
+   the window lets through. (Its shadow is outside the box and is not clipped.) */
+.deskv-panel > .dzk-settings { --dzk-settings-max: min(560px, var(--deskv-panel-max, 560px)); overflow: hidden; }
 .deskv-panel > [data-open="0"] { pointer-events: none; }
 
 /* Things that appear beside Doozer for the length of a scene. */

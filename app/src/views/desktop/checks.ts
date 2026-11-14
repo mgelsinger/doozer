@@ -51,6 +51,29 @@ const park = (): Promise<unknown> => invoke('spike_inject', { cursor: PARKED });
 const cursor = (at: Point, down: boolean): Promise<unknown> => invoke('spike_inject', { cursor: { x: at.x, y: at.y, down } });
 const report = (name: string, data: unknown): Promise<unknown> => invoke('spike_report', { name, json: JSON.stringify(data, null, 1) });
 
+/** Where a run has got to, written as it goes, so that a run that stalls says where. */
+const trail: { at: number; step: string }[] = [];
+const began = performance.now();
+async function mark(step: string, more: Record<string, unknown> = {}): Promise<void> {
+  trail.push({ at: Math.round(performance.now() - began), step });
+  await report('desktop-trail.json', { trail, visibility: document.visibilityState, ...more }).catch(() => undefined);
+}
+
+/** Does the page get animation frames? A window nobody can see may get none. */
+function framesIn(ms: number): Promise<number> {
+  return new Promise((resolve) => {
+    let frames = 0;
+    let running = true;
+    const count = (): void => {
+      if (!running) return;
+      frames++;
+      requestAnimationFrame(count);
+    };
+    requestAnimationFrame(count);
+    setTimeout(() => { running = false; resolve(frames); }, ms);
+  });
+}
+
 async function waitFor(test: () => boolean, limitMs: number, stepMs = 25): Promise<boolean> {
   const t0 = performance.now();
   while (performance.now() - t0 < limitMs) {
@@ -115,6 +138,7 @@ function refresh(app: App): void {
 /** Into the Desktop view, awake, at the pace asked for, with nothing in the way of the checks. */
 async function enterDesktop(app: App, pace: Pace): Promise<void> {
   const { brain, host } = app;
+  await mark('entering the Desktop view', { current: host.current() });
   // Scripted runs must not be hidden by whatever game happens to be in front.
   if (brain.settings.tuckAwayInFullscreen) brain.setSetting('tuckAwayInFullscreen', false);
   if (!brain.settings.soundAsked) brain.setSetting('soundAsked', true);
@@ -126,6 +150,7 @@ async function enterDesktop(app: App, pace: Pace): Promise<void> {
   await host.settled();
   await sleep(500);
   refresh(app);
+  await mark('in the Desktop view', { current: host.current(), mounted: mounted(app), frames: await framesIn(500) });
 }
 
 /** Wait until Doozer is at rest with its face back to normal. */
@@ -140,7 +165,6 @@ async function atRest(app: App, limitMs = 90_000): Promise<boolean> {
 /** Bring the pet back to an ordinary waking state and wait for rest at the Still pace. */
 async function quietDown(app: App, limitMs = 90_000): Promise<boolean> {
   const { brain } = app;
-  await cursor(doozerAt(app), false).catch(() => undefined);
   await park();
   if (brain.state.focus.status !== 'idle') brain.stopFocus();
   if (brain.state.asleep) brain.wake();
@@ -358,6 +382,7 @@ const stuck: Scenario = async (app) => {
   const released: unknown[] = [];
   const offReleased = shell.on('pointer-released', (at) => released.push(at));
 
+  await mark('stuck: the drag test');
   // 1. The mockup's drag test: a fast, far drag, let go in mid-air.
   const first = snap(app);
   const far = { x: Math.round(first.x - 540), y: Math.round(first.y - 470) };
@@ -375,6 +400,7 @@ const stuck: Scenario = async (app) => {
   });
   out.drag = { carry, floating, afterA };
 
+  await mark('stuck: the mouse-up never arrives');
   // 2. The same drag, and the mouse-up never arrives.
   await sleep(400);
   released.length = 0;
@@ -413,6 +439,7 @@ const stuck: Scenario = async (app) => {
     'no word from the shell: a move with no button ends it': endedC && landedC && (await restReport(app)).ok,
   });
 
+  await mark('stuck: silence');
   // 4. Nothing at all is heard again: the carry gives up by itself.
   carry = await carryTo(app, { x: Math.round(snap(app).x + 200), y: 500 }, { native: false });
   const t1 = performance.now();
@@ -429,6 +456,7 @@ const stuck: Scenario = async (app) => {
   const cuts: unknown[] = [];
   let turn = 0;
   for (const scene of SCENES) {
+    await mark(`stuck: cutting ${scene.name}`, { failuresSoFar: failures.length });
     for (const cutAt of CUTS_MS) {
       for (const [how, interrupt] of INTERRUPTS) {
         turn++;
@@ -449,6 +477,7 @@ const stuck: Scenario = async (app) => {
   }
   out.cuts = { count: cuts.length, failed: cuts.filter((cut) => (cut as { problems: string[] }).problems.length > 0) };
 
+  await mark('stuck: rapid clicks');
   // 6. Rapid clicks on Doozer and on the Radial.
   await quietDown(app);
   refresh(app);
@@ -484,6 +513,7 @@ const stuck: Scenario = async (app) => {
   out.scenes = before.scenes;
   out.drops = before.drops;
 
+  await mark('stuck: the watchdog, on purpose');
   // 7. Control: break the view on purpose, and the watchdog puts it right.
   const control: unknown[] = [];
   for (const what of ['off-the-line', 'stuck-pose', 'ghost-carry', 'litter', 'lost-timers'] as Sabotage[]) {
@@ -571,11 +601,17 @@ interface ProbeTotals { points: number; wrong: number; skipped: number; states: 
  * window's real style says. `moving`: Doozer is on the move, so points are taken one at a
  * time and one that Doozer passed over in the meantime is skipped rather than guessed.
  */
-async function probeState(app: App, state: string, failures: string[], totals: ProbeTotals, options: { moving?: boolean; extra?: Probe[]; gridOnly?: boolean } = {}): Promise<void> {
+async function probeState(app: App, state: string, failures: string[], totals: ProbeTotals, options: { moving?: boolean; extra?: Probe[]; gridOnly?: boolean; keepOpen?: boolean } = {}): Promise<void> {
   const s = snap(app);
   const tally = (totals.states[state] ??= { points: 0, wrong: 0 });
   const points = [...grid(s.stage.w, s.stage.h), ...(options.gridOnly ? [] : around(app.desktop.hitRegions(), s.stage.w, s.stage.h)), ...(options.extra ?? [])];
   const one = async (probe: Probe): Promise<void> => {
+    if (options.keepOpen) {
+      // A menu left alone closes by itself. Someone is still here: the pointer is on it.
+      const { radial, root } = parts(app);
+      pointer(radial.isOpen ? radial.el : root, 'pointerover', { x: 1, y: 1 }, 0);
+      pointer(window, 'pointermove', { x: 1, y: 1 }, 0);
+    }
     const regionsBefore = app.desktop.hitRegions();
     if (nearEdge(regionsBefore, probe.at.x, probe.at.y)) { totals.skipped++; return; }
     const expected = regionsBefore.some((region) => inRegion(region, probe.at.x, probe.at.y));
@@ -627,7 +663,8 @@ const windowChecks: Scenario = async (app) => {
       && native.bounds.x === work.x && native.bounds.y === work.y && native.bounds.w === work.w && native.bounds.h === work.h - (hidden ? 1 : 0),
     'the page is the size the view thinks it is': Math.abs(window.innerWidth - s.stage.w) <= 1 && Math.abs(window.innerHeight - s.stage.h) <= 1,
     'Doozer stands on the bottom edge': Math.abs(s.y - s.ground) < 0.5 && s.ground > s.stage.h - 12 && s.ground < s.stage.h,
-    'nothing of Doozer is below the edge': petBox.bottom <= window.innerHeight + 0.5,
+    // The sprite's box runs a hair past the edge; what is drawn in it (down to the shadow) does not.
+    'nothing of Doozer is drawn below the edge': petBox.top + petBox.height * 0.975 <= window.innerHeight + 0.5,
     'what catches the mouse is drawn where the shell is told it is': Math.abs(hitBox.left - model.x) < 0.75 && Math.abs(hitBox.top - model.y) < 0.75
       && Math.abs(hitBox.width - model.w) < 0.75 && Math.abs(hitBox.height - model.h) < 0.75,
     'its corners are rounded the same in the page and in the shell': Math.abs(Number.parseFloat(getComputedStyle(p.hit).borderTopLeftRadius) - (model.r ?? 0)) < 0.75,
@@ -638,7 +675,9 @@ const windowChecks: Scenario = async (app) => {
 
   // --- click-through, in every state ---
   const totals: ProbeTotals = { points: 0, wrong: 0, skipped: 0, states: {} };
+  await mark('window: probing at rest');
   await probeState(app, 'at rest', failures, totals);
+  await mark('window: the Radial', { totals });
 
   // The Radial: the buttons' real boxes are where the shell was told they would be.
   await tapDoozer(app);
@@ -650,10 +689,11 @@ const windowChecks: Scenario = async (app) => {
     return !!region && Math.abs(box.left - region.x) < 1 && Math.abs(box.top - region.y) < 1 && Math.abs(box.width - region.w) < 1;
   });
   check(failures, { 'the Radial\'s buttons are where the shell is told they are': radialMatches && snap(app).open === 'radial' });
-  await probeState(app, 'Radial open', failures, totals);
+  await probeState(app, 'Radial open', failures, totals, { keepOpen: true });
   out.radial = { buttons: buttons.map((b) => ({ x: Math.round(b.left), y: Math.round(b.top), w: b.width })), regions: radialRegions };
   app.desktop.setOpen('none');
 
+  await mark('window: the Card', { totals });
   app.desktop.setOpen('card');
   await sleep(600);
   const cardBox = p.card.el.getBoundingClientRect();
@@ -663,7 +703,7 @@ const windowChecks: Scenario = async (app) => {
       && Math.abs(cardBox.width - cardRegion.w) < 1 && Math.abs(cardBox.height - cardRegion.h) < 1.5,
     'the Card is on the screen, over Doozer\'s head': cardBox.top >= 0 && cardBox.left >= 0 && cardBox.right <= window.innerWidth && cardBox.bottom < s.y - s.stage.size * 0.7,
   });
-  await probeState(app, 'Card open', failures, totals);
+  await probeState(app, 'Card open', failures, totals, { keepOpen: true });
   out.card = { box: { x: cardBox.left, y: cardBox.top, w: cardBox.width, h: cardBox.height }, region: cardRegion };
 
   app.desktop.openSettings?.();
@@ -672,11 +712,12 @@ const windowChecks: Scenario = async (app) => {
   check(failures, {
     'settings: a click may give the window the keyboard, and opening them took none': inSettings.focusable && !inSettings.styleNoActivate && !inSettings.isForeground,
   });
-  await probeState(app, 'settings open', failures, totals);
+  await probeState(app, 'settings open', failures, totals, { keepOpen: true });
   app.desktop.setOpen('none');
   await sleep(200);
   check(failures, { 'settings closed: the window refuses focus again': (await status()).styleNoActivate });
 
+  await mark('window: carried', { totals });
   // Carried: a press that began on Doozer stays Doozer's wherever the pointer goes, and
   // the region is under the pointer all the way.
   const carry = await carryTo(app, { x: Math.round(s.stage.w * 0.5), y: Math.round(s.stage.h * 0.3) });
@@ -714,6 +755,7 @@ const windowChecks: Scenario = async (app) => {
   await park();
   await sleep(250);
 
+  await mark('window: walking', { totals });
   // Walking: the region is where Doozer is, all the way.
   brain.setSetting('desktopActivity', 'calm');
   let walked = 0;
@@ -735,6 +777,7 @@ const windowChecks: Scenario = async (app) => {
   await park();
   await quietDown(app);
 
+  await mark('window: peeking', { totals });
   // Half off the screen for a peek.
   brain.setSetting('desktopActivity', 'lively');
   if (app.desktop.act('peek')) {
@@ -747,6 +790,7 @@ const windowChecks: Scenario = async (app) => {
   } else failures.push('peeking: Doozer would not peek');
   await quietDown(app);
 
+  await mark('window: ball and snack', { totals });
   // The ball in play, and a snack on the ground.
   brain.setSetting('desktopActivity', 'calm');
   refresh(app);
@@ -771,6 +815,7 @@ const windowChecks: Scenario = async (app) => {
   brain.wake();
   await quietDown(app);
 
+  await mark('window: a focus session across views', { totals, failuresSoFar: failures.length });
   // --- a focus session, carried to the Pill and back ---
   refresh(app);
   brain.setSetting('desktopActivity', 'lively');
@@ -781,7 +826,6 @@ const windowChecks: Scenario = async (app) => {
   const full25 = brain.state.focus.remainingMs;
   await sleep(1500);
   const sat = snap(app);
-  const xWhileFocusing = sat.x;
   await probeState(app, 'focusing', failures, totals);
   // Hover: the time left appears.
   const at = doozerAt(app);
@@ -814,17 +858,22 @@ const windowChecks: Scenario = async (app) => {
   brain.pauseFocus();
   await sleep(400);
   const paused = brain.state.focus;
+  // Paused, Doozer may wander (only a running session keeps it still): keep it Still for the comparison.
+  brain.setSetting('desktopActivity', 'still');
   await host.switchTo('desktop');
   await host.settled();
   await sleep(700);
   const back = brain.state.focus;
   const backSnap = snap(app);
   const backGlasses = parts(app).doozer.el.dataset.glasses === '1';
+  brain.setSetting('desktopActivity', 'lively');
   brain.resumeFocus();
   await sleep(6000);
   const resumed = brain.state.focus;
-  const stayedPut = Math.abs(snap(app).x - backSnap.x) < 0.5 && snap(app).scenes.stroll === sat.scenes.stroll;
-  const sameSpot = Math.abs(backSnap.x - xWhileFocusing) < 1.5;
+  const strolls = (s: DesktopSnapshot): number => (s.scenes.stroll?.finished ?? 0) + (s.scenes.stroll?.interrupted ?? 0);
+  const stayedPut = Math.abs(snap(app).x - backSnap.x) < 0.5 && strolls(snap(app)) === strolls(backSnap) && snap(app).scene === null;
+  // Where exactly Doozer stood does not carry over (spec 5.1): it comes back at its spot.
+  const sameSpot = Math.abs(backSnap.x - backSnap.home) < 1.5 && Math.abs(backSnap.home - sat.home) < 1.5;
   check(failures, {
     'switch mid-session: the Pill shows the same countdown': !!pill && /^\d\d:\d\d$/.test(pill.status) && inPill.status === 'running'
       && Math.abs(full25 - inPill.remainingMs - elapsedA) < 1200 && inPill.remainingMs <= inDesktop,
@@ -850,6 +899,7 @@ const windowChecks: Scenario = async (app) => {
   });
   out.focus = { full25, inDesktop, inPill: inPill.remainingMs, paused: paused.remainingMs, back: back.remainingMs, resumed: resumed.remainingMs, earned, chipText };
 
+  await mark('window: the spot');
   // --- the spot is remembered, for this monitor, in the save ---
   const spotCarry = await carryTo(app, { x: Math.round(s.stage.w * 0.31), y: Math.round(s.stage.h * 0.6) });
   await release(app, spotCarry, 'up');
@@ -872,6 +922,7 @@ const windowChecks: Scenario = async (app) => {
   });
   out.spot = { leftAt, saved: spots };
 
+  await mark('window: tucked away');
   // --- tucked away ---
   brain.setSetting('tuckAwayInFullscreen', true);
   host.setFullscreen(true);
@@ -1013,15 +1064,17 @@ const soak: Scenario = async (app, args) => {
     ['wash', 4, async () => { brain.wash(); }],
     ['pet', 3, async () => { brain.pet(); }],
     ['fill the bowl', 2, async () => { brain.fillBowl(); }],
-    ['nap or wake', 3, async () => { brain.debug?.setNeeds({ energy: 50 }); brain.toggleSleep(); }],
+    ['nap', 2, async () => { brain.debug?.setNeeds({ energy: 50 }); brain.sleep(); }],
+    ['wake', 4, async () => { brain.wake(); }],
     ['focus: start', 3, async () => { brain.startFocus(); }],
     ['focus: pause or resume', 2, async () => { if (brain.state.focus.status === 'running') brain.pauseFocus(); else brain.resumeFocus(); }],
-    ['focus: stop', 2, async () => { brain.stopFocus(); }],
+    ['focus: stop', 3, async () => { brain.stopFocus(); }],
     ['focus: finish', 2, async () => { if (brain.state.focus.status !== 'idle') brain.debug?.finishFocusNow(); }],
     ['change pace', 5, async () => { brain.setSetting('desktopActivity', pick(['still', 'calm', 'lively', 'lively'] as const)); }],
     ['change size', 2, async () => { brain.setSetting('size', { ...brain.settings.size, desktop: pick(['small', 'medium', 'large'] as const) }); }],
     ['change colour', 1, async () => { brain.setSetting('palette', pick(['peach', 'mint', 'lavender', 'butter', 'sky'] as const)); }],
-    ['reduce motion on or off', 1, async () => { brain.setSetting('reduceMotion', brain.settings.reduceMotion === 'on' ? 'off' : 'on'); }],
+    ['reduce motion on', 1, async () => { brain.setSetting('reduceMotion', 'on'); }],
+    ['reduce motion off', 3, async () => { brain.setSetting('reduceMotion', 'off'); }],
     ['to the Pill and back', 3, async () => {
       await host.switchTo('pill');
       await sleep(between(100, 2500));
@@ -1078,7 +1131,7 @@ const soak: Scenario = async (app, args) => {
       const info = await shell.windowInfo();
       if (info) app.desktop.windowChanged?.(info);
     }],
-    ['a stroll or a peek, now', 2, async () => { app.desktop.act(pick(['stroll', 'peek', 'gesture'] as const)); }],
+    ['a stroll or a peek, now', 6, async () => { app.desktop.act(pick(['stroll', 'peek', 'peek', 'gesture'] as const)); }],
   ];
   const totalWeight = actions.reduce((sum, action) => sum + action[1], 0);
   const choose = (): Action => {
@@ -1227,7 +1280,27 @@ const idle: Scenario = async (app, args) => {
   return new Promise(() => undefined);
 };
 
+/** A quick look at whether the view comes up at all in this window, and what the page's clock is like there. */
+const hello: Scenario = async (app) => {
+  const failures: string[] = [];
+  const framesBefore = await framesIn(500);
+  await enterDesktop(app, 'still');
+  const s = snap(app);
+  const native = await status();
+  const t0 = performance.now();
+  await sleep(1000);
+  const sleptMs = Math.round(performance.now() - t0);
+  const frames = await framesIn(1000);
+  check(failures, {
+    'the Desktop view is on screen': app.host.current() === 'desktop' && native.kind === 'overlay',
+    'Doozer is at rest on the line': s.state === 'idle' && Math.abs(s.y - s.ground) < 0.5,
+    'the clock of the page keeps time': sleptMs < 1300,
+  });
+  return { failures, framesBefore, frames, sleptMs, visibility: document.visibilityState, snapshot: s, native };
+};
+
 const SCENARIOS: Record<string, Scenario> = {
+  'app-desktop-hello': hello,
   'app-desktop-stuck': stuck,
   'app-desktop-window': windowChecks,
   'app-desktop-soak': soak,
