@@ -151,8 +151,9 @@ export function clipRegion(region: Region, w: number, h: number): Region | null 
  */
 export function radialArc(stage: Stage, x: number): { center: number; span: number } {
   const reach = 132;
-  if (x < reach && x <= stage.w / 2) return { center: -45, span: 110 };
-  if (x > stage.w - reach) return { center: -135, span: 110 };
+  // The leaning arc ends level with Doozer's middle, so its last button clears the bottom edge.
+  if (x < reach && x <= stage.w / 2) return { center: -50, span: 100 };
+  if (x > stage.w - reach) return { center: -130, span: 100 };
   return { center: -90, span: 200 };
 }
 

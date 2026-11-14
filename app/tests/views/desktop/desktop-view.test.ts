@@ -575,7 +575,7 @@ describe('the Radial, the Card and the settings', () => {
     const first = radialButton(r, 'feed').style.getPropertyValue('--a');
     const last = radialButton(r, 'more').style.getPropertyValue('--a');
     expect(first).toBe('-100deg');
-    expect(last).toBe('10deg');
+    expect(last).toBe('0deg');
   });
 
   it('right-click asks the host for the native menu', async () => {
