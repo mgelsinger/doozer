@@ -41,6 +41,7 @@ Rules for a view:
 - It subscribes to the brain inside `mount`. The host runs the first `tick()` only after that, so `away` and a session that finished while the app was closed reach it.
 - `setAwake(false)` must leave no timer of the view's running: a hidden window is not told it is hidden.
 - It asks for the keyboard (`host.setFocusable(true)`) only while something really needs typing or arrow keys, and gives it back. The host takes it back anyway when the view leaves.
+- If it has something of its own to remember that is about the view and not the pet (the Desktop view: where Doozer was left standing on each monitor), it keeps it in `context.memory`: `read()` gives back what it last wrote, or null, and `write(value)` replaces it. The value must be plain JSON; treat what comes back as untrusted, since it has been through a file. The host saves it and never looks inside.
 
 ## What the host does
 
@@ -52,7 +53,7 @@ Rules for a view:
 
 **The clock.** `brain.tick()` every 250 ms, every second while tucked away. A listener that throws does not stop it.
 
-**Saving.** Within a second of anything happening (an action, a setting, a session event, coming back from time away), within five minutes when only time has passed, when tucking away, and before quitting. Quit from the tray arrives as the shell's `quit-requested`; the host saves and answers with `shell.quit()`, and the shell quits by itself after 0.9 s if the page never answers. If the save could not even be *read* at start-up the host runs without writing, so a good save is never replaced by a new pet.
+**Saving.** Within a second of anything happening (an action, a setting, a session event, a view changing its note, coming back from time away), within five minutes when only time has passed, when tucking away, and before quitting. Quit from the tray arrives as the shell's `quit-requested`; the host saves and answers with `shell.quit()`, and the shell quits by itself after 0.9 s if the page never answers. If the save could not even be *read* at start-up the host runs without writing, so a good save is never replaced by a new pet.
 
 **Tuck away.** `fullscreen-changed` (or a fullscreen app already in front at start-up) with the setting on: the view is told `setAwake(false)`, the regions are dropped, the window is hidden, the save is written. The brain keeps ticking, so a session still ends on time.
 

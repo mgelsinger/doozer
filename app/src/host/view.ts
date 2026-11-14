@@ -47,6 +47,17 @@ export interface HostServices {
   welcomed(): void;
 }
 
+/**
+ * A view's own small note in the save: something about the view rather than the pet,
+ * such as where Doozer was left standing on each monitor (DESIGN_SPEC.md 5.1).
+ */
+export interface ViewMemory {
+  /** What this view last wrote, or null. Plain JSON that has been through a file: check it before use. */
+  read(): unknown;
+  /** Replace it. It must be plain JSON. It is written with the next save. */
+  write(value: unknown): void;
+}
+
 export interface ViewContext {
   readonly brain: Brain;
   /**
@@ -58,6 +69,8 @@ export interface ViewContext {
   readonly host: HostServices;
   /** The window as it is now. */
   readonly info: WindowInfo;
+  /** This view's note in the save. Absent when there is no save to keep it in. */
+  readonly memory?: ViewMemory;
 }
 
 export interface View {

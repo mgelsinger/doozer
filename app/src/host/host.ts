@@ -185,7 +185,20 @@ export function createHost(options: HostOptions): Host {
     position: hostData.positions[view.id] ?? null,
   });
 
-  const context = (info: WindowInfo): ViewContext => ({ brain, shell, host: services, info });
+  const context = (view: View, info: WindowInfo): ViewContext => ({
+    brain,
+    shell,
+    host: services,
+    info,
+    // The view's own note in the save (where Doozer stands on each monitor, say).
+    memory: {
+      read: () => hostData.memory?.[view.id] ?? null,
+      write: (value) => {
+        (hostData.memory ??= {})[view.id] = value;
+        saver.touch('soon');
+      },
+    },
+  });
 
   /** Take the mounted view off the screen and release it. */
   async function retire(animate: boolean): Promise<void> {
@@ -206,7 +219,7 @@ export function createHost(options: HostOptions): Host {
   async function bring(view: View): Promise<void> {
     const info = await shell.setWindowMode(view.window(request(view)), view.id);
     try {
-      await view.mount(root, context(info));
+      await view.mount(root, context(view, info));
     } catch (error) {
       safely(`${view.id}.unmount`, () => view.unmount());
       root.replaceChildren();

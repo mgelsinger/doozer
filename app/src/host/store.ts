@@ -21,6 +21,11 @@ export interface HostData {
   welcomedPet: number | null;
   /** Where the user left each floating view's window (physical screen pixels, from the shell). */
   positions: Partial<Record<ViewId, Position>>;
+  /**
+   * A small note each view may keep about itself (`ViewMemory` in view.ts). The host
+   * stores it and hands it back without looking inside. Absent until a view writes one.
+   */
+  memory?: Partial<Record<ViewId, unknown>>;
 }
 
 export interface ParsedSave {
@@ -48,6 +53,12 @@ function readHostData(raw: unknown): HostData {
       if (isBag(at) && Number.isFinite(at.x) && Number.isFinite(at.y)) {
         data.positions[view] = { x: Math.round(at.x as number), y: Math.round(at.y as number) };
       }
+    }
+  }
+  if (isBag(raw.memory)) {
+    for (const view of VIEWS) {
+      const note = raw.memory[view];
+      if (note !== undefined && note !== null) (data.memory ??= {})[view] = note;
     }
   }
   return data;
