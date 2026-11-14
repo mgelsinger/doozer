@@ -14,6 +14,12 @@ Phase 6 joins the shell (Phase 3), the pet brain (Phase 4) and the rig and UI ki
 | Never stuck: rapid presses, Card closed mid-scene, lost mouse-up, session ending with the Card closed | All pass | Injected input in the real window (section 4), and the same cases on a fake clock in the unit tests |
 | `npm test`, `npm run typecheck`, `cargo test` | 522 page tests, type-check clean, 44 native tests | Section 1 |
 
+What it looks like, as drawn in a browser pane (the page is the same one the app's window shows; the flat backdrop stands in for the desktop):
+
+| The pill with the Card unfolded (top-centre dock) | Bottom-right dock, Large, a need urgent |
+|---|---|
+| ![The pill with the Card open](screenshots/app-pill-card.jpg) | ![The pill on the bottom dock with the Card above it](screenshots/app-pill-bottom-dock.jpg) |
+
 ## 1. Tests that run without a window
 
 From `app/`: `npm test` (522 tests, 144 of them new in this phase) and `npm run typecheck`; from `app/src-tauri`: `cargo test` (44).
