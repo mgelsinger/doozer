@@ -59,6 +59,8 @@ body[data-bg="wallpaper"] .vw-matrix, body[data-bg="dark"] .vw-matrix { color: #
 .vw-log { font: 12px/1.5 ui-monospace, Consolas, monospace; background: #2a2230; color: #e9def0; border-radius: 12px; padding: 10px 12px; min-height: 60px; max-height: 180px; overflow: auto; white-space: pre-wrap; }
 
 .vw-pair { display: flex; gap: 4px; align-items: flex-end; }
+/* A still of the 3D Doozer (viewer-3d.ts), framed like the 2D rig beside it. */
+.vw-3d { display: block; flex: none; }
 
 .vw-strip { gap: 2px; padding: 34px 14px 10px; margin-bottom: 4px; flex-wrap: nowrap; overflow-x: auto; }
 .vw-strip-cap { text-align: left; margin: 10px 0 4px; font-weight: 600; }

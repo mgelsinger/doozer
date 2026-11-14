@@ -513,8 +513,9 @@ def build_body_parts():
     # The tuft: M100 52 C95 36 104 22 115 27 C123 31 119 43 111 39, as a tapering tube.
     centreline = polyline(sample([[(100, 52), (95, 36), (104, 22), (115, 27)], [(115, 27), (123, 31), (119, 43), (111, 39)]]), 22)
     spine = [(rx(x), ry(y), 0.0) for x, y in centreline]
-    radii = [lerp(0.05, 0.036, i / (len(spine) - 1)) for i in range(len(spine))]
-    radii[-1] *= 0.55
+    # As thick as the drawing's tuft with its outline: it is the mood meter and has to read from afar.
+    radii = [lerp(0.064, 0.046, i / (len(spine) - 1)) for i in range(len(spine))]
+    radii[-1] *= 0.6
     frames = []
     for i in range(len(spine)):
         ahead = Vector(spine[min(len(spine) - 1, i + 1)]) - Vector(spine[max(0, i - 1)])

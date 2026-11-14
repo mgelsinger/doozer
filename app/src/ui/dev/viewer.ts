@@ -30,12 +30,24 @@ function select<T extends string>(label: string, values: readonly (readonly [T, 
 
 const content = el('div');
 let unmount: (() => void) | null = null;
-const only = params.get('only');   // 'rig' or 'kit': render half the page (quicker to reload)
+const only = params.get('only');   // 'rig', 'kit' or '3d': render part of the page (quicker to reload)
+
+/** The 3D Doozer beside the 2D rig (Phase 8). three.js is only loaded if this part is shown. */
+function mount3DLater(host: HTMLElement): () => void {
+  let cleanup: (() => void) | null = null;
+  let cancelled = false;
+  void import('./viewer-3d').then(({ mount3D }) => {
+    if (!cancelled) cleanup = mount3D(host, controls);
+  });
+  return () => { cancelled = true; cleanup?.(); };
+}
+
 function render(): void {
   unmount?.();
   const parts: (() => void)[] = [];
-  if (only !== 'kit') parts.push(mountRig(content, controls));
-  if (only !== 'rig') parts.push(mountKit(content, controls));
+  if (only !== 'kit' && only !== '3d') parts.push(mountRig(content, controls));
+  if (only !== 'rig' && only !== '3d') parts.push(mountKit(content, controls));
+  if (only !== 'rig' && only !== 'kit') parts.push(mount3DLater(content));
   unmount = () => { for (const part of parts) part(); };
 }
 
@@ -53,7 +65,7 @@ const bar = el('div', { class: 'vw-bar' }, [
     el('a', { href: '#walk', textContent: 'Walk' }), el('a', { href: '#frames', textContent: 'Frames' }), el('a', { href: '#hats', textContent: 'Hats' }),
     el('a', { href: '#card', textContent: 'Card' }), el('a', { href: '#radial', textContent: 'Radial' }),
     el('a', { href: '#settings', textContent: 'Settings' }), el('a', { href: '#pieces', textContent: 'Pieces' }),
-    el('a', { href: '#bench', textContent: 'Bench' }),
+    el('a', { href: '#bench', textContent: 'Bench' }), el('a', { href: '#three-d', textContent: '2D and 3D' }),
   ]),
 ]);
 
