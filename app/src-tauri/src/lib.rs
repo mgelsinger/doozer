@@ -31,6 +31,12 @@ use tauri::{AppHandle, Manager, State, WebviewWindow, WebviewWindowBuilder};
 
 type ShellState<'a> = State<'a, Arc<Shell>>;
 
+/// The app's identifier. **Settled on 2026-11-13: it stays.** It is the name of the
+/// folder the save lives in (`%APPDATA%\com.doozer.desktop\`), so changing it would
+/// leave every existing pet behind. It must equal `identifier` in tauri.conf.json,
+/// which is where Tauri reads it from; a test below keeps the two together.
+pub const APP_ID: &str = "com.doozer.desktop";
+
 /// Where the window waits between being created and the page choosing a view.
 const STARTUP_MODE: WindowMode =
   WindowMode::Docked { width: 214.0, height: 54.0, anchor: mode::Anchor::TopCenter, margin: 0.0 };
@@ -50,7 +56,7 @@ fn save_dir(app: &AppHandle) -> Result<PathBuf, String> {
 /// would overwrite each other. A copy pointed at another save folder is a
 /// different Doozer and may run alongside.
 fn instance_name() -> String {
-  let mut name = String::from("Local\\com.doozer.desktop");
+  let mut name = format!("Local\\{APP_ID}");
   if cfg!(debug_assertions) {
     name.push_str(".dev");
   }
@@ -288,4 +294,23 @@ pub fn run() {
     })
     .run(tauri::generate_context!())
     .expect("error while running Doozer");
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  /// The identifier decides the save folder. If this fails, someone changed it in one
+  /// place: put it back, or every pet saved so far is left behind in the old folder.
+  #[test]
+  fn the_identifier_is_the_settled_one_in_both_places() {
+    let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+    assert_eq!(config["identifier"], APP_ID);
+    assert_eq!(APP_ID, "com.doozer.desktop");
+  }
+
+  #[test]
+  fn one_copy_per_save_is_named_after_the_identifier() {
+    assert!(instance_name().starts_with(r"Local\com.doozer.desktop"));
+  }
 }

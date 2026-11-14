@@ -284,7 +284,7 @@ Desktop Duplication returned lighter colours than a plain screen copy of the sam
 - When the tray asks for a view (`view-requested`) the host decides; the tick in the menu follows the `view` passed to `setWindowMode`.
 - **Idle Doozer must not animate continuously** (section 2.1): one never-ending animation costs 13–26 % of a core. Measure with `scripts/measure-idle.ps1` as soon as the real rig is in the pill.
 - Tuck-away: `fullscreenInFront()` and `fullscreen-changed` say when; `setVisible` does it. Stop the view's animations while hidden (section 4.8, last point).
-- Not built here: single-instance guard, start with Windows, a content security policy, an installer. The app identifier `com.doozer.desktop` is a placeholder; changing it later moves the save folder, so settle it before anyone has a save worth keeping.
+- Not built here: single-instance guard, start with Windows, a content security policy, an installer. The app identifier `com.doozer.desktop` was a placeholder at this point; changing it moves the save folder. (Settled on 2026-11-13: it stays. See below.)
 - `npm run tauri build` runs the type-check first, so it fails if any file in `app/` has a type error.
 
 **What Phase 6 added to the shell** (2026-11-13):
@@ -295,7 +295,8 @@ Desktop Duplication returned lighter colours than a plain screen copy of the sam
 - **A development build keeps its own save**, in a `dev` subfolder of the app-data folder.
 - **"Coming soon" in the native menu:** `set_available_views` disables the items of views that are not built and says so in their text.
 - **The right-click menu hands focus back.** The menu library has to make the window the foreground window for the popup to close on a click elsewhere; when the popup closes the shell gives the foreground back to whichever window had it. Not yet tried by a person.
-- Still not built: a content security policy, an installer. The identifier `com.doozer.desktop` is still the placeholder.
+- Still not built: a content security policy, an installer.
+- **The identifier is settled: `com.doozer.desktop` stays** (2026-11-13). It names the save folder, so it must never change; it is the constant `APP_ID` in `lib.rs`, and a test keeps it equal to `identifier` in `tauri.conf.json`.
 
 **Phase 8 (Island)**: idle cost for the island above is for a 2D stand-in. three.js will add GPU memory and, while it animates, real CPU. Measure again with the same script.
 

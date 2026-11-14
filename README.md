@@ -24,7 +24,7 @@ Run everything from the `app` folder; first time only: `npm install`.
 Using it:
 
 - **Quit** from the tray icon, from a right-click on the pill, or from the bottom of Settings. All three save first.
-- **The save** is `%APPDATA%\com.doozer.desktop\save.json` (with `save.bak.json` beside it). A development build (`tauri dev`) keeps a separate pet in the `dev` subfolder, and "Start with Windows" only works in a release build.
+- **The save** is `%APPDATA%\com.doozer.desktop\save.json` (with `save.bak.json` beside it). That folder name is the app's identifier and is fixed for good. A development build (`tauri dev`) keeps a separate pet in the `dev` subfolder, and "Start with Windows" only works in a release build.
 - Only one copy runs at a time; starting a second one does nothing.
 
 Where things are, each with its own `README.md`:

@@ -17,7 +17,7 @@ This file says **how and in what order** Doozer gets built. [DESIGN_SPEC.md](DES
 | 3 | Shell spike: one transparent window that changes shape | M1 | **Done — Tauri stays.** `app/src-tauri/`, `app/src/shell.ts`; results in [docs/shell-spike.md](docs/shell-spike.md). Tested with injected input only: not yet tried with a real hand on the mouse (its section 6 lists what to try) | **xhigh** |
 | 4 | Pet brain: needs, bowl, treats, focus, streaks, unlocks, save | M1 | **Done** — `app/src/core/`, 231 tests; tuning notes in [docs/brain-week-sim.md](docs/brain-week-sim.md) | high |
 | 5 | 2D Doozer rig and the dark-glass UI kit | M1 | **Done** — `app/src/character/`, `app/src/ui/`; viewer at `/viewer.html` (`npm run dev`); 116 tests. Motion not yet watched by a person or seen inside the app window | **xhigh** |
-| 6 | Pill view and app basics (tray, settings, view switching) | M1 | **Done — Milestone 1 is built.** `app/src/host/`, `app/src/views/pill/`, `app/src/main.ts`; 522 page tests and 44 native tests; checks and measurements in [docs/pill-checks.md](docs/pill-checks.md). Checked with scripted input in the real window, not yet by a person at the mouse (its last section lists what to try) | high |
+| 6 | Pill view and app basics (tray, settings, view switching) | M1 | **Done — Milestone 1 is built.** `app/src/host/`, `app/src/views/pill/`, `app/src/main.ts`; 522 page tests and 46 native tests; checks and measurements in [docs/pill-checks.md](docs/pill-checks.md). Checked with scripted input in the real window, not yet by a person at the mouse (its last section lists what to try) | high |
 | 7 | Room view | M2 | Not started | high |
 | 8 | 3D Doozer and the Island view | M3 | Not started | **xhigh** |
 | 9 | Desktop view (the calm roamer) | M4 | Not started | **xhigh** |
@@ -262,7 +262,7 @@ One finding matters for the next phase: an animation that never stops costs 13�
 - **Never stuck**, with injected input: 200 rapid presses across every Card button; the Card closed mid-scene 30 times (six scenes, five moments each); a press whose mouse-up never arrives (ended 5 ms after the button came up, told once by the shell); a session ending with the Card closed (Doozer celebrates, comes to rest, never has the keyboard). All pass.
 - Not done here, on purpose: an installer and code signing (Phase 11), a content security policy (Phase 11), sound beyond the one chime (Phase 10), a keyboard way into the Card (Phase 10).
 
-**One thing for the owner before using it for real:** the app identifier `com.doozer.desktop` is still the placeholder from Phase 3, and it decides where the save lives (`%APPDATA%\com.doozer.desktop\`). Changing it later moves the save folder. Either keep it for good or change it now, before there is a pet worth keeping.
+**The app identifier is settled (2026-11-13): `com.doozer.desktop` stays.** It decides where the save lives (`%APPDATA%\com.doozer.desktop\`), so it was the one thing to fix before anyone had a pet worth keeping. The owner left the name to us; keeping the one every build has used so far means nothing moves. Do not change it: a test in `app/src-tauri/src/lib.rs` fails if it changes in either place it is written.
 
 ---
 
@@ -373,3 +373,4 @@ Installer through the shell's bundler; app icon; decisions on code signing and a
   15. `happy-dom` was added as a development dependency, for the Pill view's tests. Fredoka stays vendored.
 
   Found on the way and worth knowing: a test caught a hatching that was cut short ending the *next* hatching early (an interrupted scene reaching into its successor, the same family of bug as the Desk Buddy's); each run now carries its own number. And a person using the machine during a scripted run changes which window has the keyboard, so the runs now assert that Doozer *never* has it rather than that nothing changed.
+- **2026-11-13** — The app identifier is settled: **`com.doozer.desktop`, for good.** It was a placeholder from Phase 3 and decides the save folder, so it had to be fixed before the first real pet. The owner's answer was that the name is ours to choose and to close it; keeping the existing one costs nothing and moves nothing (no real save existed yet either way). It is now one constant in the shell (`APP_ID` in `app/src-tauri/src/lib.rs`), with a test that fails if it and `tauri.conf.json` ever disagree or change. Nothing in Phase 11 (packaging) should rename it.
