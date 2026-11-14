@@ -12,8 +12,10 @@
 .roomv { position: absolute; inset: 0; pointer-events: none; }
 
 /* ---- The frame ---------------------------------------------------------------- */
+/* Where the frame is in the window (layout.ts). The frame inside is scaled; this is not. */
+.roomv-slot { position: absolute; pointer-events: none; }
 .roomv-frame {
-  position: absolute; width: 380px; height: 464px; zoom: var(--roomv-zoom, 1);
+  position: relative; width: 380px; height: 464px; zoom: var(--roomv-zoom, 1);
   border-radius: 22px; overflow: hidden; pointer-events: auto; isolation: isolate;
   background: var(--dzk-surface);
   box-shadow: 0 10px 26px rgba(30, 20, 45, .36), 0 0 0 1px rgba(60, 40, 90, .16);

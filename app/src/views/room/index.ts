@@ -235,10 +235,14 @@ export function createRoomView(options: RoomViewOptions = {}): RoomView {
     scope.add(() => meters.destroy());
     const strip = h('div', { class: 'roomv-strip' }, [meters.el]);
     const frame = h('div', { class: 'roomv-frame' }, [title, scene, strip]);
+    // The frame is scaled by the Size setting; its place in the window is not. The scale
+    // would move a scaled element's own left and top as well, so the place goes on a
+    // wrapper: the frame is drawn exactly where the hit region says it is, in every size.
+    const slot = h('div', { class: 'roomv-slot' }, [frame]);
 
     const closeChip = h('button', { type: 'button', class: 'roomv-close', 'aria-label': 'Close', html: ICONS.close });
     const unfold = h('div', { class: 'roomv-unfold', 'data-tight': '0' }, [closeChip]);
-    const root = h('div', { class: 'dzk roomv', 'data-open': 'none', 'data-lively': '0' }, [frame, unfold]);
+    const root = h('div', { class: 'dzk roomv', 'data-open': 'none', 'data-lively': '0' }, [slot, unfold]);
 
     // ---- state ---------------------------------------------------------------------
     let open: RoomOpen = 'none';
@@ -516,8 +520,7 @@ export function createRoomView(options: RoomViewOptions = {}): RoomView {
       const size = brain.settings.size.room;
       geometry = roomGeometry(size);
       root.dataset.size = size;
-      frame.style.left = `${geometry.frame.x}px`;
-      frame.style.top = `${geometry.frame.y}px`;
+      Object.assign(slot.style, { left: `${geometry.frame.x}px`, top: `${geometry.frame.y}px`, width: `${geometry.frame.w}px`, height: `${geometry.frame.h}px` });
       frame.style.setProperty('--roomv-zoom', String(geometry.scale));
       placeUnfold();
     }
