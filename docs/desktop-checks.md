@@ -9,11 +9,11 @@ The Desktop view is the roamer: Doozer on the top edge of the taskbar, in an ove
 | Asked for | Result | How it is known |
 |---|---|---|
 | Stuck-case tests pass with injected input: a drag whose mouse-up never arrives, and every scene interrupted at each of its steps (picked up, dropped, another action started, view switched) | Pass | On a fake clock: 16 scenes cut at 365 moments in 8 ways, 2,920 interruptions, each ending idle on the taskbar line with the watchdog having nothing to do (section 2). In the real window with injected input: the mockup's drag test, a mouse-up that never arrives (the carry ended 7 to 17 ms after the button came up), 300 scene interruptions including real view switches, and rapid clicks: all pass (section 3) |
-| A soak of several hours with random injected actions, cloaked and in the background, ends with Doozer idle on the taskbar line | **Running as this is written** (three hours, started 22:04 on the 13th). Its first half hour found one bug, now fixed (section 8) | Section 4 |
+| A soak of several hours with random injected actions, cloaked and in the background, ends with Doozer idle on the taskbar line | **It does.** Three hours, 5,090 actions, 128 hands-off checks all finding Doozer at rest, and at the end idle on the taskbar line. The watchdog rescued nothing; no scene was ended by its time limit | Section 4 |
 | The overlay never catches a click meant for another application | It does not: 709 probe points across the work area in 13 states, none wrong | Section 5 |
 | Idle cost at each pace, on a release build, against the budget (150 MB, 1 % of one core) | Memory is inside the budget at every pace (123–143 MB). CPU: **Still 0.4–1.1 %** of one core, at the line; **Calm under 1 % between strolls and 3.6 % averaged over twelve minutes**; **Lively about 23 %**, because it is nearly always walking | Section 6 |
 | Switching to and from the Pill in the middle of a focus session loses nothing | Yes | In the real window and under the real host on a fake clock (section 7) |
-| `npm test`, `npm run typecheck`, `cargo test` | 1,013 page tests (176 of them this view's), type-check clean, 49 native tests | Section 1 |
+| `npm test`, `npm run typecheck`, `cargo test` | 1,029 page tests (176 of them this view's), type-check clean, 51 native tests | Section 1 |
 | The owner tries Calm and Lively and chooses the default; the owner agrees Doozer no longer gets stuck | **Not done: these are the owner's** | Section 9 says exactly what to try |
 
 What it looks like, as drawn in a browser pane (the page is the same one the app's window shows; the flat backdrop stands in for the desktop, and the bottom of the picture for the top edge of the taskbar):
@@ -24,7 +24,7 @@ What it looks like, as drawn in a browser pane (the page is the same one the app
 
 ## 1. Tests that run without a window
 
-From `app/`: `npm test` and `npm run typecheck`; from `app/src-tauri`: `cargo test`. When this was written: 1,013 page tests in 49 files, type-check clean, 49 native tests and one ignored. (The Room and the Island were being built in the same tree at the same time; their tests are in that count.)
+From `app/`: `npm test` and `npm run typecheck`; from `app/src-tauri`: `cargo test`. At the end of the phase: 1,029 page tests in 50 files, type-check clean, 51 native tests and one ignored. (The Room and the Island were being built in the same tree at the same time; their tests are in that count.)
 
 The Desktop view's are in `app/tests/views/desktop/` (176 tests), all against the **real brain** in a test DOM on a fake clock:
 
@@ -96,9 +96,51 @@ The run takes twenty minutes. These are the numbers of its last run, on the fina
 
 ## 4. The soak
 
-*The soak is running as this is written: `app-desktop-soak`, three hours, seed 20261113, cloaked, in the background, started at 22:04 on 13 November 2026 on the build of commit `6d4c6f7`. This section is filled in when it ends.*
+`app-desktop-soak`, in the real overlay window, cloaked, in the background, on the final build (commit `6d4c6f7`), from 22:04 on 13 November to 01:04 on the 14th. The machine was in use throughout: its owner was at it, and two other sessions were building and testing. Seed 20261113; the same seed plays the same actions again.
 
-So far: an earlier run on the build before was stopped after 25 minutes and 741 actions, because one of its 18 hands-off checks had found the sliding described in section 8. Up to then the watchdog had rescued nothing and no scene had been ended by its time limit. Its twin on a fake clock (`soak.test.ts`) has run in full: 4,500 random actions over three seeds, 565 scenes and 416 carries, the watchdog asked after every action and never with anything to put right, 78 hands-off checks all finding Doozer at rest, and Doozer idle on the taskbar line at the end of each.
+**What it does.** One action after another, picked at random from 35 kinds, with 0.15 to 2.6 s between them. Every press is made as in section 3: the shell is fed a pretend pointer and button, the page the matching events.
+
+| Kind of action | Times |
+|---|---|
+| Carries, 731 in all: let go normally (286); the mouse-up lost, so only the shell can say (188); kept in the hand while other things happen (132); a carry the shell never saw, ended by a move with no button (96); a carry followed by silence, left to give up by itself (29) | 731 |
+| Clicks on Doozer (289) and presses on the Radial's buttons (368) | 657 |
+| The brain told directly: play (233), wash (171), feed (163), treat (138), pet (111), fill the bowl (75) | 891 |
+| Nap (74) and wake (163) | 237 |
+| Focus: start (122), stop (112), pause or resume (90), finish (68) | 392 |
+| Settings changed under it: pace (169), size (75), colour (35), Reduce motion on (36) and off (124) | 439 |
+| The view really switched to the Pill and back, through the host | 123 |
+| Really tucked away and brought back | 64 |
+| The Card opened and one of its buttons pressed (149), the settings opened from the tray menu (33), whatever is open closed (108) | 290 |
+| A stroll, a peek or a gesture asked for on the spot | 202 |
+| The ball bopped (95), Doozer stroked (109) | 204 |
+| A stray mouse-up, cancel, lost capture, blur or move that belongs to nothing | 105 |
+| The display "changed" | 47 |
+| Nothing: left alone for 0.8 to 6 s | 708 |
+| **All** | **5,090** |
+
+**Hands off.** After every 40 actions the run lets go of anything it is holding, parks the pointer, closes any menu, and waits for Doozer to come to rest *by itself*, at whatever pace and in whatever state the last actions left it. Then it checks everything "at rest" means: idle, on the line, at a place it may stand, nothing open, nothing left beside it, no walking or carried pose, drawn where the view says it is, one hit region in the view and in the shell, the shell not holding a button, the window click-through.
+
+**Result.**
+
+| | |
+|---|---|
+| Ran for | 180 minutes, to the end |
+| Actions | 5,090 |
+| Hands-off checks | **128, every one finding Doozer at rest.** Usually at once; the slowest took 28.7 s (a walk back from the edge of the screen) |
+| **Rescued by the watchdog** | **Nothing.** Not once in three hours did it find anything to put right |
+| Scenes ended by their time limit, or that threw | None |
+| Scenes played | 671: a meal or a treat 242, the ball 171, a wash 111, a stroll 117, the celebration 20, a peek 10. 258 ran to their end; 413 were cut short by whatever came next, and tidied up |
+| Carries ended | 731: on a mouse-up 350, on the shell's `pointer-released` 243, on a move with no button 108, by something else starting (a view switch, tuck-away) 21, on lost capture 4, on the window losing focus 3, on the 30-second silence limit 2 |
+| The shell finding the page silent | Never (its watchdog trips: 0) |
+| The page's own clock | Never more than 21 ms late: a cloaked window is not slowed down |
+| Memory in the page | Level: 3.3–3.7 MB of script heap from the twentieth minute to the last, and 502–562 elements in the page, the same at the end as at the start |
+| **At the end** | **Idle on the taskbar line**, asleep, at the Still pace it happened to have been left at, with nothing open and the window click-through |
+
+**What it does not show.** With something happening every two seconds, a peek never got to finish (ten started, ten interrupted), and only nine strolls did. Those are covered where they can be: left alone at each pace in the idle runs of section 6 (10 strolls and 3 peeks in four minutes of Lively, 7 strolls and a peek in twelve of Calm, nothing rescued), and through an hour of Lively and an hour of Calm on the fake clock. And a scripted hand is not a real one: section 9.
+
+One number that is the shell's, not this view's, and was not looked into: over the run the shell's cursor tracker put the window's style right 19 times (`styleRepairs`). It is the safety net of shell-spike 4.5 doing its job; why it was needed 19 times in three hours, with the window switching mode 249 times and being hidden and shown 64 times, is a question for a later look.
+
+**The first run, and the twin.** A run on the build before this one was stopped after 25 minutes and 741 actions, because one of its 18 hands-off checks had found Doozer sliding into place with Reduce motion on (section 8). That was fixed and the soak started again; the three hours above are the second run. Its twin on a fake clock (`soak.test.ts`) runs with every `npm test`: 4,500 random actions over three seeds, 565 scenes and 416 carries, the watchdog asked after *every* action and never with anything to put right, 78 hands-off checks all finding Doozer at rest.
 
 ## 5. Click-through: the overlay never catches a click meant for another application
 
