@@ -252,6 +252,23 @@ describe('the furniture table, against the real brain', () => {
     expect(r.snap().x).toBeGreaterThanOrEqual(WALK.min);
   });
 
+  it('lamp: lights off in the middle of a game ends the game at once; lights on mid-way to bed and it is simply up', async () => {
+    const r = mount();
+    const { furniture } = r.parts();
+    click(furniture.ball);
+    await pass(r, 600, 50);
+    expect(r.snap().scene).toBe('play');
+    click(furniture.lamp);
+    // Not "after this kick": now.
+    expect(r.snap()).toMatchObject({ scene: 'to-bed', pose: 'walk', lamp: false });
+    await pass(r, 500, 50);
+    const onTheWay = r.snap().x;
+    click(furniture.lamp);
+    expect(r.brain.state.asleep).toBe(false);
+    expect(r.snap()).toMatchObject({ scene: null, station: 'free', lamp: true, place: 'floor', x: onTheWay });
+    expect(await settle(r)).toBe('');
+  });
+
   it('lamp: not sleepy, it stays up and the lamp stays on', async () => {
     const r = mount();
     r.brain.debug?.setNeeds({ energy: 96 });
