@@ -133,6 +133,34 @@ describe('faces', () => {
     doozer.destroy();
   });
 
+  it('a still blink is two redraws and a timer, and never leaves the eyes shut', () => {
+    let asked = 0;
+    const doozer = createDoozer3D(model, { invalidate: () => { asked++; } });
+    doozer.setLive(false);
+    expect(run(doozer, 3)).toBe(false);
+    asked = 0;
+    doozer.blink(true);
+    expect(asked).toBe(1);
+    expect(doozer.update(0)).toBe(false);                 // one frame, and nothing is moving
+    expect(weight(doozer, 'eyes', 'blink')).toBe(1);
+    doozer.blink(true);                                    // already blinking: nothing more
+    expect(asked).toBe(1);
+    vi.advanceTimersByTime(120);
+    expect(asked).toBe(2);
+    expect(doozer.update(0)).toBe(false);
+    expect(weight(doozer, 'eyes', 'blink')).toBe(0);
+    // Cut short by settling or by going away: the eyes are open and the timer is gone.
+    const before = vi.getTimerCount();
+    doozer.blink(true);
+    doozer.settle();
+    doozer.update(0);
+    expect(weight(doozer, 'eyes', 'blink')).toBe(0);
+    expect(vi.getTimerCount()).toBe(before);
+    doozer.blink(true);
+    doozer.destroy();
+    expect(vi.getTimerCount()).toBe(before);
+  });
+
   it('a flash shows its face and then returns to the mood by itself', () => {
     const doozer = still();
     doozer.setMood('hungry');

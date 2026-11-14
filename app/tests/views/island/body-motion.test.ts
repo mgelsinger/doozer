@@ -276,6 +276,22 @@ describe('looking and facing', () => {
   });
 });
 
+describe('the cheap blink', () => {
+  it('shuts and opens the eyes at once, without counting as movement', () => {
+    const body = still();
+    body.holdEyes(true);
+    body.update(0);
+    expect(body.pose.blink).toBe(1);
+    expect(body.moving).toBe(false);
+    body.holdEyes(false);
+    body.update(0);
+    expect(body.pose.blink).toBe(0);
+    body.holdEyes(true);
+    body.settle();
+    expect(body.pose.blink).toBe(0);
+  });
+});
+
 describe('performances', () => {
   it('each one shapes the body, and leaves it at rest when it is told to stop', () => {
     for (const name of PERFORMANCE_NAMES) {

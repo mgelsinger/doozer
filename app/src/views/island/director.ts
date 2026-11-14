@@ -27,7 +27,7 @@ import type { PlayToy, World } from './world';
 export interface IslandActor extends PetActor {
   readonly body: BodyMotion;
   readonly busy: boolean;
-  blink(): void;
+  blink(still?: boolean): void;
 }
 
 export interface IslandFx {

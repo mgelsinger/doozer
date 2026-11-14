@@ -728,6 +728,110 @@ describe('what the host asks', () => {
   });
 });
 
+describe('render on demand', () => {
+  /** Let `seconds` pass and report how many frames were drawn and how often the loop was found running. */
+  async function watch(r: Rig, seconds: number): Promise<{ frames: number; running: number; asked: number }> {
+    const frames = r.snap().frames;
+    const asked = r.screen.state.requested;
+    let running = 0;
+    for (let i = 0; i < seconds * 10; i++) {
+      await tick(100);
+      if (r.snap().drawing) running++;
+    }
+    return { frames: r.snap().frames - frames, running: running / (seconds * 10), asked: r.screen.state.requested - asked };
+  }
+
+  it('at rest with nobody there, almost nothing is drawn: a blink in two redraws now and then', async () => {
+    const r = await mount();
+    await rest(r);
+    expect(r.snap()).toMatchObject({ drawing: false, lively: false });
+    expect(r.snap().timers.sort()).toEqual(['blink', 'stir']);
+    const seen = await watch(r, 40);
+    // Four to nine seconds between blinks, two redraws each (a stir cannot come this soon).
+    expect(seen.frames).toBeGreaterThanOrEqual(8);
+    expect(seen.frames).toBeLessThanOrEqual(24);
+    expect(seen.asked).toBeLessThanOrEqual(24);
+    expect(seen.running).toBeLessThan(0.05);
+    expect(r.snap().lively).toBe(false);
+  });
+
+  it('asleep with nobody there: one frame every few seconds, as the fireflies wink', async () => {
+    const r = await mount();
+    r.brain.sleep();
+    await rest(r);
+    expect(r.snap().timers).toEqual(['wink']);
+    const ambient = r.parts().world.ambient;
+    const seen = await watch(r, 60);
+    expect(seen.frames).toBeGreaterThanOrEqual(18);
+    expect(seen.frames).toBeLessThanOrEqual(30);
+    expect(seen.running).toBeLessThan(0.05);
+    expect(r.parts().world.ambient).toBeGreaterThan(ambient);          // they did move
+    expect(r.parts().root.querySelector('.dzk-emote')).toBeNull();     // and no z's rise unwatched
+  });
+
+  it('a focus session costs no frames of its own: the chip is the only thing that changes', async () => {
+    const r = await mount();
+    r.brain.startFocus();
+    await rest(r);
+    expect(r.snap().timers).toEqual(['blink']);
+    const seen = await watch(r, 40);
+    expect(seen.frames).toBeLessThanOrEqual(24);
+    expect(seen.running).toBeLessThan(0.05);
+  });
+
+  it('every minute or two, alone and awake, a small stir, and then still again', async () => {
+    const r = await mount();
+    await rest(r);
+    let stirred = false;
+    for (let i = 0; i < 1150 && !stirred; i++) {
+      await tick(100);
+      stirred = r.snap().lively;
+    }
+    expect(stirred).toBe(true);
+    const frames = r.snap().frames;
+    expect(await rest(r)).toBeLessThan(6000);
+    expect(r.snap().frames - frames).toBeGreaterThan(20);              // it did something
+    expect(r.snap().timers.sort()).toEqual(['blink', 'stir']);
+  });
+
+  it('caps the frame rate: sixty a second while something happens, thirty while Doozer only breathes', async () => {
+    const r = await mount({ hz: 125 });
+    await rest(r);
+    // Something happening: a game of ball.
+    r.brain.play();
+    await tick(500);
+    let frames = r.snap().frames;
+    await tick(2000);
+    const active = (r.snap().frames - frames) / 2;
+    expect(active).toBeGreaterThan(40);
+    expect(active).toBeLessThanOrEqual(63);
+    await rest(r);
+    // Only breathing: the pointer rests on the island, away from Doozer.
+    await arrive(r, { x: 330, y: 330 });
+    await tick(1500);
+    frames = r.snap().frames;
+    for (let i = 0; i < 4; i++) { pointer(r.parts().touch, 'pointermove', { x: 330, y: 330 }); await tick(500); }
+    if (r.snap().scene === null) {
+      const ambient = (r.snap().frames - frames) / 2;
+      expect(ambient).toBeGreaterThan(18);
+      expect(ambient).toBeLessThanOrEqual(32);
+    }
+  });
+
+  it('a watched Doozer breathes, looks about and wanders; left alone it goes still within seconds', async () => {
+    const r = await mount();
+    await rest(r);
+    const at = { ...r.parts().world.doozer };
+    for (let i = 0; i < 60; i++) { pointer(r.parts().touch, 'pointermove', { x: 330, y: 330 }); await tick(500); }
+    expect(r.snap().lively).toBe(true);
+    expect(r.parts().world.doozer).not.toEqual(at);                    // it wandered
+    expect(r.snap().timers).toContain('wander');
+    pointer(r.parts().touch, 'pointerleave', { x: 500, y: 330 });
+    expect(await rest(r)).toBeLessThan(12_000);
+    expect(r.snap().timers.sort()).toEqual(['blink', 'stir']);
+  });
+});
+
 describe('a lost graphics context', () => {
   it('lost and restored: the island carries on', async () => {
     const r = await mount();

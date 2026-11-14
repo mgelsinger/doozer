@@ -74,7 +74,11 @@ export interface Doozer3D {
   lookAt(x: number, y: number): void;
   perform(name: PerformanceName, strength?: number): Promise<PerformanceOutcome>;
   squish(strength?: number): void;
-  blink(): void;
+  /**
+   * Blink. `still` is the cheap form for a Doozer nobody is watching: the eyes shut and
+   * open in two redraws with nothing in between (as `doozer.blink(true)` does for the 2D rig).
+   */
+  blink(still?: boolean): void;
   stop(): void;
 
   /** Advance by `dt` seconds and write the result to the model. True while anything is still moving. */
@@ -126,6 +130,9 @@ export async function loadDoozerModel(url: string, signal?: AbortSignal): Promis
   if (!response.ok) throw new Error(`the Doozer model could not be loaded (${response.status})`);
   return parseDoozerModel(await response.arrayBuffer());
 }
+
+/** How long the eyes stay shut in a still blink. */
+const STILL_BLINK_MS = 110;
 
 const backOut = (t: number): number => 1 + 2.4 * Math.pow(t - 1, 3) + 1.4 * Math.pow(t - 1, 2);
 
@@ -216,6 +223,12 @@ export function createDoozer3D(model: DoozerModel, options: Doozer3DOptions = {}
   let reduce = options.reduceMotion ?? false;
   let destroyed = false;
   let look: Look | null = null;
+  let stillBlink: unknown = null;
+  const endStillBlink = (): void => {
+    if (stillBlink !== null) timers.clear(stillBlink);
+    stillBlink = null;
+    body.holdEyes(false);
+  };
 
   const eyeWeight = Object.fromEntries(EYE_KINDS.map((kind) => [kind, 0])) as Record<Eyes, number>;
   const mouthWeight = Object.fromEntries(MOUTH_KINDS.map((kind) => [kind, 0])) as Record<Mouth, number>;
@@ -420,7 +433,15 @@ export function createDoozer3D(model: DoozerModel, options: Doozer3DOptions = {}
     lookAt(x, y) { body.lookAt(x, y); invalidate(); },
     perform(name, strength) { return state.perform(name, strength); },
     squish(strength = 1) { body.squish(strength); invalidate(); },
-    blink() { body.blink(); invalidate(); },
+    blink(still = false) {
+      if (destroyed) return;
+      if (!still) { body.blink(); invalidate(); return; }
+      // Two redraws and a timer; nothing in between needs a frame.
+      if (stillBlink !== null || reduce) return;
+      body.holdEyes(true);
+      invalidate();
+      stillBlink = timers.set(() => { stillBlink = null; body.holdEyes(false); invalidate(); }, STILL_BLINK_MS);
+    },
     stop() { state.stop(); },
 
     update(dt) {
@@ -432,6 +453,7 @@ export function createDoozer3D(model: DoozerModel, options: Doozer3DOptions = {}
     },
     settle() {
       if (destroyed) return;
+      endStillBlink();
       body.settle();
       faceSnap = true;
       extrasSnap = true;
@@ -441,6 +463,7 @@ export function createDoozer3D(model: DoozerModel, options: Doozer3DOptions = {}
     destroy() {
       if (destroyed) return;
       destroyed = true;
+      endStillBlink();
       state.destroy();
       object.removeFromParent();
       for (const material of owned.values()) disposeMaterial(material);

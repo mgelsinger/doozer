@@ -721,7 +721,8 @@ export function createIslandView(options: IslandViewOptions = {}): IslandView {
     function armBlink(): void {
       const lively = attention.lively;
       arm('blink', lively ? 1800 + random() * 3700 : BLINK_MIN_MS + random() * BLINK_SPREAD_MS, () => {
-        if (!gone && actor.showing !== 'asleep') actor.blink();
+        // With nobody there a blink is two redraws; watched, it is a real one.
+        if (!gone && actor.showing !== 'asleep') actor.blink(!attention.lively);
         syncTimers();
       });
     }

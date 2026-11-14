@@ -161,6 +161,7 @@ export class BodyMotion {
   private wagK = 0;
   private blinkLeft = 0;
   private blinkK = 0;
+  private eyesHeld = false;
   private tuft = 0;
   private tuftV = 0;
   private earL = 0;
@@ -235,6 +236,12 @@ export class BodyMotion {
     this.blinkLeft = 0.13;
   }
 
+  /**
+   * Eyes shut (true) or open again (false) at once, with nothing in between: the cheap
+   * blink of a Doozer nobody is watching. It costs two redraws and is not "moving".
+   */
+  holdEyes(shut: boolean): void { this.eyesHeld = shut && !this.reduce; }
+
   /** Shape the body for a one-shot. Returns the function that ends it (ExpressionState calls it). */
   startPerformance(name: PerformanceName, strength = 1): () => void {
     const run: Running = { name, strength, at: 0, cue: 0 };
@@ -249,6 +256,7 @@ export class BodyMotion {
     this.sq = 0; this.sqV = 0;
     this.y = 0; this.vy = 0; this.air = false; this.hopCooldown = 0;
     this.blinkLeft = 0;
+    this.eyesHeld = false;
     for (const key of EXTRA_KEYS) { this.extra[key] = 0; this.want[key] = 0; }
     // Run the easing to its end.
     this.step(0, true);
@@ -532,7 +540,7 @@ export class BodyMotion {
     p.armRForward = 0;
     p.tuck = this.air ? smooth(0, 0.12, this.y) : 0;
     p.tail = this.wagK * live * Math.sin(t * 13) * 0.07;
-    p.blink = this.blinkK;
+    p.blink = this.eyesHeld ? 1 : this.blinkK;
     p.lookX = this.lookX;
     p.lookY = this.lookY;
     p.chew = this.eatK > 0 ? 0.5 + 0.5 * Math.sin(t * TAU / 0.3) : 0;
