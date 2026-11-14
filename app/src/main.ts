@@ -13,11 +13,13 @@ import { parseSave } from './host/store';
 import { shell } from './shell';
 import { isAppRun, readTestRun, type TestRun } from './spike/config';
 import { createPillView, type PillView } from './views/pill';
+import { createRoomView, type RoomView } from './views/room';
 
 export interface App {
   host: Host;
   brain: Brain;
   pill: PillView;
+  room: RoomView;
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -50,20 +52,21 @@ async function startApp(root: HTMLElement, run: TestRun): Promise<App> {
   });
 
   const pill = createPillView();
+  const room = createRoomView();
   const host = createHost({
     root,
     shell,
     brain,
-    // The Room, the Island and the Desktop arrive in later milestones; until then they
-    // are shown as "coming soon".
-    views: [pill],
+    // The Island and the Desktop arrive in later milestones; until then they are shown
+    // as "coming soon". The first view in the list is the home on first run.
+    views: [pill, room],
     hostData: saved.host,
     sound: createSound(() => brain.settings.sound),
     // If the save could not even be read, do not write over it with a new pet.
     persist: readable,
   });
   await host.start();
-  return { host, brain, pill };
+  return { host, brain, pill, room };
 }
 
 const root = document.getElementById('host');

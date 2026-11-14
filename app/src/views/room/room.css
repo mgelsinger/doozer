@@ -1,0 +1,159 @@
+/* The Room view (DESIGN_SPEC.md 6.2): a framed little room. The frame (title bar and
+ * meter strip) is the kit's dark glass; the room inside keeps its own soft, colourful
+ * art. The numbers here are mirrored in layout.ts.
+ *
+ * As in the kit, state lives in attributes (data-open, data-place, data-hot, data-lamp,
+ * data-level, data-gone...) and what is drawn is a function of them.
+ *
+ * Render on demand: nothing in this file animates forever. Every animation here is
+ * finite, and every transition follows something that just happened.
+ */
+
+.roomv { position: absolute; inset: 0; pointer-events: none; }
+
+/* ---- The frame ---------------------------------------------------------------- */
+.roomv-frame {
+  position: absolute; width: 380px; height: 464px; zoom: var(--roomv-zoom, 1);
+  border-radius: 22px; overflow: hidden; pointer-events: auto; isolation: isolate;
+  background: var(--dzk-surface);
+  box-shadow: 0 10px 26px rgba(30, 20, 45, .36), 0 0 0 1px rgba(60, 40, 90, .16);
+}
+
+.roomv-title {
+  height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 8px 0 13px;
+  cursor: grab; white-space: nowrap;
+}
+.roomv[data-dragging="1"] .roomv-title { cursor: grabbing; }
+.roomv-title-ico .dzk-ico { width: 17px; height: 17px; color: var(--dzk-accent); }
+.roomv-title-name { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; }
+.roomv-title-time { margin-left: auto; font-size: 12.5px; color: var(--dzk-soft); font-variant-numeric: tabular-nums; }
+.roomv-title-time[data-status="running"] { color: var(--dzk-text); font-weight: 600; }
+.roomv-title-time[data-status="paused"] { opacity: .6; }
+.dzk .roomv-title-btn {
+  width: 28px; height: 28px; border-radius: 10px; display: grid; place-items: center; flex: none;
+  background: var(--dzk-raised); transition: background-color .12s;
+}
+.dzk .roomv-title-btn:hover, .dzk .roomv-title-btn[aria-expanded="true"] { background: var(--dzk-raised-hi); }
+.roomv-title-btn .dzk-ico { width: 18px; height: 18px; }
+
+.roomv-strip { height: 46px; display: grid; align-items: center; padding: 0 14px; }
+.roomv-strip .dzk-needs { gap: 12px; }
+/* A need that is urgent shakes its icon in the Card. Here it would shake all day. */
+.roomv[data-lively="0"] .roomv-strip .dzk-need > .dzk-ico { animation: none; }
+.roomv-strip .dzk-flag { box-shadow: 0 0 0 2px var(--dzk-surface); }
+
+/* ---- The scene ---------------------------------------------------------------- */
+/* Its own stacking group: the shade and the glow blend with the room and nothing else. */
+.roomv-scene { position: relative; width: 380px; height: 380px; overflow: hidden; background: #FCEBDD; isolation: isolate; }
+.roomv-layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
+.roomv-back { z-index: 0; }
+.roomv-ball { z-index: 5; }
+.roomv-pet { z-index: 4; }
+.roomv-front { z-index: 3; }
+.roomv-props { z-index: 5; }
+.roomv-dark { z-index: 6; mix-blend-mode: multiply; opacity: 0; transition: opacity 1.2s; }
+.roomv-glow { z-index: 7; mix-blend-mode: screen; opacity: 0; transition: opacity .5s; }
+.roomv-fx { z-index: 8; }
+.roomv-hots { z-index: 9; }
+.roomv-props, .roomv-fx, .roomv-hots { position: absolute; inset: 0; pointer-events: none; }
+/* In bed, Doozer is behind the bed's near edge. */
+.roomv-scene[data-place="bed"] .roomv-pet { z-index: 2; }
+
+/* The furniture you can click: a soft glow while the pointer is on it. */
+.roomv-f { transition: filter .15s; }
+.roomv-scene[data-hot="bed"] .roomv-f-bed,
+.roomv-scene[data-hot="bowl"] .roomv-f-bowl,
+.roomv-scene[data-hot="soap"] .roomv-f-soap,
+.roomv-scene[data-hot="lamp"] .roomv-f-lamp,
+.roomv-scene[data-hot="jar"] .roomv-f-jar,
+.roomv-scene[data-hot="clock"] .roomv-f-clock { filter: brightness(1.06) drop-shadow(0 0 5px rgba(255, 255, 255, .95)); }
+.roomv-scene[data-hot="ball"] .roomv-ball { filter: brightness(1.06) drop-shadow(0 0 5px rgba(255, 255, 255, .95)); }
+
+/* "Not now": a short wiggle, ended by a timer in the view. */
+@keyframes roomv-nudge { 0%, 100% { translate: 0 0; } 25% { translate: -2.5px 0; } 50% { translate: 2.5px 0; } 75% { translate: -1.5px 0; } }
+.roomv-scene[data-nudge="bed"] .roomv-f-bed,
+.roomv-scene[data-nudge="bowl"] .roomv-f-bowl,
+.roomv-scene[data-nudge="soap"] .roomv-f-soap,
+.roomv-scene[data-nudge="lamp"] .roomv-f-lamp,
+.roomv-scene[data-nudge="jar"] .roomv-f-jar,
+.roomv-scene[data-nudge="clock"] .roomv-f-clock { animation: roomv-nudge .34s ease-in-out 1; }
+
+.dzk .roomv-hot { position: absolute; pointer-events: auto; cursor: pointer; background: none; }
+.dzk .roomv-hot[data-furniture="ball"] { left: -4px; top: -4px; width: 32px; height: 32px; border-radius: 50%; }
+.dzk .roomv-pet-hit {
+  position: absolute; left: 0; top: 0; width: 64px; height: 74px; border-radius: 46%;
+  pointer-events: auto; cursor: pointer; background: none;
+}
+
+/* The bowl: more kibble for each serving. */
+.roomv-kibble { transform-box: fill-box; transform-origin: 50% 100%; transition: transform .3s; }
+.roomv-f-bowl[data-level="0"] .roomv-kibble { transform: scale(0); }
+.roomv-f-bowl[data-level="1"] .roomv-kibble { transform: scale(.7); }
+.roomv-f-bowl[data-level="2"] .roomv-kibble { transform: scale(.85); }
+.roomv-f-bowl[data-level="3"] .roomv-kibble { transform: scale(1); }
+
+/* The treat jar: a row of biscuits for each third. */
+.roomv-jar-row { opacity: 0; transition: opacity .3s; }
+.roomv-f-jar[data-level="1"] .roomv-jar-row[data-row="1"],
+.roomv-f-jar[data-level="2"] .roomv-jar-row:not([data-row="3"]),
+.roomv-f-jar[data-level="3"] .roomv-jar-row { opacity: 1; }
+
+/* The lamp, and the clock while it is timing a session. */
+.roomv-lamp-shade { fill: #E3D2B4; transition: fill .4s; }
+.roomv-f-lamp[data-on="1"] .roomv-lamp-shade { fill: #FFD88A; }
+.roomv-f-clock[data-status="idle"] .roomv-clock-wedge { display: none; }
+.roomv-f-clock:not([data-status="idle"]) .roomv-clock-hour { display: none; }
+.roomv-f-clock[data-status="paused"] .roomv-clock-wedge { opacity: .45; }
+
+/* The book Doozer reads is the top one of the pile. */
+.roomv-books[data-book="held"] .roomv-book-top { opacity: 0; }
+
+/* ---- Doozer, the ball, and what comes and goes --------------------------------- */
+.roomv-pet { position: absolute; left: 0; top: 0; width: 92px; height: 92px; pointer-events: none; transition: opacity .12s; }
+.roomv-pet .dz { width: 92px; }
+.roomv[data-gone="1"] .roomv-pet { opacity: 0; transition: none; }
+.roomv-pet .dzk-emotes { inset: -30px -24px 0; --dzk-emote: 18px; }
+
+.roomv-ball { position: absolute; left: 0; top: 0; width: 24px; height: 24px; pointer-events: none; filter: drop-shadow(0 2px 2px rgba(60, 40, 90, .25)); }
+.roomv-ball-lift, .roomv-ball-spin { width: 100%; height: 100%; }
+.roomv-ball-spin svg { display: block; width: 100%; height: 100%; }
+
+.roomv-snack { position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; }
+.roomv-snack .dzk-ico, .roomv-duck .dzk-ico { width: 100%; height: 100%; }
+@keyframes roomv-handed { from { translate: 30px -26px; scale: .3; opacity: 0; } }
+@keyframes roomv-dropped {
+  0% { translate: var(--from-x, 0) var(--from-y, -200px); scale: .5; animation-timing-function: cubic-bezier(.5, 0, .9, .5); }
+  78% { translate: 0 0; scale: 1; animation-timing-function: ease-out; }
+  89% { translate: 0 -9px; animation-timing-function: ease-in; }
+  100% { translate: 0 0; }
+}
+.roomv-snack[data-from="hand"] { animation: roomv-handed .34s var(--dzk-spring) both; }
+.roomv-snack[data-from="jar"] { animation: roomv-dropped .46s both; }
+.roomv-snack[data-bite="1"] { mask-image: radial-gradient(circle at 8% 30%, transparent 7px, #000 7.5px); }
+.roomv-snack[data-bite="2"] { mask-image: radial-gradient(circle at 8% 30%, transparent 11px, #000 11.5px); }
+.roomv-snack[data-bite="3"] { mask-image: radial-gradient(circle at 8% 30%, transparent 16px, #000 16.5px); }
+.roomv-duck { position: absolute; width: 30px; height: 30px; animation: roomv-handed .3s var(--dzk-spring) both; }
+
+@keyframes roomv-crumb { from { translate: 0 0; scale: 1; opacity: 1; } to { translate: var(--dx, 0) var(--dy, -16px); scale: .3; opacity: 0; } }
+.roomv-crumb { position: absolute; width: 5px; height: 5px; margin: -2.5px; border-radius: 50%; background: #B9794A; animation: roomv-crumb .6s ease-out both; }
+
+/* ---- What unfolds: the Card, or the settings panel in its place ---------------- */
+.roomv-unfold { position: absolute; z-index: 2; width: 320px; display: grid; align-items: start; }
+.roomv-unfold > .dzk-card, .roomv-unfold > .dzk-settings { grid-area: 1 / 1; pointer-events: auto; }
+.roomv[data-open="none"] .roomv-unfold { pointer-events: none; }
+/* A screen too short for the whole Card: it scrolls inside the space there is. */
+.roomv-unfold[data-tight="1"] > .dzk-card { max-height: var(--roomv-unfold-max, 566px); overflow-y: auto; scrollbar-width: none; }
+.roomv-unfold .dzk-settings { --dzk-settings-max: var(--roomv-unfold-max, 566px); }
+.dzk .roomv-close {
+  position: absolute; z-index: 2; right: -10px; top: -10px; width: 28px; height: 28px; border-radius: 50%;
+  display: grid; place-items: center; pointer-events: auto;
+  background: var(--dzk-raised-hi); box-shadow: 0 4px 12px rgba(30, 20, 45, .4);
+  transition: background-color .12s;
+}
+.dzk .roomv-close:hover { background: #55486a; }
+.roomv-close .dzk-ico { width: 15px; height: 15px; }
+
+.roomv[data-motion="reduce"] .roomv-dark, .roomv[data-motion="reduce"] .roomv-glow,
+.roomv[data-motion="reduce"] .roomv-kibble, .roomv[data-motion="reduce"] .roomv-f { transition: none; }
+.roomv[data-motion="reduce"] .roomv-snack, .roomv[data-motion="reduce"] .roomv-duck,
+.roomv[data-motion="reduce"] .roomv-scene[data-nudge] .roomv-f { animation: none; }
