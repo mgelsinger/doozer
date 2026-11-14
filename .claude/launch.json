@@ -12,6 +12,12 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["app/node_modules/vite/bin/vite.js", "app", "--port", "4621", "--strictPort"],
       "port": 4621
+    },
+    {
+      "name": "doozer-island",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["app/node_modules/vite/bin/vite.js", "app", "--port", "4631", "--strictPort"],
+      "port": 4631
     }
   ]
 }
