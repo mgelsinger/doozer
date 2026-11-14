@@ -7,11 +7,13 @@
 //! * `win`   — the Win32 calls
 //! * `shell` — the window's state and the cursor tracker thread
 //! * `tray`  — tray icon and native menu
+//! * `autostart` — "Start with Windows"
 //! * `spike` — test hooks for the Phase 3 spike (`--features spike` only)
 
 #[cfg(not(windows))]
 compile_error!("Doozer's shell is Windows-only in v1 (DESIGN_SPEC.md section 11).");
 
+mod autostart;
 mod hit;
 mod mode;
 pub mod save;
@@ -34,11 +36,43 @@ const STARTUP_MODE: WindowMode =
   WindowMode::Docked { width: 214.0, height: 54.0, anchor: mode::Anchor::TopCenter, margin: 0.0 };
 
 fn save_dir(app: &AppHandle) -> Result<PathBuf, String> {
-  // The spike's kill test points this at a scratch folder.
+  // Test runs point this at a scratch folder.
   if let Ok(dir) = std::env::var("DOOZER_SAVE_DIR") {
     return Ok(PathBuf::from(dir));
   }
-  app.path().app_data_dir().map_err(|e| format!("no app-data folder: {e}"))
+  let dir = app.path().app_data_dir().map_err(|e| format!("no app-data folder: {e}"))?;
+  // A development build keeps its own pet, so working on the app never touches
+  // the one the owner is looking after.
+  Ok(if cfg!(debug_assertions) { dir.join("dev") } else { dir })
+}
+
+/// The name that makes Doozer one-per-save: two copies writing the same save
+/// would overwrite each other. A copy pointed at another save folder is a
+/// different Doozer and may run alongside.
+fn instance_name() -> String {
+  let mut name = String::from("Local\\com.doozer.desktop");
+  if cfg!(debug_assertions) {
+    name.push_str(".dev");
+  }
+  if let Ok(dir) = std::env::var("DOOZER_SAVE_DIR") {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    dir.to_lowercase().hash(&mut hasher);
+    name.push_str(&format!(".{:016x}", hasher.finish()));
+  }
+  name
+}
+
+/// The Run key to use, and whether this build may be registered at all.
+fn autostart_key() -> Result<String, String> {
+  // Tests point this at a scratch key so the real one is never written.
+  if let Ok(key) = std::env::var("DOOZER_AUTOSTART_KEY") {
+    return Ok(key);
+  }
+  if cfg!(debug_assertions) {
+    return Err("a development build is not registered to start with Windows".into());
+  }
+  Ok(autostart::RUN_KEY.to_string())
 }
 
 // ---- Commands (the page calls these through app/src/shell.ts) ------------------
@@ -119,18 +153,62 @@ fn write_save(app: AppHandle, json: String) -> Result<(), String> {
 }
 
 /// Pop up the native menu (the four views, Settings, Quit) at the cursor.
+///
+/// A popup menu only closes on a click elsewhere if its window has the keyboard
+/// focus, so the menu library takes it for as long as the menu is up. Doozer
+/// must not keep it: when the menu closes, focus goes back to whoever had it.
 #[tauri::command(async)]
 fn show_menu(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
   let handle = app.clone();
   app
     .run_on_main_thread(move || {
       if let Some(menu) = handle.try_state::<tray::TrayMenu>() {
+        let before = win::foreground_window();
+        let ours = window.hwnd().map(|h| win::Hwnd::from_raw(h).0).unwrap_or(0);
+        // Returns once the menu has closed.
         let _ = window.popup_menu(&menu.menu);
+        if before != 0 && before != ours && win::foreground_window() == ours {
+          win::set_foreground(win::Hwnd(before));
+        }
       }
     })
     .map_err(|e| e.to_string())
 }
 
+/// Which views exist. The rest stay in the menu, greyed out, as "coming soon".
+#[tauri::command(async)]
+fn set_available_views(app: AppHandle, views: Vec<String>) -> Result<(), String> {
+  let handle = app.clone();
+  app
+    .run_on_main_thread(move || {
+      if let Some(menu) = handle.try_state::<tray::TrayMenu>() {
+        menu.set_available(&views);
+      }
+    })
+    .map_err(|e| e.to_string())
+}
+
+/// Is this copy of Doozer registered to start when the user signs in?
+#[tauri::command]
+fn autostart_enabled() -> bool {
+  match (autostart_key(), std::env::current_exe()) {
+    (Ok(key), Ok(exe)) => autostart::is_registered(&key, autostart::VALUE_NAME, &exe),
+    _ => false,
+  }
+}
+
+/// Register or unregister this copy of Doozer to start with Windows. Returns
+/// what is now true. Registering again after the app has moved fixes the path.
+#[tauri::command(async)]
+fn set_autostart(enabled: bool) -> Result<bool, String> {
+  let key = autostart_key()?;
+  let exe = std::env::current_exe().map_err(|e| format!("cannot find the running program: {e}"))?;
+  let command = autostart::command_for(&exe);
+  autostart::write(&key, autostart::VALUE_NAME, enabled.then_some(command.as_str()))?;
+  Ok(autostart::is_registered(&key, autostart::VALUE_NAME, &exe))
+}
+
+/// The page has finished saving (or the user quit from the page): leave now.
 #[tauri::command]
 fn quit(app: AppHandle) {
   app.exit(0);
@@ -139,6 +217,10 @@ fn quit(app: AppHandle) {
 // ---- Startup -------------------------------------------------------------------
 
 pub fn run() {
+  // One Doozer per save. A second copy simply leaves; the first is already there.
+  if !spike::allow_many_instances() && !win::claim_single_instance(&instance_name()) {
+    return;
+  }
   tauri::Builder::default()
     .on_menu_event(tray::on_menu_event)
     .invoke_handler(tauri::generate_handler![
@@ -155,6 +237,9 @@ pub fn run() {
       load_save,
       write_save,
       show_menu,
+      set_available_views,
+      autostart_enabled,
+      set_autostart,
       quit,
       spike::spike_config,
       spike::spike_inject,
@@ -166,6 +251,7 @@ pub fn run() {
       spike::spike_mark,
       spike::spike_clobber_style,
       spike::spike_menu,
+      spike::spike_autostart_is_scratch,
       spike::spike_look,
       spike::spike_report,
     ])

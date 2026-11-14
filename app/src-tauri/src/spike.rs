@@ -60,6 +60,14 @@ pub fn always_fast_ticks() -> bool {
   false
 }
 
+/// Test runs start several copies at once (one films another starting up).
+pub fn allow_many_instances() -> bool {
+  #[cfg(feature = "spike")]
+  return std::env::var("DOOZER_SPIKE").is_ok();
+  #[cfg(not(feature = "spike"))]
+  false
+}
+
 pub fn start(_app: &tauri::AppHandle) {
   #[cfg(feature = "spike")]
   imp::start(_app);
@@ -164,6 +172,16 @@ pub fn spike_menu(_app: tauri::AppHandle, _id: Option<String>) -> Result<Value, 
   return imp::menu(&_app, _id);
   #[cfg(not(feature = "spike"))]
   Err(DISABLED.into())
+}
+
+/// True when "start with Windows" is pointed at a scratch registry key, so a
+/// test may switch it on and off without touching the real one.
+#[tauri::command]
+pub fn spike_autostart_is_scratch() -> bool {
+  #[cfg(feature = "spike")]
+  return std::env::var("DOOZER_AUTOSTART_KEY").is_ok();
+  #[cfg(not(feature = "spike"))]
+  false
 }
 
 #[tauri::command(async)]
@@ -388,7 +406,15 @@ mod imp {
       std::thread::sleep(Duration::from_millis(60));
     }
     let ticked = app.try_state::<TrayMenu>().map(|m| m.ticked()).unwrap_or_default();
-    Ok(json!({ "ticked": ticked, "trayIconExists": app.tray_by_id("doozer").is_some() }))
+    let items = app.try_state::<TrayMenu>().map(|m| m.describe()).unwrap_or_default();
+    let labels: serde_json::Map<String, Value> = items.iter().map(|(id, text, _)| (id.to_string(), json!(text))).collect();
+    let enabled: serde_json::Map<String, Value> = items.iter().map(|(id, _, on)| (id.to_string(), json!(on))).collect();
+    Ok(json!({
+      "ticked": ticked,
+      "trayIconExists": app.tray_by_id("doozer").is_some(),
+      "labels": labels,
+      "enabled": enabled,
+    }))
   }
 
   pub fn look(app: &tauri::AppHandle, points: Value) -> Result<Value, String> {

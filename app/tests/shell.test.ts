@@ -358,15 +358,20 @@ describe('native shell: the rest', () => {
     void shell.quit();
     void shell.windowInfo();
     void shell.fullscreenInFront();
+    void shell.setAvailableViews(['pill']);
+    void shell.setAutostart(true);
+    void shell.autostartEnabled();
     const sent = Object.fromEntries(b.calls.map((c) => [c.command, c.args]));
     expect(sent).toMatchObject({
+      set_available_views: { views: ['pill'] },
+      set_autostart: { enabled: true },
       begin_drag: { x: 12, y: 34 },
       set_focusable: { focusable: true },
       set_window_visible: { visible: false },
       set_always_on_top: { onTop: false },
       write_save: { json: '{"a":1}' },
     });
-    expect(Object.keys(sent)).toEqual(expect.arrayContaining(['load_save', 'show_menu', 'quit', 'window_info', 'fullscreen_in_front']));
+    expect(Object.keys(sent)).toEqual(expect.arrayContaining(['load_save', 'show_menu', 'quit', 'window_info', 'fullscreen_in_front', 'autostart_enabled']));
   });
 
   it('delivers events under their short names and can unsubscribe', () => {

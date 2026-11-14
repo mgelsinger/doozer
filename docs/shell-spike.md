@@ -2,6 +2,8 @@
 
 **Phase 3 of [WORK_PLAN.md](../WORK_PLAN.md)** · run 2026-11-11 · Windows 11 Pro (build 26300), one 3840 × 2160 display at 150 % scaling and 120 Hz, WebView2 runtime 157, Tauri 2.12.5 (tao 0.37.2, wry 0.57.2), Rust 1.96.
 
+> **Since Phase 6 (2026-11-13):** the app now opens in the real Pill view, not the test page described here. The test page and its scenarios are still in the repository and still run, but only in a build made with `--features spike` and started with one of this document's scenario names in `DOOZER_SPIKE` (section 9). What Phase 6 added to the shell is listed at the end of section 8; how the real app was checked is in [pill-checks.md](pill-checks.md).
+
 ## The decision
 
 **Stay on Tauri 2.** A single frameless, transparent, always-on-top window does everything the design needs: it is a docked pill, a small free-floating window and a full work-area overlay, it moves between those shapes without a bad frame reaching the screen, it lets the mouse through everywhere except the regions the page names, and it never takes keyboard focus. Idle in the pill, it costs about 73 MB and under 1 % of one processor core.
@@ -133,7 +135,11 @@ const { data, source } = await shell.load();
 await shell.save(json);
 shell.showMenu();                         // the native menu, at the cursor
 shell.on('view-requested', (view) => …);  // also: settings-requested, drag-end, pointer-released,
-                                          // display-changed, fullscreen-changed, watchdog
+                                          // display-changed, fullscreen-changed, watchdog, quit-requested
+// added in Phase 6:
+shell.setAvailableViews(['pill']);        // the rest are greyed out in the menu as "coming soon"
+await shell.setAutostart(true);           // start with Windows; autostartEnabled() reads it back
+await shell.quit();                       // after saving, in answer to quit-requested
 ```
 
 Sizes are CSS pixels. Positions are physical screen pixels: they are handed out by the shell (`drag-end`, `WindowInfo`) and are meant to be stored and handed back, not calculated with. That is the only coordinate space that stays unambiguous across monitors with different scaling.
@@ -281,6 +287,16 @@ Desktop Duplication returned lighter colours than a plain screen copy of the sam
 - Not built here: single-instance guard, start with Windows, a content security policy, an installer. The app identifier `com.doozer.desktop` is a placeholder; changing it later moves the save folder, so settle it before anyone has a save worth keeping.
 - `npm run tauri build` runs the type-check first, so it fails if any file in `app/` has a type error.
 
+**What Phase 6 added to the shell** (2026-11-13):
+
+- **Quit saves first.** Quit in the tray or right-click menu now sends `quit-requested` to the page and quits 0.9 s later whether or not the page answers; the page saves and calls `quit`, which exits at once. A hung page still cannot keep the app alive.
+- **One copy per save folder** (a named mutex, `win::claim_single_instance`). A second copy exits immediately. Test runs with `DOOZER_SPIKE` set are exempt, and a copy pointed at another `DOOZER_SAVE_DIR` counts as a different Doozer.
+- **Start with Windows** (`autostart.rs`): one value under the current user's Run key, written by `set_autostart`. A debug build refuses, so a development copy is never registered. `DOOZER_AUTOSTART_KEY` points it at a scratch key for tests.
+- **A development build keeps its own save**, in a `dev` subfolder of the app-data folder.
+- **"Coming soon" in the native menu:** `set_available_views` disables the items of views that are not built and says so in their text.
+- **The right-click menu hands focus back.** The menu library has to make the window the foreground window for the popup to close on a click elsewhere; when the popup closes the shell gives the foreground back to whichever window had it. Not yet tried by a person.
+- Still not built: a content security policy, an installer. The identifier `com.doozer.desktop` is still the placeholder.
+
 **Phase 8 (Island)**: idle cost for the island above is for a 2D stand-in. three.js will add GPU memory and, while it animates, real CPU. Measure again with the same script.
 
 **Phase 9 (Desktop)**: the overlay is a 3840 × 2088 transparent surface costing 30 MB more than the pill (section 2.1). If that matters, a docked strip along the bottom edge (`{ kind: 'docked', anchor: 'bottom-center', … }`) is already supported and costs in proportion to its height. Regions can be reported every frame as Doozer walks. The two rules in section 4.3 are what the spec's "never stuck" list asks of the shell: the click-through state does not change while a button is down, and `pointer-released` ends a carry whose mouse-up never arrives. The view still has to listen for it and end a carry on every other exit path too, as the test page does.
@@ -292,7 +308,7 @@ From `app/`:
 ```
 npm test                                   # every page-side test, the bridge included
 cd src-tauri && cargo test                 # window maths, regions, save, kill-mid-write (takes ~40 s)
-npm run tauri dev                          # the test page, live
+npm run tauri dev                          # the app (since Phase 6); the test page needs a spike build
 ```
 
 The automated runs need a build with the test hooks:

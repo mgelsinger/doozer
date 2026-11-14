@@ -87,6 +87,12 @@ export interface ShellEvents {
   /** The tray or right-click menu asked for a view. The host decides whether and how to switch. */
   'view-requested': ViewId;
   'settings-requested': null;
+  /**
+   * Quit was chosen in the tray or right-click menu. Write the save, then call
+   * `shell.quit()`. The native side quits by itself about a second later whether
+   * or not the page answers, so a hung page cannot keep the app alive.
+   */
+  'quit-requested': null;
   /** The user finished dragging the window. Remember `x` and `y` for next time. */
   'drag-end': WindowInfo;
   /** The taskbar, resolution or scaling changed and the shell re-placed the window. */
@@ -136,6 +142,16 @@ export interface Shell {
   save(json: string): Promise<void>;
   /** Pop up the native menu (the four views, Settings, Quit) at the cursor. */
   showMenu(): Promise<void>;
+  /** Say which views exist. The others stay in the native menu, greyed out, as "coming soon". */
+  setAvailableViews(views: readonly ViewId[]): Promise<void>;
+  /** Is this copy of the app registered to start when the user signs in? */
+  autostartEnabled(): Promise<boolean>;
+  /**
+   * Register or unregister "start with Windows". Resolves with what is now true.
+   * Rejects in a development build, which is never registered.
+   */
+  setAutostart(enabled: boolean): Promise<boolean>;
+  /** Leave now. Call it after saving, in answer to `quit-requested` or the user's own Quit button. */
   quit(): Promise<void>;
   on<K extends keyof ShellEvents>(event: K, handler: (payload: ShellEvents[K]) => void): () => void;
 }
@@ -293,6 +309,9 @@ export function createNativeShell(bridge: Bridge, host: PageHost): Shell & { sto
     load: () => bridge.invoke<LoadResult>('load_save'),
     save: (json: string) => bridge.invoke<void>('write_save', { json }),
     showMenu: () => bridge.invoke<void>('show_menu'),
+    setAvailableViews: (views: readonly ViewId[]) => bridge.invoke<void>('set_available_views', { views: [...views] }),
+    autostartEnabled: () => bridge.invoke<boolean>('autostart_enabled'),
+    setAutostart: (enabled: boolean) => bridge.invoke<boolean>('set_autostart', { enabled }),
     quit: () => bridge.invoke<void>('quit'),
 
     on<K extends keyof ShellEvents>(event: K, handler: (payload: ShellEvents[K]) => void): () => void {
@@ -387,6 +406,9 @@ export function createBrowserShell(store: KeyValueStore, viewport: () => { width
       store.setItem(SAVE_KEY, json);
     },
     showMenu: async () => undefined,
+    setAvailableViews: async () => undefined,
+    autostartEnabled: async () => false,
+    setAutostart: async () => false,
     quit: async () => undefined,
     on: () => () => undefined,
   };

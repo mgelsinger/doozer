@@ -5,13 +5,14 @@
 
 use crate::mode::{Monitor, Rect};
 use std::ffi::c_void;
-use windows::Win32::Foundation::{COLORREF, HWND, POINT, RECT};
+use windows::Win32::Foundation::{COLORREF, ERROR_ALREADY_EXISTS, GetLastError, HWND, POINT, RECT};
 use windows::Win32::Graphics::Dwm::{DWMWA_CLOAK, DwmSetWindowAttribute};
 use windows::Win32::Graphics::Gdi::{
   ClientToScreen, GetMonitorInfoW, HMONITOR, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromPoint,
   MonitorFromWindow, ScreenToClient,
 };
 use windows::Win32::System::SystemInformation::GetTickCount;
+use windows::Win32::System::Threading::CreateMutexW;
 use windows::Win32::UI::HiDpi::{GetDpiForMonitor, GetDpiForWindow, MDT_EFFECTIVE_DPI};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
   GetAsyncKeyState, GetLastInputInfo, LASTINPUTINFO, VK_LBUTTON, VK_MBUTTON, VK_RBUTTON,
@@ -20,7 +21,8 @@ use windows::Win32::UI::Shell::SHQueryUserNotificationState;
 use windows::Win32::UI::WindowsAndMessaging::{
   GWL_EXSTYLE, GetClassNameW, GetCursorPos, GetForegroundWindow, GetWindowLongPtrW, GetWindowRect, HWND_NOTOPMOST,
   HWND_TOPMOST, IsWindowVisible, LWA_ALPHA, SW_HIDE, SW_SHOWNOACTIVATE, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE,
-  SWP_NOCOPYBITS, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetLayeredWindowAttributes, SetWindowLongPtrW, SetWindowPos,
+  SWP_NOCOPYBITS, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetForegroundWindow, SetLayeredWindowAttributes,
+  SetWindowLongPtrW, SetWindowPos,
   ShowWindow, WS_EX_APPWINDOW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT,
 };
 
@@ -197,6 +199,29 @@ pub fn set_cloaked(hwnd: Hwnd, cloaked: bool) {
 pub fn foreground_window() -> isize {
   // SAFETY: plain query.
   unsafe { GetForegroundWindow() }.0 as isize
+}
+
+/// Hand keyboard focus to another window. Windows only allows this while our own
+/// process has the focus, which is exactly when it is used: after a popup menu.
+pub fn set_foreground(hwnd: Hwnd) -> bool {
+  // SAFETY: plain window operation on a handle Windows gave us.
+  unsafe { SetForegroundWindow(hwnd.raw()) }.as_bool()
+}
+
+/// Claim a machine-wide name for this run. Returns false if another process
+/// already holds it. The claim lasts until the process ends.
+pub fn claim_single_instance(name: &str) -> bool {
+  let wide: Vec<u16> = name.encode_utf16().chain(std::iter::once(0)).collect();
+  // SAFETY: `wide` is a NUL-terminated UTF-16 string that outlives the call.
+  let handle = unsafe { CreateMutexW(None, false, windows::core::PCWSTR(wide.as_ptr())) };
+  // SAFETY: plain query, read straight after the call it describes.
+  let already = unsafe { GetLastError() } == ERROR_ALREADY_EXISTS;
+  match handle {
+    // Never closed, on purpose: Windows releases it when the process ends.
+    Ok(_kept_open) => !already,
+    // If the name cannot be claimed at all, do not lock the user out of the app.
+    Err(_) => true,
+  }
 }
 
 pub fn class_name(hwnd: Hwnd) -> String {
