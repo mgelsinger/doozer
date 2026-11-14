@@ -17,7 +17,7 @@ import type { PaletteId } from '../../core/contract';
 import { createDoozer3D, type Doozer3D, type DoozerModel } from '../../character/doozer3d';
 import type { Timers } from '../../character/timers';
 import { createProjector, type Projector } from './camera';
-import { CAMERA, groundY, type IslandLayout } from './layout';
+import { CAMERA, DOOZER_SCALE, groundY, type IslandLayout } from './layout';
 import { buildBall, buildCloud, buildDuck, buildGlyph, buildIsland, buildSnack, disposeTree, mulberry, type Glyph } from './props3d';
 import { BALL_RADIUS, type Particle, type PlayToy, type World } from './world';
 
@@ -135,7 +135,7 @@ export interface Stage3D {
 }
 
 const DAY = { sky: new Color(0xffffff), ground: new Color(0xffd9c2), key: new Color(0xfff4e6), rim: new Color(0xffc4dc) };
-const NIGHT = { sky: new Color(0x8d9cff), ground: new Color(0x39407a), key: new Color(0xbfd0ff), rim: new Color(0x7f8cff) };
+const NIGHT = { sky: new Color(0x9aa8ff), ground: new Color(0x4a5296), key: new Color(0xc8d6ff), rim: new Color(0x7f8cff) };
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
 export function createStage3D(options: Stage3DOptions): Stage3D {
@@ -190,7 +190,7 @@ export function createStage3D(options: Stage3DOptions): Stage3D {
   for (const material of materialsOf(rainCloud)) material.color.set(0xdfe6f5);
   const cloudMaterials = materialsOf(clouds);
   const cloudDay = new Color(0xffffff);
-  const cloudNight = new Color(0x7f88c9);
+  const cloudNight = new Color(0x8f97d6);
 
   // ---- Doozer ----------------------------------------------------------------------------
   const actor = createDoozer3D(options.model, {
@@ -201,6 +201,7 @@ export function createStage3D(options: Stage3DOptions): Stage3D {
     invalidate: options.invalidate,
     onLand: options.onLand,
   });
+  actor.object.scale.setScalar(DOOZER_SCALE);
   scene.add(actor.object);
 
   // ---- things that come and go -----------------------------------------------------------
@@ -249,15 +250,24 @@ export function createStage3D(options: Stage3DOptions): Stage3D {
   // Night: a soft dark sky behind the island, the moon, stars and fireflies.
   const night = new Group();
   scene.add(night);
+  // The sky fills the drawing exactly and is clear at its edge, so the window's own edge never shows.
   const sky = sprite('sky', { opacity: 0 });
-  sky.position.set(0, 0.95, -2.6);
-  sky.scale.set(7.4, 7.0, 1);
+  {
+    const depth = -2.6;
+    const [cx, cy, cz] = CAMERA.position;
+    const [tx, ty, tz] = CAMERA.target;
+    const along = (depth - cz) / (tz - cz);
+    const reach = Math.hypot(tx - cx, ty - cy, tz - cz) * along;
+    const half = reach * Math.tan((CAMERA.fovDeg * Math.PI) / 360);
+    sky.position.set(cx + (tx - cx) * along, cy + (ty - cy) * along, depth);
+    sky.scale.set(half * 2 * (layout.sceneWidth / layout.sceneHeight), half * 2, 1);
+  }
   sky.renderOrder = -5;
   const moon = sprite('moon', { opacity: 0 });
-  moon.position.set(-1.72, 2.72, -1.5);
-  moon.scale.setScalar(0.62);
+  moon.position.set(0.9, 2.72, -1.5);
+  moon.scale.setScalar(0.6);
   night.add(sky, moon);
-  const stars = ([[1.6, 2.85, 0.16], [0.6, 3.02, 0.11], [-0.7, 2.98, 0.13], [2.05, 2.2, 0.1], [-2.15, 1.9, 0.12], [0.15, 2.5, 0.08]] as const).map(([x, y, size], i) => {
+  const stars = ([[-0.6, 2.78, 0.15], [0.15, 2.42, 0.09], [-1.65, 1.9, 0.12], [1.75, 1.7, 0.1], [1.5, 2.3, 0.11], [-1.0, 2.2, 0.08], [-0.05, 2.98, 0.1]] as const).map(([x, y, size], i) => {
     const s = sprite('star', { opacity: 0 });
     s.position.set(x, y, -1.5);
     s.scale.setScalar(size);
@@ -280,9 +290,9 @@ export function createStage3D(options: Stage3DOptions): Stage3D {
     if (k !== nightDrawn) {
       hemi.color.copy(DAY.sky).lerp(NIGHT.sky, k);
       hemi.groundColor.copy(DAY.ground).lerp(NIGHT.ground, k);
-      hemi.intensity = lerp(2.0, 0.85, k);
+      hemi.intensity = lerp(2.0, 1.35, k);
       key.color.copy(DAY.key).lerp(NIGHT.key, k);
-      key.intensity = lerp(2.4, 0.75, k);
+      key.intensity = lerp(2.4, 1.0, k);
       rim.color.copy(DAY.rim).lerp(NIGHT.rim, k);
       for (const material of cloudMaterials) {
         material.color.copy(cloudDay).lerp(cloudNight, k);
@@ -343,7 +353,7 @@ export function createStage3D(options: Stage3DOptions): Stage3D {
     duck.visible = world.duck > 0.02;
     if (duck.visible) {
       const side = d.x > 0.2 ? -1 : 1;
-      const x = d.x + side * 0.92;
+      const x = d.x + side * 1.04;
       const z = d.z + 0.28;
       duck.position.set(x, groundY(x, z), z);
       duck.rotation.y = side > 0 ? Math.PI * 0.85 : Math.PI * 0.15;
@@ -351,7 +361,7 @@ export function createStage3D(options: Stage3DOptions): Stage3D {
     }
     rainCloud.visible = world.rain > 0.02;
     if (rainCloud.visible) {
-      rainCloud.position.set(d.x, groundY(d.x, d.z) + 2.25, d.z - 0.3);
+      rainCloud.position.set(d.x, groundY(d.x, d.z) + 1.75 * DOOZER_SCALE + 0.5, d.z - 0.3);
       rainCloud.scale.setScalar(1.25 * world.rain);
     }
     drawParticles(world.particles);

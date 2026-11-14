@@ -7,7 +7,7 @@
 
 import type { Region } from '../../shell';
 import { hitEllipsoid, type Projector, type Ray, type Vec3 } from './camera';
-import { ISLAND, groundY } from './layout';
+import { DOOZER_SCALE, ISLAND, groundY } from './layout';
 import { BALL_RADIUS } from './world';
 
 export interface Point { x: number; y: number }
@@ -99,8 +99,9 @@ export interface DoozerAt {
   y: number;
 }
 
-/** The model's size in world units (build_doozer.py): half its width, its height, the ears and the tuft. */
-const DOOZER = { halfWidth: 0.64, height: 1.42, earTop: 1.46, earHalfSpan: 0.6, tuftTop: 1.66 } as const;
+const S = DOOZER_SCALE;
+/** Doozer's size on the island, in world units (the model's own, from build_doozer.py, times the scale it is drawn at). */
+const DOOZER = { halfWidth: 0.64 * S, middle: 0.72 * S, height: 1.42 * S, ears: 1.08 * S, earHalfSpan: 0.6 * S, tuftTop: 1.66 * S } as const;
 
 /** Two rounded boxes over Doozer: the body, and the ears and tuft above it. */
 export function doozerRegions(projector: Projector, at: DoozerAt, pad = 10): Region[] {
@@ -108,7 +109,7 @@ export function doozerRegions(projector: Projector, at: DoozerAt, pad = 10): Reg
   const feet = projector.project([at.x, ground, at.z]);
   const top = projector.project([at.x, ground + DOOZER.height, at.z]);
   const crown = projector.project([at.x, ground + DOOZER.tuftTop, at.z]);
-  const ears = projector.project([at.x, ground + 1.08, at.z]);
+  const ears = projector.project([at.x, ground + DOOZER.ears, at.z]);
   const half = DOOZER.halfWidth * feet.scale + pad;
   const body: Region = { x: feet.x - half, y: top.y - pad, w: half * 2, h: feet.y - top.y + pad * 2 + 6, r: half };
   const earHalf = DOOZER.earHalfSpan * ears.scale + pad;
@@ -125,7 +126,7 @@ export function ballRegion(projector: Projector, ball: { x: number; y: number; z
 /** Where on screen Doozer's middle and the top of its head are (for the Radial and the emotes). */
 export function doozerPoints(projector: Projector, at: DoozerAt): { middle: Point; head: Point; scale: number } {
   const ground = groundY(at.x, at.z) + at.y;
-  const middle = projector.project([at.x, ground + 0.72, at.z]);
+  const middle = projector.project([at.x, ground + DOOZER.middle, at.z]);
   const head = projector.project([at.x, ground + DOOZER.height, at.z]);
   return { middle: { x: middle.x, y: middle.y }, head: { x: head.x, y: head.y }, scale: middle.scale };
 }
@@ -152,10 +153,11 @@ export function pick(ray: Ray, scene: PickScene): Picked {
   const stretch = d.stretch ?? 1;
   const bulge = d.bulge ?? 1;
   // The body, the ears and the tuft, each as a rounded blob a little larger than drawn.
-  consider('doozer', hitEllipsoid(ray, [d.x, ground + 0.72 * stretch, d.z], [0.68 * bulge, 0.74 * stretch, 0.62 * bulge]));
-  consider('doozer', hitEllipsoid(ray, [d.x - 0.4 * bulge, ground + 1.26 * stretch, d.z - 0.03], [0.22, 0.22, 0.14]));
-  consider('doozer', hitEllipsoid(ray, [d.x + 0.4 * bulge, ground + 1.26 * stretch, d.z - 0.03], [0.22, 0.22, 0.14]));
-  consider('doozer', hitEllipsoid(ray, [d.x + 0.07, ground + 1.52 * stretch, d.z], [0.14, 0.16, 0.1]));
+  consider('doozer', hitEllipsoid(ray, [d.x, ground + 0.72 * stretch * S, d.z], [0.68 * bulge * S, 0.74 * stretch * S, 0.62 * bulge * S]));
+  for (const side of [-1, 1]) {
+    consider('doozer', hitEllipsoid(ray, [d.x + side * 0.4 * bulge * S, ground + 1.26 * stretch * S, d.z - 0.03 * S], [0.22 * S, 0.22 * S, 0.14 * S]));
+  }
+  consider('doozer', hitEllipsoid(ray, [d.x + 0.07 * S, ground + 1.52 * stretch * S, d.z], [0.14 * S, 0.16 * S, 0.1 * S]));
   if (scene.ball) consider('ball', hitEllipsoid(ray, [scene.ball.x, scene.ball.y, scene.ball.z], [0.3, 0.3, 0.3]));
   if (scene.snack) {
     const r = 0.14 + 0.2 * scene.snack.size;

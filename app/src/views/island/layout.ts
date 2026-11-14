@@ -102,5 +102,12 @@ export const CAMERA = {
   far: 60,
 } as const;
 
+/**
+ * How large Doozer is drawn on the island. The model keeps the 2D rig's proportions
+ * (1.28 units wide); on the island it is a fifth larger, which gives it the presence it
+ * had in the mockup the owner liked, where it was a ball 1.5 units across.
+ */
+export const DOOZER_SCALE = 1.2;
+
 /** Where Doozer stands when nothing has moved it. */
 export const HOME = { x: 0, z: 0.3 } as const;

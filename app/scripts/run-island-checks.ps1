@@ -21,6 +21,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+# "-Only a,b" arrives as one string when the script is started with `pwsh -File`.
+$Only = @($Only | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 $exePath = (Resolve-Path $Exe).Path
 $scratch = Join-Path ([IO.Path]::GetTempPath()) "doozer-island-checks-$PID"
 $saveDir = Join-Path $scratch 'save'

@@ -14,7 +14,7 @@
 
 import type { FoodId, ToyId } from '../../core/contract';
 import type { BodyMotion } from '../../character/body-motion';
-import { HOME, ISLAND, groundY } from './layout';
+import { DOOZER_SCALE, HOME, ISLAND, groundY } from './layout';
 
 export type PlayToy = Exclude<ToyId, 'duck'>;
 
@@ -342,9 +342,9 @@ export class World {
     if (this.rain > 0.5) {
       this.dropIn -= dt;
       if (this.dropIn <= 0) {
-        this.dropIn = 0.05;
-        const top = groundY(this.doozer.x, this.doozer.z) + 2.1;
-        this.burst('drop', this.doozer.x, top, this.doozer.z - 0.3, 1, { spread: 0.42, up: -2.6, size: 0.1, life: 0.5, gravity: -7, out: 0.05 });
+        this.dropIn = 0.04;
+        const top = groundY(this.doozer.x, this.doozer.z) + 1.75 * DOOZER_SCALE + 0.35;
+        this.burst('drop', this.doozer.x, top, this.doozer.z - 0.3, 1, { spread: 0.42, up: -2.6, size: 0.13, life: 0.5, gravity: -7, out: 0.05 });
       }
     }
   }
@@ -402,7 +402,7 @@ export class World {
       ball.x = nx * ISLAND.fence; ball.z = nz * ISLAND.fence;
     }
     // Meeting Doozer: a kick while they are playing, otherwise a soft bump.
-    const centreY = groundY(this.doozer.x, this.doozer.z) + body.height + 0.8;
+    const centreY = groundY(this.doozer.x, this.doozer.z) + body.height + 0.72 * DOOZER_SCALE;
     const dx = ball.x - this.doozer.x;
     const dy = ball.y - centreY;
     const dz = ball.z - this.doozer.z;

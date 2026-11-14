@@ -108,6 +108,8 @@ async function stayAwake(app: App): Promise<void> {
   if (!app.brain.settings.soundAsked) app.brain.setSetting('soundAsked', true);
   if (app.brain.settings.reduceMotion !== 'off') app.brain.setSetting('reduceMotion', 'off');
   await app.host.settled();
+  // A new pet hatches in the Pill first. Let it, so that the Pill is itself when Doozer comes back to it.
+  if (app.host.current() === 'pill') await waitFor(() => app.pill.snapshot()?.hatching !== true && !app.host.services.needsWelcome(), 16_000, 50);
   await sleep(150);
 }
 
@@ -628,12 +630,18 @@ const focus: Scenario = async (app) => {
   }
   clearInterval(sampler);
   sample();
-  // The session's own clock never jumped, stopped or restarted, whichever view was showing.
+  // The session's own clock never jumped, stopped, went back or restarted, whichever view
+  // was showing. (The brain counts in whole seconds and is asked four times a second, so
+  // what it says can be up to a second and a quarter behind the wall clock.)
   let worstDrift = 0;
   let notRunning = 0;
+  let wentBack = 0;
   const first = samples[0];
+  let previous = first?.remaining ?? 0;
   for (const s of samples) {
     if (s.status !== 'running') notRunning++;
+    if (s.remaining > previous) wentBack++;
+    previous = s.remaining;
     if (first) worstDrift = Math.max(worstDrift, Math.abs((first.remaining - s.remaining) - (s.at - first.at)));
   }
 
@@ -652,7 +660,7 @@ const focus: Scenario = async (app) => {
     'the session starts from the Card in the Island': inIsland.status === 'running' && inIsland.quiet,
     'in the Island: glasses on, and the chip under the island counts down': inIsland.glasses && inIsland.showing === 'focus' && inIsland.chip === '1' && /^\d\d:\d\d$/.test(inIsland.chipText) && chipLater < inIsland.chipText,
     'the session ran the whole time, in whichever view': notRunning === 0 && samples.length > 30,
-    'its clock never jumped (within a quarter of a second)': worstDrift < 250,
+    'its clock never jumped or went back': worstDrift < 1500 && wentBack === 0,
     'it ends in the Island with a celebration': celebrating.scene === 'focus-complete' && rested,
     'the treats landed: 2 for 25 minutes, 1 for the first of the day': after.treats === Math.min(brain.limits.treats, before.treats + 3) && after.sessions === before.sessions + 1,
     'the streak counts it': after.streak === Math.max(1, before.streak),
@@ -660,7 +668,7 @@ const focus: Scenario = async (app) => {
     'afterwards the island is at rest, whole': wrongAtRest(app).length === 0,
   });
   await host.flush();
-  return { failures, before, inIsland, chipLater, hops, samples: samples.length, worstDrift, notRunning, after, wrong: wrongAtRest(app) };
+  return { failures, before, inIsland, chipLater, hops, samples: samples.length, worstDrift, wentBack, notRunning, after, wrong: wrongAtRest(app) };
 };
 
 // ---- ten times in and out, for the leak measurement ----------------------------------------------
@@ -743,7 +751,10 @@ const idle: Scenario = async (app, args) => {
   if (args.ball === true) pieces(app).world.serveBall('ball');
   await park();
   await atRest(app, 20_000);
-  const { snap, stage } = pieces(app);
+  const { snap, stage, touch, onDoozer } = pieces(app);
+  // "watched": the pointer rests on Doozer the whole time, so it stays lively. Not idle;
+  // measured to know what being looked at costs.
+  if (args.watched === true) setInterval(() => pointer(touch, 'pointermove', onDoozer(), 0), 300);
   const frames = await framesIn(1000);
   await report('idle-ready.json', { ready: true, at: Date.now(), snap: snap(), status: await status(), info: stage.info(), frames, visibility: document.visibilityState });
   // Report now and then how many frames have been drawn, so the measurement can say what the island was doing.

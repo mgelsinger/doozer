@@ -270,14 +270,14 @@ export class IslandDirector {
       const at = world.doozer;
       // The snack lands beside Doozer, on the side with more island.
       const side = at.x > 0.25 ? -1 : at.x < -0.25 ? 1 : this.random() < 0.5 ? -1 : 1;
-      const x = clamp(at.x + side * (quiet ? 0.74 : 0.95), -ISLAND.reach, ISLAND.reach);
+      const x = clamp(at.x + side * (quiet ? 0.86 : 1.0), -ISLAND.reach, ISLAND.reach);
       const z = clamp(at.z + 0.2, 0.15, 0.85);
       world.dropSnack(food, x, z);
       scene.cleanup(() => { world.removeSnack(); actor.body.setFacing(null); actor.lookAt(0, 0); });
       actor.lookAt(side * 0.8, 0.9);
       if (!quiet) actor.flash('wow', 760);
       await scene.wait(820);
-      if (!quiet) await this.travel(scene, x - side * 0.78, z - 0.05);
+      if (!quiet) await this.travel(scene, x - side * 0.84, z - 0.05);
       actor.body.setFacing(side * 0.95);
       actor.lookAt(side * 0.5, -0.4);
       actor.flash('eat', BITE_MS * 3 + 150);

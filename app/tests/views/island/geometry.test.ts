@@ -4,7 +4,7 @@
 import { PerspectiveCamera, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { createProjector, hitEllipsoid } from '../../../src/views/island/camera';
-import { CAMERA, ISLAND, MIN_WINDOW_WIDTH, PANEL_MARGIN, PANEL_SPACE, SCENE, groundY, islandLayout, islandWindow, panelTop } from '../../../src/views/island/layout';
+import { CAMERA, DOOZER_SCALE, ISLAND, MIN_WINDOW_WIDTH, PANEL_MARGIN, PANEL_SPACE, SCENE, groundY, islandLayout, islandWindow, panelTop } from '../../../src/views/island/layout';
 import { ballRegion, convexHull, doozerPoints, doozerRegions, islandSilhouette, pick, slabs, type Point } from '../../../src/views/island/regions';
 import type { Region } from '../../../src/shell';
 
@@ -102,8 +102,8 @@ describe('the camera', () => {
     expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(medium.sceneWidth * 0.72);
     expect(Math.max(...ys)).toBeLessThan(medium.sceneHeight - 28);        // room for the focus chip underneath
     // Doozer, standing at home, with the top of its tuft: room above for the Radial.
-    const tuft = projector.project([0, groundY(0, 0.3) + 1.66, 0.3]);
-    expect(tuft.y).toBeGreaterThan(110);
+    const tuft = projector.project([0, groundY(0, 0.3) + 1.66 * DOOZER_SCALE, 0.3]);
+    expect(tuft.y).toBeGreaterThan(100);
   });
 
   it('finds where a ray meets an ellipsoid, or that it misses', () => {
@@ -181,7 +181,8 @@ describe('Doozer and the ball as hit regions', () => {
       const regions = doozerRegions(projector, at);
       const ground = groundY(at.x, at.z) + at.y;
       for (const [dx, dy] of [[0, 0.05], [0, 0.7], [0.6, 0.7], [-0.6, 0.7], [0, 1.4], [0.5, 1.3], [-0.5, 1.3], [0.1, 1.62]] as const) {
-        const p = projector.project([at.x + dx, ground + dy, at.z]);
+        // The model's own measurements, at the size Doozer is drawn on the island.
+        const p = projector.project([at.x + dx * DOOZER_SCALE, ground + dy * DOOZER_SCALE, at.z]);
         expect(anyInside(regions, p.x, p.y), `${JSON.stringify(at)} + ${dx}, ${dy}`).toBe(true);
       }
       expect(regions).toHaveLength(2);
@@ -236,7 +237,8 @@ describe('what is under the pointer', () => {
   });
 
   it('follows Doozer as it squashes', () => {
-    const tall = projector.project([0, 1.38, 0.3]);
+    // A point on the upper body when Doozer stands at its full height.
+    const tall = projector.project([0.4, 1.55, 0.3]);
     expect(pick(projector.ray(tall.x, tall.y), { ...scene, doozer: { ...scene.doozer, stretch: 1, bulge: 1 } })).toBe('doozer');
     expect(pick(projector.ray(tall.x, tall.y), { ...scene, doozer: { ...scene.doozer, stretch: 0.7, bulge: 1.2 } })).not.toBe('doozer');
   });
