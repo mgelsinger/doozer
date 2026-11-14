@@ -132,6 +132,8 @@ A window that catches where the view asked for nothing is the failure that matte
 | A press that begins elsewhere, dragged across Doozer and off again | 3 | 0 |
 | **All** | **709** | **0** |
 
+The table is the run that found nothing after the corner fix below. The whole scenario was run once more on the final build, after the last two fixes to the view (section 8): 708 points, none wrong, two skipped because Doozer passed over them.
+
 Two of those rows are the shell's rule that the click-through state never changes while a button is down, seen from this view. *Carried:* with the button held on Doozer, the window keeps catching wherever the pointer goes, at all 15 points across the screen, so the mouse-up cannot be lost to another window. *A press that begins elsewhere* stays the other application's as it is dragged over Doozer: the window stays click-through.
 
 **What is drawn is where the shell is told it is.** In the real layout at 150 % scaling: Doozer's hit area is drawn at (1803.79, 1295.28), 78.40 × 94.07 px, and the shell is told (1803.80, 1295.28), 78.40 × 94.08, with the same 35.84 px corner radius in the page and in the region. The Radial's six buttons come to rest within a pixel of the six regions reported the moment it opens (the regions are where the buttons end up, not where their opening spring has got to). The Card is drawn at (1683, 745), 320 × 538.04, and reported as (1683, 745), 320 × 538.

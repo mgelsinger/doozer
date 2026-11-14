@@ -241,19 +241,26 @@ async function carryTo(app: App, to: Point, options: { steps?: number; stepMs?: 
   const stepMs = options.stepMs ?? 16;
   const native = options.native ?? true;
   const { hit } = parts(app);
-  const from = doozerAt(app);
-  const carry: Carry = { from, at: from, letGo: 0, samples: 0 };
+  let from = doozerAt(app);
   if (native) {
     // The pointer arrives on Doozer and rests there before the button goes down, as a hand's
     // does. The shell samples a pointer that has been still only ten times a second, and a
     // press that lands before it has noticed the pointer is on Doozer is, rightly, not the
     // page's: the window was still letting clicks through. (A script that pressed 60 ms
     // after arriving found this out: its carries were never reported as released.)
+    // And it follows Doozer while it waits: a Doozer that is walking or floating down has
+    // moved on by the time the shell looks.
     await cursor(from, false);
     await sleep(60);
-    for (let waited = 0; waited < 500 && !(await status()).catching; waited += 20) await sleep(20);
+    for (let waited = 0; waited < 800 && !(await status()).catching; waited += 20) {
+      from = doozerAt(app);
+      await cursor(from, false);
+      await sleep(20);
+    }
+    from = doozerAt(app);
     await cursor(from, true);
   }
+  const carry: Carry = { from, at: from, letGo: 0, samples: 0 };
   pointer(hit, 'pointerdown', from, 1);
   await sleep(30);
   for (let i = 1; i <= steps; i++) {
