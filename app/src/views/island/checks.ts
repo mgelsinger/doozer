@@ -684,6 +684,7 @@ const leak: Scenario = async (app, args) => {
   const rounds = Number(args.rounds ?? 10);
   const settleMs = Number(args.settleMs ?? 6000);
   const rows: unknown[] = [];
+  const switches: { round: number; inMs: number; outMs: number; timing: IslandSnapshot['timing'] }[] = [];
   const point = async (name: string, more: Record<string, unknown> = {}): Promise<void> => {
     await park();
     await sleep(settleMs / 2);
@@ -698,8 +699,14 @@ const leak: Scenario = async (app, args) => {
   };
   await point('baseline');
   for (let i = 1; i <= rounds; i++) {
-    const arrived = await go(app, 'island');
+    // How long the switch itself takes, as the host does it (pop-out, window, mount, show).
+    const t0 = performance.now();
+    const arrived = await app.host.switchTo('island');
+    const inMs = Math.round(performance.now() - t0);
+    await app.host.settled();
+    await sleep(450);
     const p = pieces(app);
+    const timing = p.snap().timing;
     // Use the island properly while there: a meal, a game, a bath, and night.
     refresh(app);
     app.brain.feed();
@@ -710,13 +717,17 @@ const leak: Scenario = async (app, args) => {
     await sleep(1800);
     const inIsland = { info: p.stage.info(), solid: await painted(app), heap: heap() };
     if (i === 1 || i === rounds) await point(`island-${i}`, { inIsland });
-    const left = await go(app, 'pill');
+    const t1 = performance.now();
+    const left = await app.host.switchTo('pill');
+    switches.push({ round: i, inMs, outMs: Math.round(performance.now() - t1), timing });
+    await app.host.settled();
+    await sleep(450);
     const gone = app.island.snapshot() === null && document.querySelectorAll('canvas').length === 0;
     if (!arrived || !left || !gone || inIsland.solid < 0.1) failures.push(`round ${i}: ${[!arrived && 'did not arrive', !left && 'did not leave', !gone && 'something left behind', inIsland.solid < 0.1 && 'nothing drawn'].filter(Boolean).join(', ')}`);
     await point(`pill-${i}`, { inIsland });
   }
-  await report('leak-done.json', { rows });
-  return { failures, rows };
+  await report('leak-done.json', { rows, switches });
+  return { failures, rows, switches };
 };
 
 // ---- idle, for the cost measurement --------------------------------------------------------------

@@ -101,6 +101,8 @@ export interface IslandSnapshot {
   undrawn: number;
   /** The view's own timers that are armed. Tucked away, this must be empty. */
   timers: string[];
+  /** How long mounting took, in ms: loading three.js and the model, building the scene, and drawing the first frame. */
+  timing: { loadMs: number; buildMs: number; firstFrameMs: number | null };
 }
 
 export interface IslandView extends View {
@@ -198,8 +200,10 @@ export function createIslandView(options: IslandViewOptions = {}): IslandView {
     unmount(): void;
   }
 
-  function build(host: HTMLElement, context: ViewContext, loaded: { stage: StageModule; model: DoozerModel }): Mounted {
+  function build(host: HTMLElement, context: ViewContext, loaded: { stage: StageModule; model: DoozerModel }, loadMs: number): Mounted {
     const { brain, shell } = context;
+    const buildBegan = now();
+    const timing: IslandSnapshot['timing'] = { loadMs: Math.round(loadMs), buildMs: 0, firstFrameMs: null };
     const services = context.host;
     const scope = new Scope();
     building = scope;
@@ -239,7 +243,10 @@ export function createIslandView(options: IslandViewOptions = {}): IslandView {
     const loop = new FrameLoop({
       step: (seconds, draw) => {
         if (!stage || scope.disposed || !awake) return false;
+        const began = draw && timing.firstFrameMs === null ? now() : null;
         const moving = stage.frame(seconds, draw);
+        // The first frame is the dear one: it is when the shaders are compiled.
+        if (began !== null) timing.firstFrameMs = Math.round(now() - began);
         follow();
         if (!moving) flushRegions();
         return moving;
@@ -836,6 +843,7 @@ export function createIslandView(options: IslandViewOptions = {}): IslandView {
     syncTimers();
     attention.poke(4000);
     wake();
+    timing.buildMs = Math.round(now() - buildBegan);
 
     return {
       hitRegions,
@@ -895,6 +903,7 @@ export function createIslandView(options: IslandViewOptions = {}): IslandView {
           frames: stageInfo.frames,
           undrawn: loop.undrawn,
           timers: [...armed.keys()],
+          timing: { ...timing },
         };
       },
       parts: () => ({
@@ -921,11 +930,12 @@ export function createIslandView(options: IslandViewOptions = {}): IslandView {
       live?.unmount();
       live = null;
       const mine = ++generation;
+      const began = now();
       const loaded = await withLimit(load(), LOAD_LIMIT_MS, timers, 'loading the island');
       // Unmounted, or mounted again, while the island was loading: this one is not wanted.
       if (mine !== generation) { loaded.model.dispose(); return; }
       try {
-        live = build(host, context, loaded);
+        live = build(host, context, loaded, now() - began);
       } catch (error) {
         // Whatever was made before it failed is taken down again; the host then shows another view.
         building?.dispose();

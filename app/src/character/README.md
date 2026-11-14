@@ -47,3 +47,36 @@ Spec section 7's animation list maps onto these as: idle breathe → `idle`; bli
 - **`doozer.ts` is a thin driver.** Faces and poses are data attributes on the root, so what is drawn is a pure function of them. Performances are Web Animations started and cancelled by the state machine; their end never depends on an animation event or an animation frame (a hidden window runs neither).
 - **Pivots.** Every moving part is a `<g class="dz-p">` carrying its pivot in view-box units (`PIVOTS` in `rig-markup.ts`). A shape with its own `transform` attribute must never also be a pivot part, and `rig.css` must never set `transform-box` / `transform-origin` with a blanket selector — that displaces such shapes. `rig-markup.test.ts` enforces both.
 - **Reduced motion** (`setReduceMotion`) stops every loop and transition; poses keep a static form, and performances that are only movement finish at once while ones with faces still show them.
+
+## The 3D Doozer (Phase 8)
+
+One design, two renderings (spec section 7). The Island view draws Doozer as a model; everything else draws the rig above. They share the expression names, the tuft angles, the palettes and the state machine that ends everything temporary.
+
+| File | What |
+|---|---|
+| `body-motion.ts` | The body as numbers: the squash-and-stretch spring, the hop, ears and tuft lagging behind, arms, the slump of a low mood, the flattened breathing of sleep, and what each one-shot does to the body. No three.js, no DOM. |
+| `doozer3d.ts` | Loads the model and writes those numbers, and the face, onto its bones and shape keys. **Imports three.js**, so it is only ever loaded with a dynamic `import()` (the Island view and the dev viewer do); `index.ts` does not re-export it. |
+| `../../assets/doozer/` | The model (`doozer.glb`) and the Blender script that builds it (`build_doozer.py`). |
+
+```ts
+const { loadDoozerModel, createDoozer3D } = await import('../character/doozer3d');
+const model = await loadDoozerModel(url);            // the file, parsed once
+const doozer = createDoozer3D(model, { palette: 'peach', invalidate: drawAgain });
+scene.add(doozer.object);                            // origin at the feet; 1 unit = 100 px of the 2D rig
+
+doozer.setMood('hungry');  doozer.flash('love', 1000);  await doozer.perform('celebrate');   // as the 2D rig
+doozer.squish(0.8);  doozer.body.hop();  doozer.body.press(true);                            // the spring
+const moving = doozer.update(dt);                    // once per frame; false means: stop drawing
+doozer.destroy();  model.dispose();
+```
+
+- **It draws nothing by itself.** Its owner calls `update(dt)` each frame and stops when it returns false; `invalidate` is called when something changed while no frame was being drawn (a flash ending by timer, a setter).
+- **Faces** are pairs of shape keys, eyes and mouth, looked up in `EXPRESSIONS`: the same table the 2D rig draws from. `tests/views/island/model.test.ts` fails if the model lacks a shape an expression needs, or if its palettes differ from `palettes.ts`; then rebuild the model.
+- **Never stuck:** `ExpressionState` times every flash and performance, exactly as for the 2D rig. `BodyMotion` only shapes the body while one runs and forgets it when told to stop; everything in it eases or springs back to rest, a hop always lands, a press lets go by itself after 8 s, and `settle()` puts everything at rest at once.
+- **Side by side:** `/viewer.html?only=3d` shows every expression, palette, hat and pose drawn and modelled, and the drawing laid over the model.
+
+Rebuilding the model (headless: no window opens):
+
+```
+"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" --background --factory-startup --python app/assets/doozer/build_doozer.py
+```
