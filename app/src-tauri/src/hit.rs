@@ -32,11 +32,22 @@ impl Region {
       return true;
     }
     // Inside the bounding box. Only the four corner squares need the circle test.
-    let cx = px.clamp(self.x + r, self.x + self.w - r);
-    let cy = py.clamp(self.y + r, self.y + self.h - r);
+    let cx = nearest(px, self.x + r, self.x + self.w - r);
+    let cy = nearest(py, self.y + r, self.y + self.h - r);
     let (dx, dy) = (px - cx, py - cy);
     dx * dx + dy * dy <= r * r
   }
+}
+
+/// The point of `lo..=hi` nearest to `p`.
+///
+/// When a radius is exactly half a side (a circle, the end of a pill) the two ends
+/// are the same point, and rounding can put them a hair out of order in either
+/// direction. `f64::clamp` panics on bounds that are out of order, and a panic on the
+/// cursor thread takes the whole app down, so that case is answered here instead: the
+/// one point they both mean.
+fn nearest(p: f64, lo: f64, hi: f64) -> f64 {
+  if lo <= hi { p.max(lo).min(hi) } else { (lo + hi) / 2.0 }
 }
 
 pub fn any_contains(regions: &[Region], px: f64, py: f64) -> bool {
@@ -112,6 +123,40 @@ mod tests {
     assert!(c.contains(130.0, 130.0));
     assert!(c.contains(130.0, 101.0));
     assert!(!c.contains(104.0, 104.0));
+  }
+
+  #[test]
+  fn no_circle_or_pill_can_make_the_test_panic() {
+    // Found by the Island view, whose regions for Doozer and the ball are round: with a
+    // radius of exactly half the width, `x + r` and `x + w - r` are the same point, but
+    // rounding can leave the first a hair above the second (204.0 against
+    // 203.99999999999997), and `f64::clamp` panics on bounds that are out of order.
+    // Every tenth of a pixel of position against every tenth of a pixel of radius:
+    let mut out_of_order = 0;
+    for xi in 0..400 {
+      for ri in 5..600 {
+        let (x, r) = (xi as f64 * 0.1 + 0.07, ri as f64 * 0.1);
+        let circle = Region { x, y: x * 1.3, w: r * 2.0, h: r * 2.0, r };
+        if circle.x + circle.r > circle.x + circle.w - circle.r {
+          out_of_order += 1;
+        }
+        assert!(circle.contains(x + r, x * 1.3 + r), "the middle of a circle at {x} with radius {r}");
+        assert!(!circle.contains(x + r * 0.05, x * 1.3 + r * 0.05), "the corner of its box");
+        let pill = Region { x, y: 3.0, w: r * 2.0 + 40.0, h: r * 2.0, r: 999.0 };
+        assert!(pill.contains(x + r + 20.0, 3.0 + r));
+      }
+    }
+    assert!(out_of_order > 0, "the grid has to include the case this test is about");
+  }
+
+  #[test]
+  fn nearest_answers_bounds_that_are_out_of_order_with_the_point_they_both_mean() {
+    assert_eq!(nearest(5.0, 1.0, 9.0), 5.0);
+    assert_eq!(nearest(-5.0, 1.0, 9.0), 1.0);
+    assert_eq!(nearest(50.0, 1.0, 9.0), 9.0);
+    let (lo, hi) = (204.0, 203.99999999999997);
+    assert!((nearest(100.0, lo, hi) - 204.0).abs() < 1e-9);
+    assert!((nearest(300.0, lo, hi) - 204.0).abs() < 1e-9);
   }
 
   #[test]
