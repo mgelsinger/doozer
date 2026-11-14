@@ -80,11 +80,17 @@
   pointer-events: auto; cursor: pointer; touch-action: none;
   filter: drop-shadow(0 3px 3px rgba(60, 40, 90, .25));
 }
-.deskv-ball[data-bye="1"] { pointer-events: none; scale: 0; opacity: 0; transition: scale .24s ease-in, opacity .24s ease-in; }
+.deskv[data-motion="full"] .deskv-ball[data-bye="1"] { transition: scale .24s ease-in, opacity .24s ease-in !important; }
+.deskv-ball[data-bye="1"] { pointer-events: none; scale: 0; opacity: 0; }
 
 .deskv-duck { width: 34px; height: 34px; animation: deskv-duck-in .3s cubic-bezier(.3, 1.5, .5, 1) both; }
 @keyframes deskv-duck-in { from { scale: .3; opacity: 0; } }
 
+/* Where Doozer and its things are is set by the view, moment by moment. It must never be
+   eased: the kit's reduced-motion rule gives every element a short transition, and on
+   these that made Doozer slide into place and lag behind the pointer when carried, with
+   Reduce motion on of all times. (Found by the soak: drawn a few pixels from where it was.) */
+.deskv[data-motion] .deskv-pet, .deskv[data-motion] .deskv-prop, .deskv[data-motion] .deskv-panel { transition: none !important; }
+
 /* Reduced motion: things appear and go; nothing drops, shrinks or travels. */
 .deskv[data-motion="reduce"] .deskv-food, .deskv[data-motion="reduce"] .deskv-duck { animation: none; }
-.deskv[data-motion="reduce"] .deskv-ball[data-bye="1"] { transition: none; }

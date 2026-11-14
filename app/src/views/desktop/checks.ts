@@ -193,7 +193,12 @@ async function restReport(app: App): Promise<{ ok: boolean; why: string[]; snaps
   const box = p.pet.getBoundingClientRect();
   if (Math.abs(box.left + box.width / 2 - s.x) > 1.5 || Math.abs(box.top + box.height * 0.93 - s.y) > 1.5) why.push('drawn somewhere other than where it is');
   await shell.regionsFlushed();
-  const native = await status();
+  // A button that has just come up takes the shell one look (16 ms) to notice.
+  let native = await status();
+  for (let waited = 0; waited < 400 && native.holding; waited += 20) {
+    await sleep(20);
+    native = await status();
+  }
   if (native.holding) why.push('the shell thinks a button is held on Doozer');
   if (native.regions !== 1) why.push(`the shell has ${native.regions} regions`);
   return {
