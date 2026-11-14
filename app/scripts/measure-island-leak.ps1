@@ -20,6 +20,8 @@ param(
   [string] $Exe = (Join-Path $PSScriptRoot '..\src-tauri\target\island\release\doozer.exe'),
   [int] $Rounds = 10,
   [int] $SettleMs = 6000,
+  # 'room': make the same trips by way of the Room instead, to see what a trip leaves behind whichever view it is to.
+  [string] $Control = '',
   [string] $Out = '',
   [switch] $Show
 )
@@ -33,7 +35,7 @@ New-Item -ItemType Directory -Force -Path $outDir, (Join-Path $scratch 'save') |
 $env:DOOZER_SAVE_DIR = Join-Path $scratch 'save'
 $env:DOOZER_SPIKE_OUT = $outDir
 $env:DOOZER_SPIKE = 'app-island-leak'
-$env:DOOZER_SPIKE_ARGS = (@{ tag = 'app-island-leak'; rounds = $Rounds; settleMs = $SettleMs } | ConvertTo-Json -Compress)
+$env:DOOZER_SPIKE_ARGS = (@{ tag = 'app-island-leak'; rounds = $Rounds; settleMs = $SettleMs; control = $Control } | ConvertTo-Json -Compress)
 $env:WEBVIEW2_USER_DATA_FOLDER = Join-Path $scratch 'webview'
 # `gc()` for the page, so the run can collect garbage before each reading.
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--js-flags=--expose-gc'
@@ -119,11 +121,13 @@ try {
       $memory = Read-Memory $app.Id
       $readings += [pscustomobject]@{
         point = $page.name; view = $page.view; canvases = $page.canvases; heapMB = $page.heap.usedMB; collected = $page.gc
+        engineFrames = $page.engineFrames; engineCollected = $page.engineCollected
         totalMB = $memory.totalMB; appMB = $memory.appMB; browserMB = $memory.browserMB; rendererMB = $memory.rendererMB; gpuMB = $memory.gpuMB
         videoDedicatedMB = $memory.videoDedicatedMB; videoSharedMB = $memory.videoSharedMB; processes = $memory.processes
         three = $page.inIsland.info; rows = $memory.rows
       }
-      '{0,-12} view {1,-7} total {2,6} MB  renderer {3,6}  gpu {4,6}  video {5,6}+{6,-6}  heap {7,6} MB' -f $page.name, $page.view, $memory.totalMB, $memory.rendererMB, $memory.gpuMB, $memory.videoDedicatedMB, $memory.videoSharedMB, $page.heap.usedMB
+      $engine = if ($null -eq $page.engineCollected) { '' } elseif ($page.engineCollected) { '  engine collected' } else { '  ENGINE STILL HELD' }
+      '{0,-12} view {1,-7} total {2,6} MB  renderer {3,6}  gpu {4,6}  video {5,6}+{6,-6}  heap {7,6} MB{8}' -f $page.name, $page.view, $memory.totalMB, $memory.rendererMB, $memory.gpuMB, $memory.videoDedicatedMB, $memory.videoSharedMB, $page.heap.usedMB, $engine
     }
     if ($seen.ContainsKey('leak-done.json')) { break }
   }

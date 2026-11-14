@@ -134,6 +134,70 @@ describe('unmounting', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it('gives the engine back last of all, once, after everything made with it is disposed of', async () => {
+    const p = await prepare();
+    const order: string[] = [];
+    const view = (await import('../../../src/views/island')).createIslandView({
+      now: () => Date.now(), createPainter: p.painters.create, requestFrame: p.screen.requestFrame, cancelFrame: p.screen.cancelFrame,
+      load: async () => ({
+        stage: p.stage,
+        model: { template: p.model.template, dispose: () => { order.push('model'); p.model.dispose(); } },
+        release: () => { order.push(p.painters.last().disposed ? 'engine' : 'engine before the painter'); },
+      }),
+    });
+    for (let i = 0; i < 3; i++) {
+      await view.mount(p.root, p.context);
+      await tick(400);
+      expect(order).toHaveLength(i * 2);
+      view.unmount();
+    }
+    p.screen.stop();
+    expect(order).toEqual(['model', 'engine', 'model', 'engine', 'model', 'engine']);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('unmounted while still loading: the engine that arrives late is given straight back', async () => {
+    const p = await prepare();
+    let arrive!: () => void;
+    const gate = new Promise<void>((resolve) => { arrive = resolve; });
+    let released = 0;
+    const view = (await import('../../../src/views/island')).createIslandView({
+      now: () => Date.now(), createPainter: p.painters.create, requestFrame: p.screen.requestFrame, cancelFrame: p.screen.cancelFrame,
+      load: async () => { await gate; return { stage: p.stage, model: p.model, release: () => { released++; } }; },
+    });
+    const mounting = view.mount(p.root, p.context);
+    view.unmount();
+    arrive();
+    await mounting;
+    p.screen.stop();
+    expect(released).toBe(1);
+    expect(p.modelDisposed()).toBe(1);
+    expect(p.painters.made).toHaveLength(0);
+  });
+
+  it('loading that is given up on: if the engine does arrive later, it is given straight back', async () => {
+    const p = await prepare();
+    let arrive!: () => void;
+    const gate = new Promise<void>((resolve) => { arrive = resolve; });
+    let released = 0;
+    const island = await import('../../../src/views/island');
+    const view = island.createIslandView({
+      now: () => Date.now(), createPainter: p.painters.create, requestFrame: p.screen.requestFrame, cancelFrame: p.screen.cancelFrame,
+      load: async () => { await gate; return { stage: p.stage, model: p.model, release: () => { released++; } }; },
+    });
+    const outcome = Promise.resolve(view.mount(p.root, p.context)).then(() => 'mounted', () => 'failed');
+    await tick(island.LOAD_LIMIT_MS + 50);
+    expect(await outcome).toBe('failed');
+    expect(released).toBe(0);
+    arrive();
+    await tick(20);
+    p.screen.stop();
+    expect(released).toBe(1);
+    expect(p.modelDisposed()).toBe(1);
+    expect(p.painters.made).toHaveLength(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('unmounted while still loading: the late arrival is thrown away', async () => {
     const p = await prepare();
     let arrive!: () => void;
@@ -747,10 +811,10 @@ describe('render on demand', () => {
     expect(r.snap()).toMatchObject({ drawing: false, lively: false });
     expect(r.snap().timers.sort()).toEqual(['blink', 'stir']);
     const seen = await watch(r, 40);
-    // Four to nine seconds between blinks, two redraws each (a stir cannot come this soon).
-    expect(seen.frames).toBeGreaterThanOrEqual(8);
-    expect(seen.frames).toBeLessThanOrEqual(24);
-    expect(seen.asked).toBeLessThanOrEqual(24);
+    // Five to eleven seconds between blinks, two redraws each (a stir cannot come this soon).
+    expect(seen.frames).toBeGreaterThanOrEqual(6);
+    expect(seen.frames).toBeLessThanOrEqual(16);
+    expect(seen.asked).toBeLessThanOrEqual(16);
     expect(seen.running).toBeLessThan(0.05);
     expect(r.snap().lively).toBe(false);
   });
@@ -762,8 +826,8 @@ describe('render on demand', () => {
     expect(r.snap().timers).toEqual(['wink']);
     const ambient = r.parts().world.ambient;
     const seen = await watch(r, 60);
-    expect(seen.frames).toBeGreaterThanOrEqual(18);
-    expect(seen.frames).toBeLessThanOrEqual(30);
+    expect(seen.frames).toBeGreaterThanOrEqual(13);
+    expect(seen.frames).toBeLessThanOrEqual(17);
     expect(seen.running).toBeLessThan(0.05);
     expect(r.parts().world.ambient).toBeGreaterThan(ambient);          // they did move
     expect(r.parts().root.querySelector('.dzk-emote')).toBeNull();     // and no z's rise unwatched
@@ -775,26 +839,42 @@ describe('render on demand', () => {
     await rest(r);
     expect(r.snap().timers).toEqual(['blink']);
     const seen = await watch(r, 40);
-    expect(seen.frames).toBeLessThanOrEqual(24);
+    expect(seen.frames).toBeLessThanOrEqual(16);
     expect(seen.running).toBeLessThan(0.05);
   });
 
-  it('every minute or two, alone and awake, a small stir, and then still again', async () => {
+  it('every minute to three, alone and awake, a small stir: a second of movement, and Doozer does not come alive for it', async () => {
     const r = await mount();
     await rest(r);
+    // A blink is two redraws; a stir is the body moving, many frames in a row.
+    let frames = r.snap().frames;
     let stirred = false;
-    for (let i = 0; i < 1150 && !stirred; i++) {
-      await tick(100);
-      stirred = r.snap().lively;
+    let waited = 0;
+    while (!stirred && waited < 175_000) {
+      await tick(500);
+      waited += 500;
+      stirred = r.snap().frames - frames > 6;
+      frames = r.snap().frames;
+      expect(r.snap().lively).toBe(false);
     }
     expect(stirred).toBe(true);
-    const frames = r.snap().frames;
-    expect(await rest(r)).toBeLessThan(6000);
-    expect(r.snap().frames - frames).toBeGreaterThan(20);              // it did something
+    expect(waited).toBeGreaterThan(60_000);
+    const before = r.snap().frames;
+    let lively = false;
+    let settling = 0;
+    while ((r.snap().moving || r.snap().drawing || r.snap().busy) && settling < 6000) {
+      await tick(100);
+      settling += 100;
+      lively ||= r.snap().lively;
+    }
+    expect(settling).toBeLessThan(3000);
+    expect(lively).toBe(false);
+    // Thirty frames a second at most: nobody is there to see sixty.
+    expect(r.snap().frames - before).toBeLessThanOrEqual(Math.ceil((settling / 1000) * 31) + 2);
     expect(r.snap().timers.sort()).toEqual(['blink', 'stir']);
   });
 
-  it('caps the frame rate: sixty a second while something happens, thirty while Doozer only breathes', async () => {
+  it('caps the frame rate: sixty a second while something happens with somebody there, thirty while Doozer only breathes', async () => {
     const r = await mount({ hz: 125 });
     await rest(r);
     // Something happening: a game of ball.
@@ -830,6 +910,53 @@ describe('render on demand', () => {
     expect(await rest(r)).toBeLessThan(12_000);
     expect(r.snap().timers.sort()).toEqual(['blink', 'stir']);
   });
+});
+
+describe('watched for a long time', () => {
+  it('ten minutes with the pointer resting on Doozer: nothing piles up', async () => {
+    const r = await mount();
+    await rest(r);
+    const count = () => {
+      const { stage, root, world } = r.parts();
+      const info = stage.info();
+      const held = stage.resources();
+      return {
+        nodes: root.querySelectorAll('*').length,
+        objects: info.objects,
+        geometries: held.geometries.length, materials: held.materials.length, textures: held.textures.length,
+        particles: world.particles.length,
+        listeners: r.shell.listeners(),
+        timers: vi.getTimerCount(),
+      };
+    };
+    const watch = async (minutes: number): Promise<void> => {
+      // As the real-window measurement does it: the pointer is put on Doozer again and
+      // again, wherever Doozer has got to, which strokes it now and then.
+      for (let i = 0; i < minutes * 200; i++) { pointer(r.parts().touch, 'pointermove', r.onDoozer()); await tick(300); }
+    };
+    const frames = r.snap().frames;
+    await watch(2);
+    const early = count();
+    expect(r.snap().lively).toBe(true);
+    await watch(8);
+    const late = count();
+    // It really was drawing all that time: thirty frames a second at the least.
+    expect(r.snap().frames - frames).toBeGreaterThan(10 * 60 * 25);
+    // Counted while lively, so a heart or a crumb may be in the air at either moment.
+    expect(late.nodes).toBeLessThanOrEqual(early.nodes + 12);
+    expect(late.objects).toBeLessThanOrEqual(early.objects + 12);
+    expect(late.geometries).toBeLessThanOrEqual(early.geometries + 2);
+    expect(late.materials).toBeLessThanOrEqual(early.materials + 2);
+    expect(late.textures).toBeLessThanOrEqual(early.textures + 2);
+    expect(late.particles).toBeLessThanOrEqual(early.particles + 40);
+    expect(late.listeners).toBe(early.listeners);
+    expect(late.timers).toBeLessThanOrEqual(early.timers + 3);
+    pointer(r.parts().touch, 'pointerleave', { x: 500, y: 330 });
+    expect(await rest(r)).toBeLessThan(12_000);
+    const after = count();
+    expect(after.particles).toBe(0);
+    expect(r.parts().root.querySelectorAll('.dzk-emote').length).toBe(0);
+  }, 120_000);
 });
 
 describe('a lost graphics context', () => {

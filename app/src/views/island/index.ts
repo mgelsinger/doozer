@@ -26,7 +26,6 @@
 import './island.css';
 import modelUrl from '../../../assets/doozer/doozer.glb?url';
 import type { SizeId, ViewId } from '../../core/contract';
-import type { DoozerModel } from '../../character/doozer3d';
 import { realTimers, type Timers } from '../../character/timers';
 import type { View, ViewContext, WindowRequest } from '../../host/view';
 import type { Region, WindowInfo, WindowMode } from '../../shell';
@@ -44,10 +43,9 @@ import { IslandDirector } from './director';
 import { PANEL_MARGIN, islandLayout, islandWindow, panelTop, type IslandLayout } from './layout';
 import { FrameLoop } from './loop';
 import { ballRegion, doozerPoints, doozerRegions, islandSilhouette, pick, slabs, type Picked } from './regions';
+import { loadEngineInFrame, type Loaded } from './engine';
 import type { Painter, Stage3D } from './stage3d';
 import { World } from './world';
-
-type StageModule = typeof import('./stage3d');
 
 export interface IslandViewOptions {
   timers?: Timers;
@@ -55,7 +53,7 @@ export interface IslandViewOptions {
   /** Milliseconds, monotonic. Default `performance.now`. */
   now?: () => number;
   /** Loads three.js and the model. Default: a dynamic import and a fetch, made on mount. */
-  load?: () => Promise<{ stage: StageModule; model: DoozerModel }>;
+  load?: () => Promise<Loaded>;
   /** For tests: something that stands in for the WebGL renderer. */
   createPainter?: () => Painter;
   requestFrame?: (callback: () => void) => unknown;
@@ -102,7 +100,7 @@ export interface IslandSnapshot {
   /** The view's own timers that are armed. Tucked away, this must be empty. */
   timers: string[];
   /** How long mounting took, in ms: loading three.js and the model, building the scene, and drawing the first frame. */
-  timing: { loadMs: number; buildMs: number; firstFrameMs: number | null };
+  timing: { loadMs: number; buildMs: number; firstFrameMs: number };
 }
 
 export interface IslandView extends View {
@@ -141,11 +139,11 @@ const DRAG_LIMIT_MS = 30_000;
 /** Hit regions follow Doozer and the ball at most this often while they move. */
 const REGIONS_MS = 90;
 /** With nobody there: a blink this often, a firefly's wink this often asleep, and a small stir this often. */
-const BLINK_MIN_MS = 4000;
-const BLINK_SPREAD_MS = 5000;
-const WINK_MS = 2600;
-const STIR_MIN_MS = 50_000;
-const STIR_SPREAD_MS = 60_000;
+const BLINK_MIN_MS = 5000;
+const BLINK_SPREAD_MS = 6000;
+const WINK_MS = 4000;
+const STIR_MIN_MS = 70_000;
+const STIR_SPREAD_MS = 100_000;
 /** With someone there: Doozer does something of its own this often. */
 const WANDER_MIN_MS = 2200;
 const WANDER_SPREAD_MS = 2600;
@@ -154,10 +152,21 @@ const RADIAL = { radius: 94, button: 50, centre: -90, span: 200, count: 6 } as c
 const PANEL_WIDTH = 320;
 const PANEL_FALLBACK_HEIGHT = 540;
 
-const defaultLoad = async (): Promise<{ stage: StageModule; model: DoozerModel }> => {
-  // The only place three.js enters the app.
-  const [stage, rig] = await Promise.all([import('./stage3d'), import('../../character/doozer3d')]);
-  return { stage, model: await rig.loadDoozerModel(modelUrl) };
+const defaultLoad = async (): Promise<Loaded> => {
+  try {
+    // In a frame of its own, so that leaving the Island gives the engine back (engine.ts).
+    return await loadEngineInFrame({
+      document,
+      frameUrl: new URL('island-frame.html', document.baseURI).href,
+      modelUrl: new URL(modelUrl, document.baseURI).href,
+    });
+  } catch (error) {
+    // No frame to be had: load the engine into the page itself. It works the same; only
+    // the engine's own code then stays in memory after the Island is left.
+    console.warn('[island] the engine could not be loaded in a frame of its own; loading it into the page', error);
+    const [stage, rig] = await Promise.all([import('./stage3d'), import('../../character/doozer3d')]);
+    return { stage, model: await rig.loadDoozerModel(modelUrl) };
+  }
 };
 
 function withLimit<T>(promise: Promise<T>, ms: number, timers: Timers, what: string): Promise<T> {
@@ -200,10 +209,10 @@ export function createIslandView(options: IslandViewOptions = {}): IslandView {
     unmount(): void;
   }
 
-  function build(host: HTMLElement, context: ViewContext, loaded: { stage: StageModule; model: DoozerModel }, loadMs: number): Mounted {
+  function build(host: HTMLElement, context: ViewContext, loaded: Loaded, loadMs: number): Mounted {
     const { brain, shell } = context;
     const buildBegan = now();
-    const timing: IslandSnapshot['timing'] = { loadMs: Math.round(loadMs), buildMs: 0, firstFrameMs: null };
+    const timing: IslandSnapshot['timing'] = { loadMs: Math.round(loadMs), buildMs: 0, firstFrameMs: 0 };
     const services = context.host;
     const scope = new Scope();
     building = scope;
@@ -243,15 +252,13 @@ export function createIslandView(options: IslandViewOptions = {}): IslandView {
     const loop = new FrameLoop({
       step: (seconds, draw) => {
         if (!stage || scope.disposed || !awake) return false;
-        const began = draw && timing.firstFrameMs === null ? now() : null;
         const moving = stage.frame(seconds, draw);
-        // The first frame is the dear one: it is when the shaders are compiled.
-        if (began !== null) timing.firstFrameMs = Math.round(now() - began);
         follow();
         if (!moving) flushRegions();
         return moving;
       },
-      fps: () => (stage?.active ? ACTIVE_FPS : AMBIENT_FPS),
+      // Sixty a second only for what somebody is there to see.
+      fps: () => (stage?.active && attention?.lively ? ACTIVE_FPS : AMBIENT_FPS),
       requestFrame,
       cancelFrame,
       timers,
@@ -277,7 +284,8 @@ export function createIslandView(options: IslandViewOptions = {}): IslandView {
       onContextRestored: () => contextRestored(),
     });
     stage = theStage;
-    // Newest first: the stage goes before the model it was made from.
+    // Newest first: the stage goes before the model it was made from, and the engine last of all.
+    scope.add(() => loaded.release?.());
     scope.add(() => loaded.model.dispose());
     scope.add(() => { stage = null; theStage.dispose(); });
     const actor = theStage.actor;
@@ -741,10 +749,9 @@ export function createIslandView(options: IslandViewOptions = {}): IslandView {
     }
     function armStir(): void {
       arm('stir', STIR_MIN_MS + random() * STIR_SPREAD_MS, () => {
-        if (!attention.lively && open === 'none' && !gone && theDirector.idle) {
-          attention.poke(2600);
-          theDirector.stir();
-        }
+        // A small sign of life, and only that: Doozer does not come alive for it (no
+        // breathing, no wandering), so the frames drawn are the second its body moves.
+        if (!attention.lively && open === 'none' && !gone && theDirector.idle) theDirector.stir();
         syncTimers();
       });
     }
@@ -841,10 +848,17 @@ export function createIslandView(options: IslandViewOptions = {}): IslandView {
     host.append(root);
     scope.add(() => root.remove());
     applyLayout();
+    timing.buildMs = Math.round(now() - buildBegan);
+    // Draw once now, while the host still has the view hidden. The first frame is the dear
+    // one (the shaders are compiled in it), and this way it is over before Doozer pops in.
+    {
+      const began = now();
+      theStage.frame(0, true);
+      timing.firstFrameMs = Math.round(now() - began);
+    }
     syncTimers();
     attention.poke(4000);
     wake();
-    timing.buildMs = Math.round(now() - buildBegan);
 
     return {
       hitRegions,
@@ -932,15 +946,24 @@ export function createIslandView(options: IslandViewOptions = {}): IslandView {
       live = null;
       const mine = ++generation;
       const began = now();
-      const loaded = await withLimit(load(), LOAD_LIMIT_MS, timers, 'loading the island');
+      const giveBack = (unwanted: Loaded): void => { unwanted.model.dispose(); unwanted.release?.(); };
+      const loading = load();
+      let loaded: Loaded;
+      try {
+        loaded = await withLimit(loading, LOAD_LIMIT_MS, timers, 'loading the island');
+      } catch (error) {
+        // Given up on. If it does arrive later, it is given straight back.
+        loading.then(giveBack, () => undefined);
+        throw error;
+      }
       // Unmounted, or mounted again, while the island was loading: this one is not wanted.
-      if (mine !== generation) { loaded.model.dispose(); return; }
+      if (mine !== generation) { giveBack(loaded); return; }
       try {
         live = build(host, context, loaded, now() - began);
       } catch (error) {
         // Whatever was made before it failed is taken down again; the host then shows another view.
         building?.dispose();
-        loaded.model.dispose();
+        giveBack(loaded);
         throw error;
       } finally {
         building = null;

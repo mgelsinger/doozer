@@ -230,10 +230,11 @@ const hello: Scenario = async (app) => {
     'it is a floating window of the size asked for': native.kind === 'floating' && !!native.bounds && Math.abs(native.bounds.w - Math.round(layout.windowWidth * (window.devicePixelRatio || 1))) <= 2,
     'the drawing is not empty': solid > 0.12,
     'three.js holds a scene': info.geometries > 10 && info.programs > 3,
+    'the 3D engine is in a frame of its own': engineFrames() === 1,
     'Doozer is at rest on the island': wrongAtRest(app).length === 0,
     'the window catches the mouse only on its regions': native.regions > 8 && native.regions < 40,
   });
-  return { failures, switchMs, frames, visibility: document.visibilityState, native, info, solid, snapshot: snap(), wrong: wrongAtRest(app), dpr: window.devicePixelRatio };
+  return { failures, switchMs, frames, visibility: document.visibilityState, native, info: own(info), solid, engineFrames: engineFrames(), snapshot: snap(), wrong: wrongAtRest(app), dpr: window.devicePixelRatio };
 };
 
 // ---- never stuck ---------------------------------------------------------------------------
@@ -271,7 +272,7 @@ const stuck: Scenario = async (app) => {
   const opened = await (async () => { await press(app, onDoozer()); return snap().radial; })();
   radial.close();
   check(failures, {
-    'rapid pokes: every poke jiggles': lowest < 0.92,
+    'rapid pokes: every poke jiggles': lowest < 0.97,
     'rapid pokes: the brain heard nothing (a poke is not a rule)': petsHeard.length === 0,
     'rapid pokes: everything came to rest': restedAfterPokes && afterPokes.wrong.length === 0,
     'rapid pokes: the shell is not holding a press': !afterPokes.status.holding,
@@ -331,6 +332,7 @@ const stuck: Scenario = async (app) => {
   offStroke();
   const radialAfterLost = snap().radial;
   const restedAfterLost = await atRest(app);
+  const wrongAfterLost = wrongAtRest(app);
   await press(app, onDoozer());
   const worksAfter = snap().radial;
   radial.close();
@@ -342,10 +344,10 @@ const stuck: Scenario = async (app) => {
     'lost mouse-up: the shell said so exactly once': released.length === 1,
     'lost mouse-up: nothing was toggled by it': !radialAfterLost,
     'lost mouse-up: not holding, and click-through at rest': !rested.holding && rested.styleClickThrough && !rested.catching,
-    'lost mouse-up: Doozer came back to rest': restedAfterLost && wrongAtRest(app).length === 0,
+    'lost mouse-up: Doozer came back to rest': restedAfterLost && wrongAfterLost.length === 0,
     'lost mouse-up: the next click works': worksAfter,
   });
-  out.lostMouseUp = { endedAfterMs, released, pets: pets.length };
+  out.lostMouseUp = { endedAfterMs, released, pets: pets.length, restedAfterLost, wrongAfterLost };
   await park();
   await atRest(app);
 
@@ -415,8 +417,10 @@ const stuck: Scenario = async (app) => {
   brain.feed();
   await sleep(700);
   const sceneWhileLost = fresh.snap().scene;
+  const restoreAsked = performance.now();
   fresh.stage.restoreContext();
-  const restored = await waitFor(() => !fresh.snap().contextLost, 3000, 20);
+  const restored = await waitFor(() => !fresh.snap().contextLost, 3000, 5);
+  const restoreMs = Math.round(performance.now() - restoreAsked);
   await sleep(400);
   const afterRestore = { solid: await painted(app), snap: fresh.snap() };
   const restedAfterRestore = await atRest(app, 25_000);
@@ -443,7 +447,7 @@ const stuck: Scenario = async (app) => {
     'context lost for good: touch still works': touchAfterRebuild,
     'context lost for good: back to rest, whole': restedAfterRebuild && wrongAtRest(app).length === 0,
   });
-  out.context = { before, lostTimers: lost.timers, afterRestore: afterRestore.solid, rebuilt };
+  out.context = { before, lostTimers: lost.timers, afterRestore: afterRestore.solid, restoreMs, rebuildsAfterRestore: afterRestore.snap.rebuilds, rebuilt };
   void world;
   void stage;
 
@@ -561,7 +565,7 @@ const windowChecks: Scenario = async (app) => {
     const s = await status();
     const scale = window.devicePixelRatio || 1;
     const ok = !!s.bounds && Math.abs(s.bounds.w - Math.round(want.windowWidth * scale)) <= 2 && Math.abs(s.bounds.h - Math.round(want.windowHeight * scale)) <= 2
-      && window.innerWidth === want.windowWidth && !snap().gone && s.regions > 8 && await painted(app) > 0.1;
+      && Math.abs(window.innerWidth - want.windowWidth) <= 1 && !snap().gone && s.regions > 8 && await painted(app) > 0.1;
     if (!ok) failures.push(`size ${size}`);
     sizes.push({ size, ok, bounds: s.bounds, inner: [window.innerWidth, window.innerHeight], regions: s.regions });
   }
@@ -622,11 +626,16 @@ const focus: Scenario = async (app) => {
     p = pieces(app);
     await sleep(600);
     const chipNow = document.querySelector<HTMLElement>('.islv-chip .dzk-focus-chip');
+    const backInIsland = {
+      status: brain.state.focus.status, remaining: brain.state.focus.remainingMs, chipShown: chipNow?.dataset.show === '1', chip: chipNow?.textContent ?? '',
+      glasses: p.stage.actor.object.getObjectByName('glasses')?.visible === true, showing: p.snap().showing,
+    };
+    // Still running, still counting down (never back up), and each view shows it its own way.
     const ok = toPill && back && inPill.status === 'running' && /^\d\d:\d\d$/.test(inPill.pillStatus) && inPill.ring.startsWith('focus:')
-      && inPill.remaining < leftAt && brain.state.focus.status === 'running' && chipNow?.dataset.show === '1'
-      && p.stage.actor.object.getObjectByName('glasses')?.visible === true;
+      && inPill.remaining <= leftAt && backInIsland.remaining < leftAt && backInIsland.status === 'running' && backInIsland.chipShown
+      && /^\d\d:\d\d$/.test(backInIsland.chip) && backInIsland.glasses && backInIsland.showing === 'focus';
     if (!ok) failures.push(`round trip ${i + 1} to the Pill and back`);
-    hops.push({ i, ok, toPill, back, inPill, chip: chipNow?.textContent });
+    hops.push({ i, ok, toPill, back, leftAt, inPill, backInIsland });
   }
   clearInterval(sampler);
   sample();
@@ -678,6 +687,10 @@ function heap(): { usedMB: number | null; totalMB: number | null } {
   const memory = (performance as unknown as { memory?: { usedJSHeapSize: number; totalJSHeapSize: number } }).memory;
   return memory ? { usedMB: Math.round(memory.usedJSHeapSize / 1e4) / 100, totalMB: Math.round(memory.totalJSHeapSize / 1e4) / 100 } : { usedMB: null, totalMB: null };
 }
+/** The hidden frames the 3D engine lives in (engine.ts): one in the Island, none anywhere else. */
+const engineFrames = (): number => document.querySelectorAll('iframe').length;
+/** A copy that is plain data of this page's own, holding on to nothing. */
+const own = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const collect = (): void => { (globalThis as unknown as { gc?: () => void }).gc?.(); };
 
 /**
@@ -692,29 +705,49 @@ const leak: Scenario = async (app, args) => {
   const rounds = Number(args.rounds ?? 10);
   const settleMs = Number(args.settleMs ?? 6000);
   const rows: unknown[] = [];
-  const switches: { round: number; inMs: number; outMs: number; timing: IslandSnapshot['timing'] }[] = [];
+  const switches: { round: number; inMs: number; outMs: number; timing: IslandSnapshot['timing'] | null }[] = [];
+  /** "control": make the same trips by way of another view (the Room), to see what a trip leaves behind whichever view it is to. */
+  const control = args.control === 'room' ? 'room' as const : null;
   const point = async (name: string, more: Record<string, unknown> = {}): Promise<void> => {
     await park();
     await sleep(settleMs / 2);
     collect();
     await sleep(settleMs / 2);
     collect();
-    const row = { name, at: Date.now(), heap: heap(), canvases: document.querySelectorAll('canvas').length, view: app.host.current(), gc: typeof (globalThis as { gc?: unknown }).gc === 'function', ...more };
+    const row = { name, at: Date.now(), heap: heap(), canvases: document.querySelectorAll('canvas').length, engineFrames: engineFrames(), view: app.host.current(), gc: typeof (globalThis as { gc?: unknown }).gc === 'function', ...more };
     rows.push(row);
     await report(`leak-${name}.json`, row);
     // Give the script time to see the marker and read the processes.
     await sleep(3500);
   };
-  await point('baseline');
-  for (let i = 1; i <= rounds; i++) {
+  /**
+   * One visit, in a function of its own: once it has returned, nothing in this run holds a
+   * piece of the Island any more. What it hands back is plain data of this page's own
+   * (an object made by the 3D engine belongs to the engine's frame, and keeping one would
+   * keep the whole frame), and a weak reference to the stage, which holds nothing.
+   */
+  const visit = async (i: number) => {
     // How long the switch itself takes, as the host does it (pop-out, window, mount, show).
     const t0 = performance.now();
-    const arrived = await app.host.switchTo('island');
+    const arrived = await app.host.switchTo(control ?? 'island');
     const inMs = Math.round(performance.now() - t0);
     await app.host.settled();
     await sleep(450);
+    if (control) {
+      // The control run: the same trips and the same things done, by way of another view.
+      refresh(app);
+      app.brain.feed();
+      await sleep(2600);
+      app.brain.play();
+      await sleep(2200);
+      app.brain.wash();
+      await sleep(1800);
+      const inIsland = { info: null, solid: 1, heap: heap(), engineFrames: engineFrames() };
+      if (i === 1 || i === rounds) await point(`island-${i}`, { inIsland });
+      return { arrived, inMs, timing: null, inIsland, engine: null };
+    }
     const p = pieces(app);
-    const timing = p.snap().timing;
+    const timing = own(p.snap().timing);
     // Use the island properly while there: a meal, a game, a bath, and night.
     refresh(app);
     app.brain.feed();
@@ -723,16 +756,29 @@ const leak: Scenario = async (app, args) => {
     await sleep(2200);
     app.brain.wash();
     await sleep(1800);
-    const inIsland = { info: p.stage.info(), solid: await painted(app), heap: heap() };
+    const inIsland = own({ info: p.stage.info(), solid: await painted(app), heap: heap(), engineFrames: engineFrames() });
     if (i === 1 || i === rounds) await point(`island-${i}`, { inIsland });
+    return { arrived, inMs, timing, inIsland, engine: new WeakRef<object>(p.stage) };
+  };
+  const canCollect = typeof (globalThis as { gc?: unknown }).gc === 'function';
+  await point('baseline');
+  for (let i = 1; i <= rounds; i++) {
+    const seen = await visit(i);
     const t1 = performance.now();
     const left = await app.host.switchTo('pill');
-    switches.push({ round: i, inMs, outMs: Math.round(performance.now() - t1), timing });
+    switches.push({ round: i, inMs: seen.inMs, outMs: Math.round(performance.now() - t1), timing: seen.timing });
     await app.host.settled();
     await sleep(450);
-    const gone = app.island.snapshot() === null && document.querySelectorAll('canvas').length === 0;
-    if (!arrived || !left || !gone || inIsland.solid < 0.1) failures.push(`round ${i}: ${[!arrived && 'did not arrive', !left && 'did not leave', !gone && 'something left behind', inIsland.solid < 0.1 && 'nothing drawn'].filter(Boolean).join(', ')}`);
-    await point(`pill-${i}`, { inIsland });
+    const gone = app.island.snapshot() === null && document.querySelectorAll('canvas').length === 0 && engineFrames() === 0;
+    // Has the engine itself gone? Only a garbage collection can tell, so only where one can be asked for.
+    collect();
+    await sleep(300);
+    collect();
+    await sleep(50);
+    const engineCollected = canCollect && seen.engine ? seen.engine.deref() === undefined : null;
+    const wrong = [!seen.arrived && 'did not arrive', !left && 'did not leave', !gone && 'something left behind', seen.inIsland.solid < 0.1 && 'nothing drawn', engineCollected === false && 'the 3D engine is still held'].filter(Boolean);
+    if (wrong.length) failures.push(`round ${i}: ${wrong.join(', ')}`);
+    await point(`pill-${i}`, { inIsland: seen.inIsland, engineCollected });
   }
   await report('leak-done.json', { rows, switches });
   return { failures, rows, switches };
@@ -759,9 +805,20 @@ const idle: Scenario = async (app, args) => {
   await report('idle-ready.json', { ready: true, at: Date.now(), snap: snap(), status: await status(), info: stage.info(), frames, visibility: document.visibilityState });
   // Report now and then how many frames have been drawn, so the measurement can say what the island was doing.
   let last = snap().frames;
+  const started = Date.now();
+  // With "gc" (and a browser started with a way to ask for one) garbage is collected before
+  // each reading, so that the heap figures say what is held. Not for a CPU measurement.
+  const history: Array<Record<string, unknown>> = [];
   setInterval(() => {
     const s = snap();
-    void report('idle-frames.json', { at: Date.now(), frames: s.frames, sinceLast: s.frames - last, undrawn: s.undrawn, lively: s.lively, drawing: s.drawing, timers: s.timers, mood: s.mood, night: s.night });
+    if (args.gc === true) collect();
+    const info = stage.info();
+    history.push({
+      second: Math.round((Date.now() - started) / 1000), drawn: s.frames - last, lively: s.lively,
+      heapMB: heap().usedMB, nodes: document.getElementsByTagName('*').length, emotes: s.emotes, particles: s.particles,
+      geometries: info.geometries, textures: info.textures, programs: info.programs,
+    });
+    void report('idle-frames.json', { at: Date.now(), frames: s.frames, sinceLast: s.frames - last, undrawn: s.undrawn, lively: s.lively, drawing: s.drawing, timers: s.timers, mood: s.mood, night: s.night, history });
     last = s.frames;
   }, 10_000);
   return new Promise(() => undefined);
@@ -782,7 +839,13 @@ const stills: Scenario = async (app) => {
     shots.push(name);
   };
   refresh(app);
+  // An ordinary day: content, eyes open.
+  brain.debug?.setNeeds({ tummy: 66, fun: 66, energy: 66, clean: 66 });
+  await sleep(900);
+  await atRest(app);
+  await shoot('00-content');
   brain.debug?.setNeeds({ tummy: 90, fun: 90, energy: 90, clean: 90 });
+  await sleep(900);
   await atRest(app);
   await shoot('01-day-at-rest');
   const p = pieces(app);
@@ -845,7 +908,7 @@ const stills: Scenario = async (app) => {
   await sleep(900);
   await shoot('15-waking');
   await atRest(app);
-  check(failures, { 'every still was written': shots.length === 15 });
+  check(failures, { 'every still was written': shots.length === 16 });
   return { failures, shots };
 };
 

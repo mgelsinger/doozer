@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Doozer - the Island's 3D engine</title>
+    <style>
+      html, body { margin: 0; background: transparent; }
+    </style>
+  </head>
+  <body>
+    <!-- Not a page anyone looks at. The Island view opens this in a hidden frame when it
+         is switched to, takes the 3D engine (three.js) from it, and removes the frame when
+         it is left, so that the engine itself is given back and not only what it drew.
+         See src/views/island/frame.ts. -->
+    <script type="module" src="/src/views/island/frame.ts"></script>
+  </body>
+</html>

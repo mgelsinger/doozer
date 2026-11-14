@@ -7,6 +7,8 @@ A view draws and forwards clicks. Rules live in `core/`; the window, the save an
 | File | What is in it | three.js? |
 |---|---|---|
 | `index.ts` | `createIslandView()`: the view. Loads the stage on mount; elements, pointer, what is open, the small timers, a lost graphics context. | no |
+| `engine.ts` | Fetches the 3D engine into a hidden frame of its own, with a time limit, and gives it back. | no |
+| `frame.ts` | What runs inside that frame (`app/island-frame.html`): the one place three.js is imported for the app. | on demand |
 | `layout.ts` | The window for each size and its bands, where a panel goes, the island's shape, the camera's numbers. Pure. | no |
 | `camera.ts` | The camera as arithmetic: where a point lands on screen, and the ray under a point. Pure. | no |
 | `regions.ts` | The hit regions (the island's outline cut into slabs, Doozer, the ball) and what is under the pointer. Pure. | no |
@@ -21,23 +23,28 @@ A view draws and forwards clicks. Rules live in `core/`; the window, the save an
 
 The 3D Doozer itself is in `src/character/` (`doozer3d.ts`, `body-motion.ts`) and the model is built by `app/assets/doozer/build_doozer.py`.
 
-Tests: `app/tests/views/island/` (198). They run the whole view against the real brain, the real model file and the real three.js scene in a test DOM; only the drawing itself is stood in for.
+Tests: `app/tests/views/island/` (221). They run the whole view against the real brain, the real model file and the real three.js scene in a test DOM; only the drawing itself is stood in for.
 
 ## three.js: loaded on mount, given back on unmount
 
-`index.ts` imports `stage3d.ts` and `character/doozer3d.ts` with a dynamic `import()` inside `mount`, and nothing else in the app imports three.js (`lazy-three.test.ts` walks what the app loads at start-up and fails if three.js is in it). In the built page three.js is two files of its own (about 650 KB, 170 KB compressed) beside a 110 KB start-up file.
+Nothing the app loads at start-up imports three.js (`lazy-three.test.ts` walks what `main.ts` loads and fails if three.js is in it). In the built page three.js is two files of its own (about 650 KB, 170 KB compressed) that only the Island ever asks for.
 
-`unmount` disposes of every geometry, material, texture and shadow map, gives the WebGL context itself back (`forceContextLoss`), and removes the canvas. The parsed model goes too. What cannot be given back is the code of three.js once the browser has loaded it; `docs/island-checks.md` has the measurements.
+**The engine lives in a frame of its own.** A script that a page has loaded stays loaded for as long as the page lives: disposing of the scene gives back what three.js drew and held, but not three.js. So `mount` does not import the engine into the app's page. It opens `app/island-frame.html` in a hidden, zero-sized frame (`engine.ts`), and takes two things from it: the stage module and the function that loads the model (`frame.ts`). Everything made with them (the scene, the renderer, the canvas) belongs to that frame's own script world; the canvas is handed to the app's page to be shown. `unmount` disposes of every geometry, material, texture and shadow map, gives the WebGL context back (`forceContextLoss`), removes the canvas, disposes of the parsed model, and last of all removes the frame, and the engine goes with it. `docs/island-checks.md` has the measurements, before and after.
 
-If loading takes longer than 8 seconds, or no graphics context can be had, `mount` fails cleanly and the host shows the first view instead.
+Two things follow from that, for anyone changing this view:
+
+- **Do not keep anything the engine made past `unmount`**, not even a small plain object such as `stage.info()` returns. An object belongs to the script world that made it and keeps all of it alive; one stray reference in the app's page keeps the whole engine in memory. Copy the numbers out instead. (The first leak measurement with the frame showed the engine being kept, once per visit: the measuring script itself was holding the stage's report.) The view keeps everything from the engine inside `build()`, which `unmount` lets go of.
+- An error thrown inside the frame is not an `Error` of the app's page (`instanceof` says no), and the same goes for arrays and every other built-in. `engine.ts` turns a failure into an error of this page; elsewhere the view only passes numbers and its own objects across.
+
+Never stuck: the frame is given 4 seconds. If it does not load, has no engine in it, fails, or is too slow, it is removed and the engine is imported into the page itself (the old way; it works the same, only the engine's code then stays in memory after the Island is left). If loading as a whole takes longer than 8 seconds, or no graphics context can be had, `mount` fails cleanly and the host shows the first view instead; an engine that turns up after that is given straight back.
 
 ## Render on demand
 
 At rest nothing is drawn: the frame loop (`loop.ts`) holds no timer and asks for no frame. It is woken by whatever changes something (the brain, the pointer, a scene's timer) and goes back to sleep the first time a frame reports that nothing is moving. `snapshot().frames` counts every frame drawn.
 
-- **Capped:** 60 frames a second while something is happening (a hop, the spring, the ball, a scene), 30 while Doozer is only breathing and looking about. The cap is kept by waiting, so a 120 Hz screen is not woken 120 times a second to draw 30.
+- **Capped:** 60 frames a second while something is happening with somebody there (a hop, the spring, the ball, a scene); 30 while Doozer is only breathing and looking about, and for anything it does with nobody there. The cap is kept by waiting, so a 120 Hz screen is not woken 120 times a second to draw 30.
 - **Lively only while there is a reason** (`Attention`, shared with the Pill): for a few seconds after the pointer *rested* on the island (a pointer that merely crosses it is ignored), or after something happened. Then Doozer breathes, looks at the pointer, and now and then hops to another spot.
-- **With nobody there** the island is a still picture with small signs of life, each a named timer that exists only while its reason does: a blink every 4 to 9 seconds; asleep, the fireflies have moved a little every 2.6 seconds (one frame); and every minute or two a small stir (a little hop or a wobble), never during a focus session.
+- **With nobody there** the island is a still picture with small signs of life, each a named timer that exists only while its reason does: a blink every 5 to 11 seconds (two redraws); asleep, the fireflies have moved a little every 4 seconds (one frame); and every minute to three a small stir (a little hop or a wobble: about a second of movement, and Doozer does not come alive for it), never during a focus session. These numbers were set by measurement (`docs/island-checks.md`, idle cost): a second of animation in this window costs about a fifth of a processor core, and the budget for sitting idle is a hundredth.
 - **Frames that never come** (the window is hidden or covered, and the page is not told): after 300 ms a timer takes the frame's place and time passes without drawing, so a hop still lands and a scene still ends.
 
 Tucked away (`setAwake(false)`): scenes are ended and tidied, the Radial and the Card close, the Card and the settings panel are taken down, the loop sleeps, every timer stops, and nothing can wake it until `setAwake(true)`. The tests check that not one timer is left anywhere in the page.
@@ -90,3 +97,5 @@ Tucked away (`setAwake(false)`): scenes are ended and tidied, the Radial and the
 - **Night has a sky of its own:** a soft dark-blue glow behind the island, so that the moon and stars show on a pale wallpaper too.
 - **The bowl is not drawn on the island.** It is filled from the Card, and Doozer eating from it shows as a snack arriving.
 - **Reduced motion:** Doozer is placed rather than hopped, nothing springs or loops, emotes fade in place; faces, snacks and night still show.
+- **The 3D engine is loaded into a hidden frame and thrown away with it** (see the section on three.js above). Disposing of the scene was not enough to give the memory back after leaving the Island; removing the engine's whole script world is.
+- **The pace when nobody is looking was set by measurement, not taste** (as in the Room): a blink every 5 to 11 seconds, a small stir every minute to three, thirty frames a second for anything Doozer does unwatched, and Doozer stays still for a stir rather than coming alive for it. With the pointer on the island it breathes, looks at the pointer and wanders every 2 to 5 seconds, at sixty frames a second when something happens. The numbers are at the top of `index.ts`. **These are the owner's to tune by eye.**

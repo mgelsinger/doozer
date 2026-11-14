@@ -10,7 +10,7 @@
 // without a graphics card.
 
 import {
-  AdditiveBlending, Color, DirectionalLight, Group, HemisphereLight, PCFSoftShadowMap, PerspectiveCamera, Scene, Sprite, SpriteMaterial,
+  AdditiveBlending, Color, DirectionalLight, Group, HemisphereLight, PCFShadowMap, PerspectiveCamera, Scene, Sprite, SpriteMaterial,
   WebGLRenderer, type BufferGeometry, type CanvasTexture, type Material, type Mesh, type MeshStandardMaterial, type Object3D, type Texture,
 } from 'three';
 import type { PaletteId } from '../../core/contract';
@@ -51,7 +51,7 @@ export function createWebGLPainter(): Painter {
   const renderer = new WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'low-power' });
   renderer.setClearColor(0x000000, 0);
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = PCFSoftShadowMap;
+  renderer.shadowMap.type = PCFShadowMap;
   let lost = false;
   let disposed = false;
   const lostHandlers: (() => void)[] = [];
@@ -61,7 +61,9 @@ export function createWebGLPainter(): Painter {
   const onRestored = (): void => { if (disposed) return; lost = false; for (const handler of restoredHandlers) handler(); };
   canvas.addEventListener('webglcontextlost', onLost);
   canvas.addEventListener('webglcontextrestored', onRestored);
-  const extension = (): WEBGL_lose_context | null => renderer.getContext().getExtension('WEBGL_lose_context');
+  // Asked for now: while the context is lost the browser hands out no extensions at all,
+  // and this is the one needed to ask for it back.
+  const loseContext = renderer.getContext().getExtension('WEBGL_lose_context');
 
   return {
     canvas,
@@ -74,8 +76,8 @@ export function createWebGLPainter(): Painter {
     info: () => ({ geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: renderer.info.programs?.length ?? 0 }),
     onLost(handler) { lostHandlers.push(handler); },
     onRestored(handler) { restoredHandlers.push(handler); },
-    loseContext() { extension()?.loseContext(); },
-    restoreContext() { extension()?.restoreContext(); },
+    loseContext() { if (!lost) loseContext?.loseContext(); },
+    restoreContext() { if (lost) loseContext?.restoreContext(); },
     dispose() {
       if (disposed) return;
       disposed = true;

@@ -16,6 +16,9 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     target: 'es2022',
+    // Two pages: the app, and the frame the Island view loads its 3D engine into
+    // (src/views/island/frame.ts).
+    rollupOptions: { input: { index: 'index.html', 'island-frame': 'island-frame.html' } },
   },
   test: {
     include: ['tests/**/*.test.ts', 'src/**/*.test.ts'],
