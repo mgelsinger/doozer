@@ -1,0 +1,78 @@
+/* The Desktop view: Doozer on the top edge of the taskbar, in an overlay that covers the
+ * monitor's work area and is click-through everywhere except Doozer and its menus.
+ * The Radial, the Card, the settings panel, emotes and the focus chip are the kit's.
+ *
+ * State lives in attributes (data-open on the root; data-held, data-gone, data-hover on
+ * the pet), and what is drawn is a function of them and of one transform on .deskv-pet.
+ */
+
+.deskv {
+  position: fixed; inset: 0; overflow: hidden; pointer-events: none;
+  --deskv-size: 112px;
+}
+.deskv-world { position: absolute; inset: 0; pointer-events: none; }
+
+/* Doozer. The view moves it with one transform; its soles sit at 93 % of its height. */
+.deskv-pet {
+  position: absolute; left: 0; top: 0; width: var(--deskv-size); height: var(--deskv-size);
+  z-index: 5; will-change: transform; pointer-events: none;
+}
+.deskv-pet[data-gone="1"] { visibility: hidden; }
+.deskv-pet > .dz { width: 100%; }
+
+/* What catches the mouse: the body, ears and tuft, without the empty corners. The same
+   shape as HIT in stage.ts, which is what the window is told to catch. */
+.deskv-hit {
+  position: absolute; left: 15%; top: 12%; width: 70%; height: 84%;
+  border-radius: calc(var(--deskv-size) * .32);
+  pointer-events: auto; cursor: grab; touch-action: none; -webkit-tap-highlight-color: transparent;
+}
+.deskv-pet[data-held="1"] .deskv-hit { cursor: grabbing; }
+.deskv-pet[data-gone="1"] .deskv-hit { pointer-events: none; }
+
+.deskv-pet > .dzk-radial { left: 50%; top: 52%; }
+.deskv-pet > .deskv-emotes { position: absolute; left: -45%; right: -45%; top: -70%; bottom: 0; z-index: 3; }
+.deskv-pet > .deskv-emotes .dzk-emote { --dzk-emote: 22px; }
+
+/* The time left in a focus session, over Doozer's head while the pointer is on it. */
+.deskv-chip {
+  position: absolute; left: 50%; bottom: calc(100% - 8px); translate: -50% 0;
+  z-index: 4; pointer-events: none; white-space: nowrap;
+}
+
+/* The Card and the settings panel, placed over Doozer's head by the view. */
+.deskv-panel { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 20; }
+.deskv-panel > .dzk-card, .deskv-panel > .dzk-settings { position: absolute; left: 0; top: 0; pointer-events: auto; }
+.deskv-panel > .dzk-card { max-height: var(--deskv-panel-max, 720px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .22) transparent; }
+.deskv-panel > .dzk-settings { --dzk-settings-max: min(560px, var(--deskv-panel-max, 560px)); }
+.deskv-panel > [data-open="0"] { pointer-events: none; }
+
+/* Things that appear beside Doozer for the length of a scene. */
+.deskv-prop { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 4; }
+.deskv-prop > .dzk-ico { display: block; width: 100%; height: 100%; }
+
+.deskv-food { width: 38px; height: 38px; animation: deskv-food-drop .5s cubic-bezier(.5, 0, .8, .5) both; }
+@keyframes deskv-food-drop {
+  0% { transform: translateY(-200px) rotate(-70deg); opacity: 0; }
+  14% { opacity: 1; }
+  62% { transform: translateY(0) rotate(0deg); }
+  80% { transform: translateY(-10px) rotate(6deg); }
+  100% { transform: translateY(0) rotate(0deg); }
+}
+.deskv-food[data-bite="1"] { mask-image: radial-gradient(circle at var(--deskv-bite-x, 8%) 30%, transparent 9px, #000 9.5px); }
+.deskv-food[data-bite="2"] { mask-image: radial-gradient(circle at var(--deskv-bite-x, 8%) 30%, transparent 14px, #000 14.5px); }
+.deskv-food[data-bite="3"] { mask-image: radial-gradient(circle at var(--deskv-bite-x, 8%) 30%, transparent 21px, #000 21.5px); }
+
+.deskv-ball {
+  width: 36px; height: 36px; border-radius: 50%; z-index: 6;
+  pointer-events: auto; cursor: pointer; touch-action: none;
+  filter: drop-shadow(0 3px 3px rgba(60, 40, 90, .25));
+}
+.deskv-ball[data-bye="1"] { pointer-events: none; scale: 0; opacity: 0; transition: scale .24s ease-in, opacity .24s ease-in; }
+
+.deskv-duck { width: 34px; height: 34px; animation: deskv-duck-in .3s cubic-bezier(.3, 1.5, .5, 1) both; }
+@keyframes deskv-duck-in { from { scale: .3; opacity: 0; } }
+
+/* Reduced motion: things appear and go; nothing drops, shrinks or travels. */
+.deskv[data-motion="reduce"] .deskv-food, .deskv[data-motion="reduce"] .deskv-duck { animation: none; }
+.deskv[data-motion="reduce"] .deskv-ball[data-bye="1"] { transition: none; }

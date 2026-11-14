@@ -11,7 +11,8 @@ import { createHost, type Host } from './host/host';
 import { createSound } from './host/sound';
 import { parseSave } from './host/store';
 import { shell } from './shell';
-import { isAppRun, readTestRun, type TestRun } from './spike/config';
+import { isAppRun, readTestRun, scenarioNames, type TestRun } from './spike/config';
+import { createDesktopView, type DesktopView } from './views/desktop';
 import { createPillView, type PillView } from './views/pill';
 import { createRoomView, type RoomView } from './views/room';
 
@@ -20,6 +21,7 @@ export interface App {
   brain: Brain;
   pill: PillView;
   room: RoomView;
+  desktop: DesktopView;
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -53,20 +55,21 @@ async function startApp(root: HTMLElement, run: TestRun): Promise<App> {
 
   const pill = createPillView();
   const room = createRoomView();
+  const desktop = createDesktopView();
   const host = createHost({
     root,
     shell,
     brain,
-    // The Island and the Desktop arrive in later milestones; until then they are shown
-    // as "coming soon". The first view in the list is the home on first run.
-    views: [pill, room],
+    // The Island arrives in a later milestone; until then it is shown as "coming soon".
+    // The first view in the list is the home on first run.
+    views: [pill, room, desktop],
     hostData: saved.host,
     sound: createSound(() => brain.settings.sound),
     // If the save could not even be read, do not write over it with a new pet.
     persist: readable,
   });
   await host.start();
-  return { host, brain, pill, room };
+  return { host, brain, pill, room, desktop };
 }
 
 const root = document.getElementById('host');
@@ -81,7 +84,11 @@ if (run.enabled && !isAppRun(run)) {
 } else {
   const app = await startApp(root, run);
   if (import.meta.env.DEV || run.enabled) (window as unknown as { doozer?: App }).doozer = app;
-  if (run.enabled) {
+  if (run.enabled && scenarioNames(run).some((name) => name.startsWith('app-desktop'))) {
+    // The Desktop view's own scripted runs (docs/desktop-checks.md).
+    const { runDesktopChecks } = await import('./views/desktop/checks');
+    void runDesktopChecks(app, run).catch((error: unknown) => console.error('[spike]', error));
+  } else if (run.enabled) {
     const { runAppScenarios } = await import('./spike/app-scenarios');
     void runAppScenarios(app, run).catch((error: unknown) => console.error('[spike]', error));
   }
