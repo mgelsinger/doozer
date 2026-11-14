@@ -175,9 +175,10 @@ async function quietDown(app: App, limitMs = 90_000): Promise<boolean> {
 
 /** What "idle on the taskbar line with nothing left behind" means, spelled out. */
 async function restReport(app: App): Promise<{ ok: boolean; why: string[]; snapshot: Partial<DesktopSnapshot>; native: Partial<Status> }> {
+  // Everything about the page is read in one go, before anything is awaited: at the Lively
+  // pace Doozer is off again a second after it comes to rest.
   const s = snap(app);
   const p = parts(app);
-  const native = await status();
   const why: string[] = [];
   const doing = ['walk', 'trot', 'peek', 'play', 'carried'];
   if (s.state !== 'idle') why.push(`state is ${s.state}`);
@@ -191,6 +192,8 @@ async function restReport(app: App): Promise<{ ok: boolean; why: string[]; snaps
   // What the page drew is what the view says.
   const box = p.pet.getBoundingClientRect();
   if (Math.abs(box.left + box.width / 2 - s.x) > 1.5 || Math.abs(box.top + box.height * 0.93 - s.y) > 1.5) why.push('drawn somewhere other than where it is');
+  await shell.regionsFlushed();
+  const native = await status();
   if (native.holding) why.push('the shell thinks a button is held on Doozer');
   if (native.regions !== 1) why.push(`the shell has ${native.regions} regions`);
   return {
@@ -236,8 +239,14 @@ async function carryTo(app: App, to: Point, options: { steps?: number; stepMs?: 
   const from = doozerAt(app);
   const carry: Carry = { from, at: from, letGo: 0, samples: 0 };
   if (native) {
+    // The pointer arrives on Doozer and rests there before the button goes down, as a hand's
+    // does. The shell samples a pointer that has been still only ten times a second, and a
+    // press that lands before it has noticed the pointer is on Doozer is, rightly, not the
+    // page's: the window was still letting clicks through. (A script that pressed 60 ms
+    // after arriving found this out: its carries were never reported as released.)
     await cursor(from, false);
     await sleep(60);
+    for (let waited = 0; waited < 500 && !(await status()).catching; waited += 20) await sleep(20);
     await cursor(from, true);
   }
   pointer(hit, 'pointerdown', from, 1);
@@ -1174,9 +1183,13 @@ const soak: Scenario = async (app, args) => {
     const took = Math.round(performance.now() - t0);
     result.restChecks++;
     result.slowestRestMs = Math.max(result.slowestRestMs, took);
-    await sleep(150);
     const rest = ok ? await restReport(app) : null;
-    const native = await status();
+    // The pretend pointer was parked a moment ago; the shell looks ten times a second.
+    let native = await status();
+    for (let waited = 0; waited < 600 && (native.catching || !native.styleClickThrough); waited += 30) {
+      await sleep(30);
+      native = await status();
+    }
     const clickThrough = native.styleClickThrough && !native.catching && !native.holding;
     if (!ok || !rest?.ok || !clickThrough) {
       const s = snap(app);

@@ -39,13 +39,15 @@ One table, `PACES` in `pace.ts`. The owner chooses the default by trying them (s
 
 | | Still | Calm (default) | Lively |
 |---|---|---|---|
-| Strolls | never | every 45–120 s it may (3 times in 4) walk 60–300 px at 30 px/s, the `walk` gait, never more than 300 px from its spot | 1–4.5 s after arriving it is off again (about 6 times in 10), anywhere along the line, at 46 px/s, the `trot` gait |
-| Peekaboo | never | every 7–13 minutes, walking to the edge at 60 px/s and back to its spot | every 50–110 s, at 70 px/s, settling a little way in from the edge |
+| Strolls | never | every 45–120 s it may (3 times in 4) walk 60–300 px at 30 px/s, the `walk` gait, never more than 300 px from its spot | 1–4.5 s after arriving it is off again (about 6 times in 10), anywhere along the line, at 56 px/s, the `trot` gait |
+| Peekaboo | never | every 7–13 minutes, walking to the edge at 50 px/s and back to its spot | every 50–110 s, at 70 px/s, settling a little way in from the edge |
 | A meal or a treat | lands in reach, eaten on the spot | the same | lands 80–110 px away; Doozer trots over at 95 px/s |
 | Play | bats the ball where it stands, about 4 s | the same | the mockup's: chases the ball at 150 px/s and kicks it, six kicks or 16 s |
 | Small gestures (a glance, a yawn when sleepy) | every 14–34 s | every 14–34 s | every 4–9 s, and it waves when it is in a good mood |
 
-Lively keeps the mockup's four speeds (46, 70, 95, 150 px/s) and its rhythm. Two things are not the mockup's: it peeked on a quarter of its decisions (every quarter of a minute), which is one every minute or so here; and there are no windows to jump on (spec 2.1).
+Lively keeps the mockup's rhythm and its speeds for the peek, the run to the food and the chase (70, 95 and 150 px/s). Three things are not the mockup's: its stroll was 46 px/s with a walk of its own, and the rig's trot would slide at that speed, so the stroll is 56; it peeked on a quarter of its decisions (every quarter of a minute), which is one every minute or so here; and there are no windows to jump on (spec 2.1).
+
+Speeds are chosen so that the feet do not slide. The rig's walk covers about 29 px a cycle at the Medium size and its trot about 47, and a cycle can only be so slow or so fast (`walkCycleMs`): a walk suits 20–50 px/s and a trot 60–150.
 
 Never, at any pace: wandering during a focus session, while asleep, while a menu is open, while the pointer rests on Doozer or a button is held on it, or with *Reduce motion* on. A scene the brain asks for while the Card is open is played on the spot, so the Card is never left hanging where Doozer was.
 
@@ -62,7 +64,7 @@ The owner's one complaint about the mockup was that Doozer "would get stuck rand
 
 ## Render on demand
 
-At rest Doozer is perfectly still: a blink in two redraws every 4–9 s (`doozer.blink(true)`), a glance now and then (two short redraws), and nothing else. It breathes and moves only while it is doing something (a scene, a carry, a float) or while someone is at it: `Attention`, shared with the Pill, is poked when the pointer *rests* on Doozer (180 ms; a pointer on its way to the taskbar is ignored), when the brain says something happened, and when a menu opens. Asleep, its z's rise only while someone is there.
+At rest Doozer is perfectly still: a blink in two redraws every 4–9 s (`doozer.blink(true)`), a glance to one side now and then, also in two redraws (the eyes are simply somewhere else, and a second or two later back; easing them across cost about half of what Doozer cost at rest, so `desktop.css` switches the easing off while the rig is paused), and nothing else. It breathes and moves only while it is doing something (a scene, a carry, a float) or while someone is at it: `Attention`, shared with the Pill, is poked when the pointer *rests* on Doozer (180 ms; a pointer on its way to the taskbar is ignored), when the brain says something happened, and when a menu opens. Asleep, its z's rise only while someone is there.
 
 A stroll is an animation and costs what one costs (docs/shell-spike.md 2.1), so the paces differ in idle cost by how much of the time Doozer is walking. The measurements are in `docs/desktop-checks.md`.
 

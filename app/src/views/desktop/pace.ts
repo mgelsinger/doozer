@@ -7,8 +7,12 @@
 //            stroll (at most ~300 px, ~30 px/s) and settle again; peekaboo roughly every
 //            ten minutes; plays with the ball where it stands.
 //   Lively - close to the Desk Buddy mockup (mockups/v3-buddy): a second or three after
-//            arriving it is off again, anywhere along the taskbar, at the mockup's speeds;
-//            it runs to its food and chases the ball.
+//            arriving it is off again, anywhere along the taskbar, at about the mockup's
+//            speeds; it runs to its food and chases the ball.
+//
+// Speeds are chosen so that the feet do not slide: the rig's walk covers about 29 px a
+// cycle at this size and its trot about 47, and a cycle can only be so slow or so fast
+// (walkCycleMs in character/doozer.ts). A walk suits 20-50 px/s, a trot 60-150.
 
 import type { Settings } from '../../core/contract';
 import type { Stage } from './stage';
@@ -52,7 +56,7 @@ export const PACES: Readonly<Record<PaceId, Pace>> = {
   still: {
     strolls: false, rest: [45_000, 120_000], strollChance: 0, strollPx: [0, 0], roamPx: 0,
     strollSpeed: 30, strollGait: 'walk',
-    peekEvery: null, peekSpeed: 60, peekGait: 'walk', peekReturn: 'home',
+    peekEvery: null, peekSpeed: 50, peekGait: 'walk', peekReturn: 'home',
     gestureEvery: [14_000, 34_000], waves: false,
     runsToFood: false, foodSpeed: 0, chasesBall: false, chaseSpeed: 0,
   },
@@ -61,7 +65,8 @@ export const PACES: Readonly<Record<PaceId, Pace>> = {
     strollSpeed: 30, strollGait: 'walk',
     // "Roughly once every ten minutes." The walk to the edge is brisker than a stroll: at
     // 30 px/s the trip across half a wide screen would take the best part of a minute.
-    peekEvery: [7 * 60_000, 13 * 60_000], peekSpeed: 60, peekGait: 'walk', peekReturn: 'home',
+    // 50 px/s is as fast as the waddle goes without the feet sliding.
+    peekEvery: [7 * 60_000, 13 * 60_000], peekSpeed: 50, peekGait: 'walk', peekReturn: 'home',
     gestureEvery: [14_000, 34_000], waves: false,
     runsToFood: false, foodSpeed: 0, chasesBall: false, chaseSpeed: 0,
   },
@@ -69,7 +74,10 @@ export const PACES: Readonly<Record<PaceId, Pace>> = {
     // The mockup rested 1-3 s after a walk and 2.2-4.5 s after standing about, and walked
     // on 46 of every 74 such decisions when it had only the ground to walk on.
     strolls: true, rest: [1_000, 4_500], strollChance: 0.62, strollPx: [24, null], roamPx: null,
-    strollSpeed: 46, strollGait: 'trot',
+    // The mockup strolled at 46 px/s with a walk of its own. The rig's trot would slide at
+    // that speed, so the Lively stroll is a little quicker; the other three speeds (the
+    // peek, the run to the food, the chase) are the mockup's.
+    strollSpeed: 56, strollGait: 'trot',
     // The mockup peeked on a quarter of its decisions. That is the one number not kept:
     // it would be a peek every quarter of a minute.
     peekEvery: [50_000, 110_000], peekSpeed: 70, peekGait: 'trot', peekReturn: 'near-edge',

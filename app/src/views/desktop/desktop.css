@@ -19,6 +19,13 @@
 }
 .deskv-pet[data-gone="1"] { visibility: hidden; }
 .deskv-pet > .dz { width: 100%; }
+/* At rest (the rig is paused) a glance is two redraws, like the still blink: the eyes are
+   simply somewhere else, as a real glance is. Easing them across is a quarter of a second
+   of full-rate drawing each way, and at rest that was about half of what Doozer cost. */
+.deskv-pet > .dz[data-live="0"] .dz-face,
+.deskv-pet > .dz[data-live="0"] .dz-belly,
+.deskv-pet > .dz[data-live="0"] .dz-ear,
+.deskv-pet > .dz[data-live="0"] .e-hl { transition: none; }
 
 /* What catches the mouse: the body, ears and tuft, without the empty corners. The same
    shape as HIT in stage.ts, which is what the window is told to catch. */

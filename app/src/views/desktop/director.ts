@@ -68,6 +68,8 @@ export interface Overrun {
 
 const BITE_MS = 420;
 const REFUSE_GAP_MS = 700;
+/** A sleepy Doozer yawns at most this often. */
+const YAWN_GAP_MS = 120_000;
 /** How fast Doozer comes back in when something left it half off the screen. */
 const RETURN_SPEED = 90;
 /** How long past its limit a scene may be seen running before the watchdog calls it stuck. */
@@ -89,6 +91,7 @@ export class Director {
   private sceneSince = 0;
   /** It was time for a peek while Doozer was busy: it goes the next time it is free. */
   private peekDue = false;
+  private lastYawnAt = -Infinity;
   /** Outcomes of every scene played, by name. */
   readonly tally: Record<string, SceneTally>;
   /** Scenes that had to be ended by their limit, or that threw. Each one is a bug to explain. */
@@ -342,7 +345,9 @@ export class Director {
     if (!this.canAct() || this.scenes.active !== null || s.asleep || s.quiet || !this.options.free() || this.doozer.busy) return false;
     const random = this.options.random;
     const roll = random();
-    if (s.mood === 'sleepy' && roll < 0.45) {
+    if (s.mood === 'sleepy' && roll < 0.45 && this.options.now() - this.lastYawnAt > YAWN_GAP_MS) {
+      // A yawn is a second and a half of animation: now and then says "sleepy" as well as often does.
+      this.lastYawnAt = this.options.now();
       this.options.stir(1700);
       void this.doozer.perform('yawn');
     } else if (this.pace.waves && (s.mood === 'joyful' || s.mood === 'content') && roll < 0.3) {

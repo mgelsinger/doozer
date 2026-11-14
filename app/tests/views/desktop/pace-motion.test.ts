@@ -22,9 +22,11 @@ describe('the pace levels, as numbers', () => {
     expect(calm.runsToFood).toBe(false);
   });
 
-  it('Lively keeps the mockup\'s speeds, and trots', () => {
+  it('Lively trots, at the mockup\'s speeds for the peek, the food and the chase', () => {
     const lively = PACES.lively;
-    expect([lively.strollSpeed, lively.peekSpeed, lively.foodSpeed, lively.chaseSpeed]).toEqual([46, 70, 95, 150]);
+    expect([lively.peekSpeed, lively.foodSpeed, lively.chaseSpeed]).toEqual([70, 95, 150]);
+    // The mockup strolled at 46 px/s; the rig's trot would slide at that, so it is a little quicker.
+    expect(lively.strollSpeed).toBe(56);
     expect(lively.strollGait).toBe('trot');
     expect(lively.rest[1]).toBeLessThan(5000);
     expect(lively.roamPx).toBeNull();
