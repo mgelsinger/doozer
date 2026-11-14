@@ -7,7 +7,9 @@ A small creature that lives on your desktop: one pet with four homes (Pill, Room
 
 ## The app (`app/`)
 
-A TypeScript/Vite page inside a Tauri 2 shell. **Milestone 1 is built:** Doozer lives in a small pill docked to the top of the screen and in the tray. Click the pill for the Card: feed, fill the bowl, treats, play, wash, nap, the focus timer and its streak, settings. The Room, the Island and the Desktop are shown as "coming soon".
+A TypeScript/Vite page inside a Tauri 2 shell. **Milestone 1 is built:** Doozer lives in a small pill docked to the top of the screen and in the tray. Click the pill for the Card: feed, fill the bowl, treats, play, wash, nap, the focus timer and its streak, settings. A view that is not built yet is shown as "coming soon".
+
+**Milestone 2 is built:** the **Room**, a framed little room you can put anywhere on the screen. Pick it in the tray menu or in the Card's row of views, and everything carries over, a running focus session included. Click the bowl to fill it, the ball to toss it, the soap for a bath, the lamp or the bed for bedtime, the treat jar for a treat, the clock to start or stop a session; Doozer decides the rest. The sky in its window follows the real time of day. Drag the room by its title bar; the button in the title bar opens the Card.
 
 Run everything from the `app` folder; first time only: `npm install`.
 
@@ -20,6 +22,7 @@ Run everything from the `app` folder; first time only: `npm install`.
 | Type-check | `npm run typecheck` |
 | See the rig and the UI kit on one page | `npm run dev`, then `/viewer.html` |
 | Scripted checks of the built app (a day's use, never stuck, the window) | `pwsh scripts/run-app-checks.ps1` (needs the build described at the top of that script) |
+| The same for the Room (the furniture, an hour alone, switching views, never stuck) | `pwsh scripts/run-room-checks.ps1` (same build) |
 
 Using it:
 
@@ -36,9 +39,10 @@ Where things are, each with its own `README.md`:
 | `app/src/ui/` | The dark-glass kit: Card, Radial, settings panel, meters, emotes. |
 | `app/src/host/` | The view host: one view at a time, the clock, the save, tuck-away. |
 | `app/src/views/pill/` | The Pill view. |
+| `app/src/views/room/` | The Room view. |
 | `app/src-tauri/` | The native shell: one transparent window, click-through by region, tray, save file. |
 
-What was measured and what still needs a hand on the mouse: [docs/pill-checks.md](docs/pill-checks.md) for the app, [docs/shell-spike.md](docs/shell-spike.md) for the shell.
+What was measured and what still needs a hand on the mouse: [docs/pill-checks.md](docs/pill-checks.md) for the app and the Pill, [docs/room-checks.md](docs/room-checks.md) for the Room, [docs/shell-spike.md](docs/shell-spike.md) for the shell.
 
 ## The mockups (Phase 1, reference only)
 

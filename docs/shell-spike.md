@@ -298,6 +298,10 @@ Desktop Duplication returned lighter colours than a plain screen copy of the sam
 - Still not built: a content security policy, an installer.
 - **The identifier is settled: `com.doozer.desktop` stays** (2026-11-13). It names the save folder, so it must never change; it is the constant `APP_ID` in `lib.rs`, and a test keeps it equal to `identifier` in `tauri.conf.json`.
 
+**What Phase 7 added to the shell** (2026-11-13):
+
+- **A floating window may hang over the top and bottom of the work area: `bleed`.** `{ kind: 'floating', width, height, bleed: 200 }` lets the window sit up to that many CSS pixels above the top or below the bottom of the work area (never sideways), and the default spot takes it into account. It is for a window that keeps an empty, click-through band above and below what it draws: the Room does, so that its Card has somewhere to go without the window ever changing size, and the room itself can still be put right at the edge of the screen. Without `bleed` nothing changes. Three unit tests in `mode.rs`; in the real window the Room was placed with its lower band hanging off the work area and its frame 33 px above the taskbar ([room-checks.md](room-checks.md) section 2).
+
 **Phase 8 (Island)**: idle cost for the island above is for a 2D stand-in. three.js will add GPU memory and, while it animates, real CPU. Measure again with the same script.
 
 **Phase 9 (Desktop)**: the overlay is a 3840 × 2088 transparent surface costing 30 MB more than the pill (section 2.1). If that matters, a docked strip along the bottom edge (`{ kind: 'docked', anchor: 'bottom-center', … }`) is already supported and costs in proportion to its height. Regions can be reported every frame as Doozer walks. The two rules in section 4.3 are what the spec's "never stuck" list asks of the shell: the click-through state does not change while a button is down, and `pointer-released` ends a carry whose mouse-up never arrives. The view still has to listen for it and end a carry on every other exit path too, as the test page does.
