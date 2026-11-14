@@ -23,7 +23,7 @@ A view draws and forwards clicks. Rules live in `core/`; the window, the save an
 
 The 3D Doozer itself is in `src/character/` (`doozer3d.ts`, `body-motion.ts`) and the model is built by `app/assets/doozer/build_doozer.py`.
 
-Tests: `app/tests/views/island/` (221). They run the whole view against the real brain, the real model file and the real three.js scene in a test DOM; only the drawing itself is stood in for.
+Tests: `app/tests/views/island/` (222). They run the whole view against the real brain, the real model file and the real three.js scene in a test DOM; only the drawing itself is stood in for.
 
 ## three.js: loaded on mount, given back on unmount
 
@@ -45,6 +45,7 @@ At rest nothing is drawn: the frame loop (`loop.ts`) holds no timer and asks for
 - **Capped:** 60 frames a second while something is happening with somebody there (a hop, the spring, the ball, a scene); 30 while Doozer is only breathing and looking about, and for anything it does with nobody there. The cap is kept by waiting, so a 120 Hz screen is not woken 120 times a second to draw 30.
 - **Lively only while there is a reason** (`Attention`, shared with the Pill): for a few seconds after the pointer *rested* on the island (a pointer that merely crosses it is ignored), or after something happened. Then Doozer breathes, looks at the pointer, and now and then hops to another spot.
 - **With nobody there** the island is a still picture with small signs of life, each a named timer that exists only while its reason does: a blink every 5 to 11 seconds (two redraws); asleep, the fireflies have moved a little every 4 seconds (one frame); and every minute to three a small stir (a little hop or a wobble: about a second of movement, and Doozer does not come alive for it), never during a focus session. These numbers were set by measurement (`docs/island-checks.md`, idle cost): a second of animation in this window costs about a fifth of a processor core, and the budget for sitting idle is a hundredth.
+- **A change in the brain is not a change in the picture.** The loop is woken by whatever really changes what is drawn (the 3D Doozer and the world each ask for their own frame), never by the brain's `change` event as such: during a focus session the brain changes every second, and waking on that drew a 3D frame for every tick of the countdown.
 - **Frames that never come** (the window is hidden or covered, and the page is not told): after 300 ms a timer takes the frame's place and time passes without drawing, so a hop still lands and a scene still ends.
 
 Tucked away (`setAwake(false)`): scenes are ended and tidied, the Radial and the Card close, the Card and the settings panel are taken down, the loop sleeps, every timer stops, and nothing can wake it until `setAwake(true)`. The tests check that not one timer is left anywhere in the page.
