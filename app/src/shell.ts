@@ -32,8 +32,13 @@ export type WindowMode =
    * position the shell handed out earlier (a `drag-end` event or a previous
    * `WindowInfo`). They are physical screen pixels: store them, do not do
    * arithmetic on them. Leave them out to get the default spot.
+   *
+   * `bleed` is how far the window may hang over the top and the bottom of the
+   * work area, in CSS pixels. A view that keeps an empty, click-through band
+   * above and below what it draws (the Room does, for its Card) asks for that
+   * much, so that the drawn part can still be put right at the edge of the screen.
    */
-  | { kind: 'floating'; width: number; height: number; x?: number; y?: number }
+  | { kind: 'floating'; width: number; height: number; x?: number; y?: number; bleed?: number }
   /** The whole work area of the current monitor, click-through except hit regions (Desktop). */
   | { kind: 'overlay' };
 
