@@ -264,6 +264,9 @@
 .dz[data-pose="peek"] .dz-ear-l { transform: rotate(6deg); }
 .dz[data-pose="peek"] .dz-ear-r { transform: rotate(-6deg); }
 
+/* A still blink (doozer.blink(true)): shut and open with no animation, for a paused rig. */
+.dz[data-blink="1"] .e-open { transform: scaleY(.08); }
+
 /* ---- Paused, and reduced motion -------------------------------------------- */
 .dz[data-live="0"] .dz-svg, .dz[data-live="0"] .dz-svg * { animation-play-state: paused !important; }
 .dz[data-motion="reduce"] .dz-svg, .dz[data-motion="reduce"] .dz-svg * { animation: none !important; transition-duration: .01s !important; }

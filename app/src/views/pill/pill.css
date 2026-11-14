@@ -1,0 +1,108 @@
+/* The Pill view (DESIGN_SPEC.md 6.1): a dark pill docked to a screen edge, with the
+ * Card unfolding from it. The numbers here are mirrored in layout.ts.
+ *
+ * As in the kit, state lives in attributes (data-dock, data-open, data-hover,
+ * data-pressed, data-hatching...) and what is drawn is a function of them.
+ *
+ * Render on demand: nothing in this file animates forever. The only transitions are
+ * short ones that follow something the user did.
+ */
+
+.pillv {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
+  gap: 12px; padding: 30px 40px 0; pointer-events: none;
+}
+.pillv > * { pointer-events: auto; flex: none; }
+.pillv[data-dock="top-left"] { align-items: flex-start; padding-left: 20px; }
+.pillv[data-dock="top-right"] { align-items: flex-end; padding-right: 20px; }
+/* The bottom dock is the same column upside down: the pill at the bottom, the Card above it. */
+.pillv[data-dock="bottom-right"] {
+  flex-direction: column-reverse; align-items: flex-end; gap: 28px; padding: 0 20px 16px 40px;
+}
+
+/* ---- The pill ---------------------------------------------------------------- */
+.pillv-face { position: relative; zoom: var(--pillv-zoom, 1); }
+.dzk .pillv-pill {
+  position: relative; display: flex; align-items: center; gap: 12px; text-align: left;
+  height: 54px; min-width: 214px; padding: 0 12px 0 70px; border-radius: 27px;
+  background: var(--dzk-surface); color: var(--dzk-text);
+  box-shadow: 0 10px 28px rgba(30, 20, 45, .34), inset 0 1px 0 rgba(255, 255, 255, .12);
+  transition: scale .25s var(--dzk-spring);
+}
+.pillv-face[data-hover="1"] .pillv-pill { scale: 1.035; }
+.pillv-face[data-pressed="1"] .pillv-pill { scale: .98; }
+
+/* Doozer, tucked into the left end with its ears and tuft over the top. */
+.pillv-pocket {
+  position: absolute; left: 0; bottom: 0; width: 70px; height: 54px; pointer-events: none;
+  clip-path: inset(-44px 0 0 0 round 0 0 0 27px);
+}
+.pillv-pocket .dz { position: absolute; left: 5px; top: -17px; width: 62px; transition: opacity .12s; }
+.pillv-pocket::after {   /* the lip Doozer is tucked behind */
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 15px;
+  background: linear-gradient(to bottom, rgba(34, 27, 42, 0), #221b2a 55%);
+}
+.pillv-face[data-gone="1"] .pillv-pocket .dz, .pillv-face[data-hatching="1"] .pillv-pocket .dz { opacity: 0; transition: none; }
+
+/* The egg a new Doozer hatches from (first run only). */
+.pillv-egg { position: absolute; left: 13px; top: -8px; width: 46px; height: 56px; transform-origin: 50% 90%; display: none; }
+.pillv-face[data-hatching="1"] .pillv-egg { display: block; }
+
+/* Where a press on Doozer lands: the pocket and the part of Doozer above the pill. */
+.pillv-reach { position: absolute; left: 2px; top: -20px; width: 68px; height: 74px; border-radius: 26px; cursor: pointer; }
+
+.pillv-text { display: grid; line-height: 1.15; white-space: nowrap; min-width: 0; }
+.pillv-name { font-weight: 600; font-size: 14.5px; }
+.pillv-status { font-size: 12.5px; color: var(--dzk-soft); font-variant-numeric: tabular-nums; }
+.pillv-status[data-tone="low"] { color: #ffb86b; }
+.pillv-status[data-tone="urgent"] { color: #ff8f9f; font-weight: 600; }
+.pillv-status[data-tone="focus"] { color: var(--dzk-text); }
+
+/* The ring: wellbeing normally, session progress while focusing. Its length and its
+ * colour change in one step - a ring that eases along would be animating all session. */
+.pillv-ring { margin-left: auto; position: relative; width: 34px; height: 34px; flex: none; display: grid; place-items: center; }
+.pillv-ring > svg { position: absolute; inset: 0; rotate: -90deg; }
+.pillv-ring circle { fill: none; stroke-width: 3.5; }
+.pillv-ring .pillv-ring-track { stroke: rgba(255, 255, 255, .13); }
+.pillv-ring .pillv-ring-val { stroke: var(--tone, var(--dzk-good)); stroke-linecap: round; }
+.pillv-ring[data-tone="focus"] { --tone: var(--dzk-focus); }
+.pillv-ring-ico .dzk-ico { width: 17px; height: 17px; }
+
+/* Emotes rise from Doozer's head. There is little room above a pill docked to the top
+ * of the screen, so they are small and drift sideways as much as up. */
+.pillv-emotes { position: absolute; left: -4px; top: -30px; width: 84px; height: 84px; pointer-events: none; --dzk-emote: 15px; }
+.pillv-emotes .dzk-emote { animation-name: pillv-rise; }
+.pillv-emotes .dzk-emote[data-kind="z"], .pillv-emotes .dzk-emote[data-kind="question"], .pillv-emotes .dzk-emote[data-kind="snack"] { --dzk-emote: 17px; }
+@keyframes pillv-rise {
+  0% { translate: 0 0; scale: .2; opacity: 0; }
+  18% { scale: 1.14; opacity: 1; }
+  72% { opacity: 1; }
+  100% { translate: calc(var(--dx, 0px) * 1.5 + 14px) calc(var(--dy, -52px) * .42); scale: .92; opacity: 0; }
+}
+.pillv-emotes[data-motion="reduce"] .dzk-emote { animation-name: dzk-fade; }
+
+/* ---- The sound question (asked once) ----------------------------------------- */
+.pillv-ask {
+  display: grid; gap: 8px; width: 236px; padding: 11px 12px 10px; border-radius: 18px;
+  background: var(--dzk-surface); box-shadow: var(--dzk-shadow);
+  transition: opacity .18s ease-out, scale .3s var(--dzk-spring);
+}
+.pillv-ask[hidden] { display: none; }
+.pillv-ask p { margin: 0; font-size: 13px; }
+.pillv-ask small { color: var(--dzk-soft); font-size: 11px; }
+.pillv-ask-row { display: flex; gap: 7px; }
+.dzk .pillv-ask-btn { flex: 1; padding: 7px 8px; border-radius: 11px; background: var(--dzk-raised); font-size: 12.5px; transition: background-color .12s; }
+.dzk .pillv-ask-btn:hover { background: var(--dzk-raised-hi); }
+.dzk .pillv-ask-btn[data-primary] { background: var(--dzk-accent); color: var(--dzk-accent-ink); font-weight: 600; }
+
+/* ---- What unfolds: the Card, or the settings panel in its place ---------------- */
+.pillv-unfold { position: relative; display: grid; align-items: start; justify-items: center; }
+.pillv-unfold > * { grid-area: 1 / 1; }
+.pillv[data-dock="bottom-right"] .pillv-unfold { align-items: end; }
+.pillv[data-open="none"] .pillv-unfold { pointer-events: none; }
+/* A screen too short for the whole Card: it scrolls inside the space there is. */
+.pillv-unfold[data-tight="1"] > * { max-height: var(--pillv-unfold-max, 560px); overflow-y: auto; scrollbar-width: none; }
+.pillv-unfold .dzk-settings { --dzk-settings-max: var(--pillv-unfold-max, 560px); }
+
+.pillv[data-motion="reduce"] .pillv-pill, .pillv[data-motion="reduce"] .pillv-ask { transition: none; }
+.pillv[data-motion="reduce"] .pillv-face[data-hover="1"] .pillv-pill, .pillv[data-motion="reduce"] .pillv-face[data-pressed="1"] .pillv-pill { scale: 1; }

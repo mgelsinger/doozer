@@ -50,6 +50,12 @@ export interface Card {
   toggle(): void;
   /** Move keyboard focus into the Card (to the first action). */
   focus(): void;
+  /**
+   * False keeps an open Card on screen but perfectly still: its Doozer pauses and no scenes
+   * play, while the meters and the clock keep painting. For a view nobody is looking at
+   * (render on demand). Default true.
+   */
+  setLively(on: boolean): void;
   destroy(): void;
 }
 
@@ -299,8 +305,6 @@ export function createCard(brain: Brain, options: CardOptions = {}): Card {
       const idle = focus.status === 'idle';
       need(goButton, '.dzk-go-ico').innerHTML = focus.status === 'running' ? ICONS.pause : ICONS.start;
       need(goButton, '.dzk-go-label').textContent = idle ? 'Start' : focus.status === 'running' ? 'Pause' : 'Resume';
-      goButton.dataset.tip = idle ? 'Focus together. Finish a session and Doozer earns treats.' : '';
-      if (!idle) delete goButton.dataset.tip;
       stopButton.hidden = idle;
       need(el, '.dzk-paused').hidden = focus.status !== 'paused';
       for (const chip of el.querySelectorAll<HTMLButtonElement>('.dzk-chip')) chip.disabled = !idle;
@@ -314,6 +318,22 @@ export function createCard(brain: Brain, options: CardOptions = {}): Card {
         const chosen = Number(chip.dataset.min) === focus.minutes;
         chip.setAttribute('aria-checked', String(chosen));
         chip.tabIndex = chosen ? 0 : -1;
+      }
+    });
+    // What a session earns (spec 4.2), from the brain's own table: said on each length and on Start.
+    memo('rewards', `${focus.status}:${focus.minutes}`, () => {
+      const rewards = brain.rewards;
+      for (const chip of el.querySelectorAll<HTMLButtonElement>('.dzk-chip')) {
+        const minutes = Number(chip.dataset.min) as FocusMinutes;
+        const earns = plural(rewards.treats[minutes], 'treat');
+        chip.dataset.tip = `${minutes} minutes earns ${earns}`;
+        chip.setAttribute('aria-label', `${minutes} minutes, earns ${earns}`);
+      }
+      if (focus.status === 'idle') {
+        const bonus = rewards.firstOfDay > 0 ? `, plus ${rewards.firstOfDay} for the first session of the day` : '';
+        goButton.dataset.tip = `Focus together. Finish and Doozer earns ${plural(rewards.treats[focus.minutes], 'treat')}${bonus}.`;
+      } else {
+        delete goButton.dataset.tip;
       }
     });
     const clockString = formatClock(focus.remainingMs);
@@ -368,15 +388,22 @@ export function createCard(brain: Brain, options: CardOptions = {}): Card {
   // ---- open / close -----------------------------------------------------------------
   // The whole of "is it open" is this one flag and the attribute that mirrors it.
   let isOpen = options.open ?? true;
+  let lively = true;
   let wavedAt = -Infinity;
+
+  /** The stage only moves while the Card is open and somebody is there to see it. */
+  function applyLively(): void {
+    const on = isOpen && lively;
+    doozer.setLive(on);
+    director.setActive(on);
+    if (!on) { emotes.clear(); doozer.lookAt(0, 0); }
+  }
 
   function applyOpen(announce: boolean): void {
     el.dataset.open = isOpen ? '1' : '0';
     el.inert = !isOpen;
-    doozer.setLive(isOpen);
-    director.setActive(isOpen);
+    applyLively();
     if (isOpen) paint();
-    else { emotes.clear(); doozer.lookAt(0, 0); }
     if (announce) options.onOpenChange?.(isOpen);
   }
 
@@ -403,6 +430,11 @@ export function createCard(brain: Brain, options: CardOptions = {}): Card {
     },
     toggle() { if (isOpen) api.close(); else api.open(); },
     focus() { if (isOpen) button('feed').focus(); },
+    setLively(on) {
+      if (scope.disposed || lively === on) return;
+      lively = on;
+      applyLively();
+    },
     destroy() {
       scope.dispose();
       el.remove();

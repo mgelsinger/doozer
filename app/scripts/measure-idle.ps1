@@ -3,6 +3,11 @@
 #
 #   pwsh app/scripts/measure-idle.ps1 -Exe app/src-tauri/target/release/doozer.exe
 #   pwsh app/scripts/measure-idle.ps1 -Exe <exe> -Scenario idle -ScenarioArgs '{"view":"desktop"}'
+#   pwsh app/scripts/measure-idle.ps1 -Exe <exe> -Scenario app-idle -Cloak                  # the real app, at rest in the pill
+#   pwsh app/scripts/measure-idle.ps1 -Exe <exe> -Scenario app-idle -ScenarioArgs '{"focus":true}' -Cloak
+#
+# `idle` sits on the shell's test page; `app-idle` sits in the real Pill view
+# (arguments: "focus" runs a session, "card" leaves the Card open, "asleep" naps).
 #
 # -Scenario / -ScenarioArgs only work with a `--features spike` build (see
 # docs/shell-spike.md). Without them the app starts as a user would start it.

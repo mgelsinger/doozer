@@ -74,12 +74,19 @@ export interface Doozer {
    * Unlike `perform('squish')` it does not replace the current flash or performance.
    */
   squish(strength?: number): void;
-  blink(): void;
+  /**
+   * Blink. `still` is the cheap form for a rig that is resting (`setLive(false)`): the eyes
+   * shut and open in two redraws, with no animation in between, so it works while paused.
+   */
+  blink(still?: boolean): void;
   /** End anything temporary now and show the mood. */
   stop(): void;
   /** Stop everything and remove the element. */
   destroy(): void;
 }
+
+/** How long the eyes stay shut in a still blink. */
+const STILL_BLINK_MS = 110;
 
 /** Below this width the rig switches to its heavier small-size drawing. */
 export const SMALL_SIZE_PX = 84;
@@ -130,6 +137,7 @@ export function createDoozer(options: DoozerOptions = {}): Doozer {
   let reduce = options.reduceMotion ?? systemPrefersReducedMotion();
   let destroyed = false;
   let fidgetTimer: unknown = null;
+  let blinkTimer: unknown = null;
   let lastLook: Look | null = null;
 
   function paint(look: Look): void {
@@ -170,7 +178,14 @@ export function createDoozer(options: DoozerOptions = {}): Doozer {
     node.animate(frames, { duration, easing: 'ease-in-out', fill: 'none' });
   }
 
-  function blink(): void {
+  function blink(still = false): void {
+    if (still) {
+      // Two redraws and a timer. Nothing here depends on an animation frame.
+      if (destroyed || reduce || blinkTimer !== null) return;
+      el.dataset.blink = '1';
+      blinkTimer = timers.set(() => { blinkTimer = null; el.dataset.blink = '0'; }, STILL_BLINK_MS);
+      return;
+    }
     for (const eye of eyes) {
       quick(eye, [{ transform: 'scaleY(1)' }, { transform: 'scaleY(.08)', offset: 0.45 }, { transform: 'scaleY(1)' }], 150);
     }
@@ -273,6 +288,8 @@ export function createDoozer(options: DoozerOptions = {}): Doozer {
       state.destroy();
       if (fidgetTimer !== null) timers.clear(fidgetTimer);
       fidgetTimer = null;
+      if (blinkTimer !== null) timers.clear(blinkTimer);
+      blinkTimer = null;
       if (typeof el.getAnimations === 'function') {
         for (const animation of el.getAnimations({ subtree: true })) animation.cancel();
       }

@@ -21,6 +21,7 @@ const card = createCard(brain, {
 host.append(card.el);                          // 320 px wide; you place it
 card.el.style.setProperty('--dzk-origin', '50% -20px');   // where it unfolds from
 card.toggle();
+card.setLively(false);                         // open but perfectly still, for when nobody is looking
 
 const radial = createRadial(brain, { onMore: () => card.open() });
 petElement.append(radial.el);                  // a zero-size anchor: put it at Doozer's middle
@@ -61,7 +62,8 @@ Sizing hooks (CSS custom properties): `--dzk-card-w`, `--dzk-origin`, `--dzk-rad
 2. **Everything temporary is ended by a timer.** Emotes (`Transients`), temporary faces (`ExpressionState`), tooltips (a maximum time), the Radial (it closes itself when left alone).
 3. **One scene at a time** (`SceneRunner`). A scene only pauses through its context, so ending it is: run its clean-ups and never resume it. A new scene, a refusal, falling asleep, closing the Card, or a time limit all take that same path.
 4. **Menus close when Doozer is interrupted.** Any brain action, a session starting or finishing, a press outside, Escape, idling, or the view calling `interrupt()`.
-5. **Double presses count once.** Card buttons ignore a second press within 320 ms (compared by event time, with no timer), so a double-click cannot nap-then-wake or spend two treats.
+5. **An open Card nobody is looking at is still.** `card.setLively(false)` pauses its Doozer and its scenes while the meters and the clock keep painting; the view decides when (the Pill view does it a few seconds after the pointer leaves). Added in Phase 6 for render on demand.
+6. **Double presses count once.** Card buttons ignore a second press within 320 ms (compared by event time, with no timer), so a double-click cannot nap-then-wake or spend two treats.
 
 Tests for all of this run without a browser: `lifecycle.test.ts`, `presenter.test.ts`, and `../character/expression-state.test.ts`.
 

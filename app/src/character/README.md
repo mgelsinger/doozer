@@ -23,6 +23,7 @@ doozer.setWalkCycle(walkCycleMs(112, 30));   // match the feet to the ground spe
 doozer.setPose('carried', 'wow');  // a pose can carry a face for as long as it is held
 
 doozer.setLive(false);             // pause every loop: nothing redraws (idle, hidden)
+doozer.blink(true);                // a still blink: two redraws and a timer, works while paused
 doozer.destroy();
 ```
 
