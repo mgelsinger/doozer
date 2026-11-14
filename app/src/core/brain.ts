@@ -26,6 +26,7 @@ import {
   FIRST_OF_DAY_BONUS,
   FOCUS_LENGTHS,
   FOCUS_TREATS,
+  REWARDS,
   LIMITS,
   LOW_MOOD,
   MEALS,
@@ -376,6 +377,7 @@ export function createBrain(options: BrainOptions = {}): Brain {
       return settings;
     },
     limits: LIMITS,
+    rewards: REWARDS,
 
     feed: () =>
       act('feed', () => {

@@ -5,6 +5,7 @@
 
 import type {
   FocusMinutes,
+  FocusRewards,
   Limits,
   MealId,
   Mood,
@@ -108,6 +109,8 @@ export const FOCUS_LENGTHS: readonly FocusMinutes[] = [15, 25, 50];
 export const DEFAULT_FOCUS_MINUTES: FocusMinutes = 25;
 export const FOCUS_TREATS: Readonly<Record<FocusMinutes, number>> = { 15: 1, 25: 2, 50: 4 };
 export const FIRST_OF_DAY_BONUS = 1;
+/** The same two numbers in the shape views read them (`brain.rewards`). */
+export const REWARDS: FocusRewards = Object.freeze({ treats: Object.freeze({ ...FOCUS_TREATS }), firstOfDay: FIRST_OF_DAY_BONUS });
 
 export function defaultSettings(): Settings {
   return {

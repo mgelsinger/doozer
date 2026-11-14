@@ -40,6 +40,12 @@ export interface Limits {
   readonly urgent: number;   // a need below this is 'urgent' (12)
 }
 
+/** What a completed focus session earns (DESIGN_SPEC.md 4.2), so a view can say so before it starts. */
+export interface FocusRewards {
+  readonly treats: Readonly<Record<FocusMinutes, number>>;   // 15 -> 1, 25 -> 2, 50 -> 4
+  readonly firstOfDay: number;                               // extra for the first completed session of the day (1)
+}
+
 // ---- state ----------------------------------------------------------------------
 
 export interface FocusState {
@@ -150,6 +156,7 @@ export interface Brain {
   readonly state: PetState;
   readonly settings: Readonly<Settings>;
   readonly limits: Limits;
+  readonly rewards: FocusRewards;
 
   // care
   feed(): ActionResult;            // hand-feed one meal now; does not touch the bowl

@@ -244,6 +244,7 @@ export function createFakeBrain(options: FakeBrainOptions = {}): Brain {
     get state() { return state; },
     get settings() { return settings; },
     limits: FAKE_LIMITS,
+    rewards: { treats: REWARD, firstOfDay: 1 },
 
     feed() {
       if (asleep) return refuse('feed', 'asleep');

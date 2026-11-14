@@ -58,6 +58,12 @@ export interface Limits {
   readonly urgent: number;   // a need below this is 'urgent' (12)
 }
 
+/** What a completed focus session earns (DESIGN_SPEC.md 4.2), so a view can say so before it starts. */
+export interface FocusRewards {
+  readonly treats: Readonly<Record<FocusMinutes, number>>;   // 15 -> 1, 25 -> 2, 50 -> 4
+  readonly firstOfDay: number;                               // extra for the first completed session of the day (1)
+}
+
 // ---- state ----------------------------------------------------------------------
 
 export interface FocusState {
@@ -168,6 +174,7 @@ export interface Brain {
   readonly state: PetState;
   readonly settings: Readonly<Settings>;
   readonly limits: Limits;
+  readonly rewards: FocusRewards;
 
   // care
   feed(): ActionResult;            // hand-feed one meal now; does not touch the bowl
@@ -234,8 +241,9 @@ export type CreateBrain = (options?: BrainOptions) => Brain;
 
 - Calls `tick()` on an interval, and after resume.
 - Subscribes to events and mounts the view **before** the first `tick()`: the `away` event and a focus session that completed while the app was closed are delivered on that first tick.
-- Persists `serialize()` shortly after each `change` or `settings` event (debounced) and on quit; passes it back as `save` on the next start. Settings are not part of `state`, so a setting on its own fires `settings` but not `change`.
-- Owns anything that is about the *window* rather than the *pet*: per-view window positions, which monitor, tray state.
+- Persists `serialize()` and passes it back as `save` on the next start. **Shortly after anything happens** (an `action`, `focus`, `settings` or `away` event: within a second, debounced), **when quitting, and when tucking away**. A `change` with none of those is only time passing (needs draining, a countdown moving); the brain works that out again from `lastSeen` on the next start, so it is written lazily, within five minutes. Settings are not part of `state`, so a setting on its own fires `settings` but not `change`. The host wraps the brain's document in its own (`{ brain, host }`, `app/src/host/store.ts`) so the window positions travel in the same file.
+- Owns anything that is about the *window* rather than the *pet*: per-view window positions, which monitor, tray state, and whether a newly hatched pet has been welcomed yet.
+- Tells views which view is on screen. The brain only knows the *last* view (`settings.lastView`, which the host sets after every switch); the Card and the settings panel are given a `currentView()` callback by the view that mounts them.
 
 ## What a view does (not the brain)
 
@@ -272,3 +280,4 @@ Things the types cannot say, fixed by the Phase 4 implementation in `app/src/cor
 
 - **2026-11-11** — First version, written from DESIGN_SPEC.md sections 3–5 and 9.
 - **2026-11-11** — Phase 4 (brain). `BrainOptions.debug` added: the contract said `brain.debug` is absent in production but gave no way to choose. The `away` comment now says when it is delivered (first `tick()`, and after a long gap between ticks). Host notes: subscribe before the first tick; persist on `settings` as well as `change`. New section "How the real brain behaves". No existing type changed.
+- **2026-11-13** — Phase 6 (Pill view and app basics). `Brain.rewards` (`FocusRewards`) added, so the Card can say what a session earns without a view hard-coding a rule; the numbers are `FOCUS_TREATS` and `FIRST_OF_DAY_BONUS` in `tuning.ts`. Host notes rewritten to say exactly when the save is written and that the host wraps the brain's document. No existing type changed.
