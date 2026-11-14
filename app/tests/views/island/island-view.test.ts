@@ -843,6 +843,26 @@ describe('render on demand', () => {
     expect(seen.running).toBeLessThan(0.05);
   });
 
+  it('the countdown ticking every second draws nothing: a change in the brain is not a change in the picture', async () => {
+    const r = await mount();
+    r.brain.startFocus();
+    await rest(r);
+    const left = r.brain.state.focus.remainingMs;
+    let changes = 0;
+    const off = r.brain.on('change', () => { changes++; });
+    const frames = r.snap().frames;
+    const asked = r.screen.state.requested;
+    // As the host's clock does it: the brain is ticked once a second, and says "change" each time.
+    for (let i = 0; i < 60; i++) { await tick(1000); r.brain.tick(); }
+    off();
+    expect(r.brain.state.focus.remainingMs).toBeLessThan(left - 55_000);
+    expect(changes).toBeGreaterThanOrEqual(55);
+    // A minute holds five to twelve blinks of two redraws each, and nothing else.
+    expect(r.snap().frames - frames).toBeLessThanOrEqual(24);
+    expect(r.screen.state.requested - asked).toBeLessThanOrEqual(24);
+    expect(r.parts().root.querySelector('.dzk-focus-chip')?.textContent).toMatch(/^2[34]:\d\d$/);
+  });
+
   it('every minute to three, alone and awake, a small stir: a second of movement, and Doozer does not come alive for it', async () => {
     const r = await mount();
     await rest(r);

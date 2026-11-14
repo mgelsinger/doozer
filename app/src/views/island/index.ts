@@ -349,7 +349,10 @@ export function createIslandView(options: IslandViewOptions = {}): IslandView {
     }, { timers, random });
     director = theDirector;
     scope.add(() => theDirector.destroy());
-    scope.add(brain.on('change', () => { syncTimers(); wake(); }));
+    // A change in the brain is not a change in the picture: whatever does change what is
+    // drawn (Doozer's face, the world) asks for its own frame. Waking the loop here drew a
+    // frame for every tick of a countdown, once a second for a whole focus session.
+    scope.add(brain.on('change', () => syncTimers()));
 
     // ---- the Radial, the Card and the settings panel -----------------------------------------
     const radial = createRadial(brain, {

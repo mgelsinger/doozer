@@ -694,6 +694,56 @@ const own = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const collect = (): void => { (globalThis as unknown as { gc?: () => void }).gc?.(); };
 
 /**
+ * A bare WebGL canvas the size of the Island's, with one spinning triangle, for `ms`; then
+ * the context is given back and the canvas removed, as the Island does on leaving. Nothing
+ * of three.js and nothing of the view: what this leaves behind, the browser keeps for any
+ * page that has ever drawn with WebGL.
+ */
+async function bareWebGL(ms: number): Promise<boolean> {
+  const ratio = window.devicePixelRatio || 1;
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(380 * ratio);
+  canvas.height = Math.round(450 * ratio);
+  canvas.style.cssText = 'position:fixed;left:0;top:0;width:380px;height:450px;pointer-events:none';
+  document.body.append(canvas);
+  const gl = canvas.getContext('webgl2', { antialias: true, alpha: true, powerPreference: 'low-power' });
+  if (!gl) { canvas.remove(); return false; }
+  const shader = (type: number, source: string): WebGLShader => {
+    const made = gl.createShader(type) as WebGLShader;
+    gl.shaderSource(made, source);
+    gl.compileShader(made);
+    return made;
+  };
+  const program = gl.createProgram() as WebGLProgram;
+  gl.attachShader(program, shader(gl.VERTEX_SHADER, '#version 300 es\nin vec2 p; uniform float a; void main() { float c = cos(a), s = sin(a); gl_Position = vec4(p.x * c - p.y * s, p.x * s + p.y * c, 0.0, 1.0); }'));
+  gl.attachShader(program, shader(gl.FRAGMENT_SHADER, '#version 300 es\nprecision mediump float; out vec4 o; void main() { o = vec4(1.0, 0.7, 0.5, 1.0); }'));
+  gl.linkProgram(program);
+  gl.useProgram(program);
+  const buffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0.7, -0.6, -0.5, 0.6, -0.5]), gl.STATIC_DRAW);
+  const at = gl.getAttribLocation(program, 'p');
+  gl.enableVertexAttribArray(at);
+  gl.vertexAttribPointer(at, 2, gl.FLOAT, false, 0, 0);
+  const angle = gl.getUniformLocation(program, 'a');
+  const began = performance.now();
+  while (performance.now() - began < ms) {
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.uniform1f(angle, (performance.now() - began) / 600);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    await sleep(16);
+  }
+  const drawn = gl.getError() === gl.NO_ERROR;
+  gl.deleteBuffer(buffer);
+  gl.deleteProgram(program);
+  gl.getExtension('WEBGL_lose_context')?.loseContext();
+  canvas.remove();
+  return drawn;
+}
+
+/**
  * Sits in the Pill, goes to the Island and back ten times, and writes a marker file each
  * time it is back in the Pill and has settled. scripts/measure-island-leak.ps1 watches for
  * the markers and reads the processes' memory at each one.
@@ -706,8 +756,14 @@ const leak: Scenario = async (app, args) => {
   const settleMs = Number(args.settleMs ?? 6000);
   const rows: unknown[] = [];
   const switches: { round: number; inMs: number; outMs: number; timing: IslandSnapshot['timing'] | null }[] = [];
-  /** "control": make the same trips by way of another view (the Room), to see what a trip leaves behind whichever view it is to. */
+  /**
+   * Two control runs, to tell what is the Island's from what is not. "room": the same trips
+   * by way of the Room, which draws no 3D. "webgl": no trip at all; the Pill stays, and a
+   * bare WebGL canvas with one triangle on it, nothing of three.js or of this view, is put
+   * up for the same ten seconds and taken down the same way.
+   */
   const control = args.control === 'room' ? 'room' as const : null;
+  const bare = args.control === 'webgl';
   const point = async (name: string, more: Record<string, unknown> = {}): Promise<void> => {
     await park();
     await sleep(settleMs / 2);
@@ -727,6 +783,12 @@ const leak: Scenario = async (app, args) => {
    * keep the whole frame), and a weak reference to the stage, which holds nothing.
    */
   const visit = async (i: number) => {
+    if (bare) {
+      const drawn = await bareWebGL(7000);
+      const inIsland = { info: null, solid: drawn ? 1 : 0, heap: heap(), engineFrames: engineFrames() };
+      if (i === 1 || i === rounds) await point(`island-${i}`, { inIsland });
+      return { arrived: true, inMs: 0, timing: null, inIsland, engine: null };
+    }
     // How long the switch itself takes, as the host does it (pop-out, window, mount, show).
     const t0 = performance.now();
     const arrived = await app.host.switchTo(control ?? 'island');
@@ -765,7 +827,7 @@ const leak: Scenario = async (app, args) => {
   for (let i = 1; i <= rounds; i++) {
     const seen = await visit(i);
     const t1 = performance.now();
-    const left = await app.host.switchTo('pill');
+    const left = bare ? true : await app.host.switchTo('pill');
     switches.push({ round: i, inMs: seen.inMs, outMs: Math.round(performance.now() - t1), timing: seen.timing });
     await app.host.settled();
     await sleep(450);

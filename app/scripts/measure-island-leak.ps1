@@ -20,7 +20,8 @@ param(
   [string] $Exe = (Join-Path $PSScriptRoot '..\src-tauri\target\island\release\doozer.exe'),
   [int] $Rounds = 10,
   [int] $SettleMs = 6000,
-  # 'room': make the same trips by way of the Room instead, to see what a trip leaves behind whichever view it is to.
+  # Control runs. 'room': the same trips by way of the Room, which draws no 3D. 'webgl': no trip at all,
+  # only a bare WebGL canvas with one triangle put up and taken down in the Pill.
   [string] $Control = '',
   [string] $Out = '',
   [switch] $Show
@@ -107,7 +108,8 @@ function Read-Memory([int] $rootId) {
 $app = Start-Process -FilePath $exePath -PassThru
 $readings = @()
 $seen = @{}
-$deadline = (Get-Date).AddSeconds(120 + $Rounds * 60)
+# Long enough for every wait: each trip settles once in the Pill, and the first and last also in the Island.
+$deadline = (Get-Date).AddSeconds(120 + $Rounds * 60 + ($Rounds + 3) * $SettleMs / 1000)
 try {
   while ((Get-Date) -lt $deadline -and -not $app.HasExited) {
     Start-Sleep -Milliseconds 400
