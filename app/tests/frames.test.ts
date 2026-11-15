@@ -3,15 +3,26 @@ import { AMBIENT_FPS, ATTENDED_FPS, ATTEND_MS, FALLBACK_MS, FrameClock } from '.
 
 // ---- A pretend screen: a clock, timers, and frames at a refresh rate -------------------
 
-function pretendScreen(hz = 120) {
+/**
+ * As a browser does it. Every frame is stamped with the moment of the refresh it belongs
+ * to. A page that has had a frame lately is offered the next refresh. A page that has been
+ * idle for a few refreshes (`idleRefreshes`; Infinity: never) is handed the refresh it has
+ * just missed, at once.
+ */
+function pretendScreen(hz = 120, idleRefreshes = 3.5) {
   let time = 0;
   let nextTimer = 1;
   const timers = new Map<number, { at: number; fn: () => void }>();
-  let frameCallbacks: Array<() => void> = [];
+  type FrameCallback = (frameTime?: number) => void;
+  let frameCallbacks: FrameCallback[] = [];
+  const handedAtOnce = new Map<FrameCallback, number>();
   let framesOffered = 0;
   let framesComing = true;
   const period = 1000 / hz;
   let nextRefresh = period;
+  let lastFrameAt = -Infinity;
+  let longestTimer = 0;
+  const stamps: number[] = [];
 
   const runTimersUpTo = (limit: number): void => {
     for (;;) {
@@ -26,12 +37,32 @@ function pretendScreen(hz = 120) {
 
   return {
     timers: {
-      set: (fn: () => void, ms: number) => { const id = nextTimer++; timers.set(id, { at: time + Math.max(0, ms), fn }); return id; },
+      set: (fn: () => void, ms: number) => {
+        const id = nextTimer++;
+        if (ms !== FALLBACK_MS) longestTimer = Math.max(longestTimer, ms);
+        timers.set(id, { at: time + Math.max(0, ms), fn });
+        return id;
+      },
       clear: (handle: unknown) => { timers.delete(handle as number); },
     },
     now: () => time,
-    requestFrame: (callback: () => void) => { frameCallbacks.push(callback); return callback; },
-    cancelFrame: (handle: unknown) => { frameCallbacks = frameCallbacks.filter((c) => c !== handle); },
+    requestFrame: (callback: FrameCallback) => {
+      if (framesComing && time - lastFrameAt > idleRefreshes * period) {
+        // Idle: the refresh just missed, at once.
+        const stamp = nextRefresh - period;
+        const id = nextTimer++;
+        timers.set(id, { at: time, fn: () => { handedAtOnce.delete(callback); lastFrameAt = time; framesOffered++; stamps.push(stamp); callback(stamp); } });
+        handedAtOnce.set(callback, id);
+        return callback;
+      }
+      frameCallbacks.push(callback);
+      return callback;
+    },
+    cancelFrame: (handle: unknown) => {
+      frameCallbacks = frameCallbacks.filter((c) => c !== handle);
+      const id = handedAtOnce.get(handle as FrameCallback);
+      if (id !== undefined) { timers.delete(id); handedAtOnce.delete(handle as FrameCallback); }
+    },
     /** Let `ms` pass: timers fire when due and the screen offers a frame at every refresh. */
     advance(ms: number): void {
       const end = time + ms;
@@ -41,9 +72,11 @@ function pretendScreen(hz = 120) {
         nextRefresh += period;
         if (framesComing && frameCallbacks.length) {
           framesOffered++;
+          lastFrameAt = time;
           const due = frameCallbacks;
           frameCallbacks = [];
-          for (const callback of due) callback();
+          stamps.push(time);
+          for (const callback of due) callback(time);
         }
       }
       runTimersUpTo(end);
@@ -52,8 +85,13 @@ function pretendScreen(hz = 120) {
     /** A hidden or covered window: the screen offers nothing. */
     stopFrames(): void { framesComing = false; },
     pendingTimers: () => timers.size,
-    pendingFrames: () => frameCallbacks.length,
+    pendingFrames: () => frameCallbacks.length + handedAtOnce.size,
     framesOffered: () => framesOffered,
+    /** The longest single wait the clock has asked a timer for (the fallback aside). */
+    longestTimer: () => longestTimer,
+    /** The refresh each frame handed out belonged to. */
+    stamps: () => stamps,
+    period,
   };
 }
 
@@ -130,6 +168,109 @@ function setUp(hz = 120) {
   return { screen, page, clock, detach };
 }
 
+// ---- In step with the screen -------------------------------------------------------------------
+
+describe('each picture on the refresh it was aimed at', () => {
+  /** The gaps between the refreshes the pictures belonged to, in refreshes. */
+  const gapsOf = (screen: ReturnType<typeof pretendScreen>, from = 0): number[] => {
+    const stamps = screen.stamps().slice(from);
+    return stamps.slice(1).map((stamp, i) => Math.round((stamp - (stamps[i] ?? stamp)) / screen.period));
+  };
+
+  it('a slow rate: the idle page is handed the refresh it has just missed, and that is the one aimed for', () => {
+    const { screen, page, clock } = setUp(120);
+    page.add({ css: true });
+    page.emit('animationstart');
+    screen.advance(3000);
+    const gaps = gapsOf(screen, 2);
+    // 24 a second on a 120 Hz screen: every fifth refresh, every time, and nothing passed over to get it.
+    expect(new Set(gaps)).toEqual(new Set([5]));
+    expect(clock.stats.passedOver).toBe(0);
+    expect(clock.stats.late).toBe(0);
+    expect(clock.stats.ticks).toBe(screen.framesOffered());
+  });
+
+  it('a quick rate: the page is still being offered every refresh, and is asked a little before', () => {
+    const { screen, page, clock } = setUp(120);
+    page.add({ css: true });
+    page.emit('animationstart');
+    clock.attend(60_000);
+    screen.advance(2000);
+    expect(new Set(gapsOf(screen, 2))).toEqual(new Set([2]));
+    expect(clock.stats.passedOver).toBe(0);
+    expect(clock.stats.late).toBe(0);
+  });
+
+  it('a 60 Hz screen: 24 a second does not fit, so every third refresh (20 a second), not two-three-two', () => {
+    const { screen, page, clock } = setUp(60);
+    page.add({ css: true });
+    page.emit('animationstart');
+    screen.advance(3000);
+    expect(new Set(gapsOf(screen, 4))).toEqual(new Set([3]));
+    // (One picture may count as late while the clock finds out how this screen behaves.)
+    expect(clock.stats.late).toBeLessThanOrEqual(1);
+  });
+
+  it('a page that is not idle after all costs one late picture, and the clock asks beforehand from then on', () => {
+    // A browser that never hands out a missed frame: whoever asks waits for the next refresh.
+    const screen = pretendScreen(120, Infinity);
+    const page = pretendDocument();
+    const clock = new FrameClock({ timers: screen.timers, now: screen.now, requestFrame: screen.requestFrame, cancelFrame: screen.cancelFrame });
+    clock.attach(page.doc);
+    page.add({ css: true });
+    page.emit('animationstart');
+    screen.advance(3000);
+    const gaps = gapsOf(screen);
+    expect(clock.stats.late).toBe(1);
+    expect(gaps.filter((gap) => gap !== 5)).toEqual([6]);
+    expect(gaps.slice(-20).every((gap) => gap === 5)).toBe(true);
+  });
+
+  it('a page that goes idle sooner than guessed costs one frame passed over, and the clock asks afterwards from then on', () => {
+    // 40 a second (a tick every 25 ms, which the clock guesses is too quick for the page to go idle), on a browser that calls a page idle after two refreshes.
+    const screen = pretendScreen(120, 1.5);
+    const page = pretendDocument();
+    const clock = new FrameClock({ timers: screen.timers, now: screen.now, requestFrame: screen.requestFrame, cancelFrame: screen.cancelFrame });
+    clock.setRates({ ambient: 40, attended: 40 });
+    clock.attach(page.doc);
+    page.add({ css: true });
+    page.emit('animationstart');
+    screen.advance(3000);
+    expect(clock.stats.passedOver).toBe(1);
+    expect(clock.stats.late).toBe(0);
+    // 40 a second at 120 Hz: a tick every third refresh.
+    expect(clock.stats.ticks).toBeGreaterThanOrEqual(118);
+    expect(clock.stats.ticks).toBeLessThanOrEqual(121);
+  });
+
+  it('never waits on one long timer: the browser lets those slip', () => {
+    const { screen, page } = setUp(120);
+    page.add({ css: true });
+    page.emit('animationstart');
+    screen.advance(2000);
+    expect(screen.longestTimer()).toBeGreaterThan(10);
+    expect(screen.longestTimer()).toBeLessThanOrEqual(24);
+  });
+
+  it('a stamp that cannot be right is not believed', () => {
+    const screen = pretendScreen(120);
+    const page = pretendDocument();
+    // A browser whose frame stamps are on some other clock altogether.
+    const clock = new FrameClock({
+      timers: screen.timers, now: screen.now, cancelFrame: screen.cancelFrame,
+      requestFrame: (callback) => screen.requestFrame(() => callback(screen.now() + 5_000_000)),
+    });
+    clock.attach(page.doc);
+    const walk = page.add({ css: true });
+    page.emit('animationstart');
+    screen.advance(2000);
+    // It still ticks, at about the rate asked for, counting from its own clock.
+    expect(clock.stats.ticks).toBeGreaterThanOrEqual(40);
+    expect(clock.stats.ticks).toBeLessThanOrEqual(50);
+    expect(walk.currentTime).toBeGreaterThan(1900);
+  });
+});
+
 // ---- Before it is attached ---------------------------------------------------------------------
 
 describe('a frame clock that paces nothing', () => {
@@ -186,7 +327,8 @@ describe('pacing the page\'s animations', () => {
     screen.advance(1000);
     // A second later it is a second further on (to within one tick), not faster and not slower.
     expect(walk.currentTime).toBeGreaterThan(250 + 1000 - 1000 / AMBIENT_FPS - 1);
-    expect(walk.currentTime).toBeLessThanOrEqual(250 + 1000 + 1);
+    // (A tick comes a millisecond after the refresh it belongs to.)
+    expect(walk.currentTime).toBeLessThanOrEqual(250 + 1000 + 2);
     expect(clock.stats.adopted).toBe(1);
   });
 

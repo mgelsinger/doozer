@@ -17,12 +17,17 @@
 // changes on the same ticks: two things each drawn 30 times a second, out of step, would
 // be 60 frames.
 //
-// A tick waits out most of its interval on a timer and then takes the screen's next
-// frame, so every picture is shown for the same number of the screen's refreshes: 24 a
-// second is every fifth refresh at 120 Hz, and on a 60 Hz screen it becomes every third
-// (20 a second) rather than an uneven two-three-two. A frame that does not come (a hidden
-// or covered window) is replaced by a timer after `FALLBACK_MS`, so nothing here ever
-// waits on a frame for good.
+// A tick waits out most of its interval on a timer and then takes the screen's frame it
+// was aiming for, so every picture is shown for the same number of the screen's
+// refreshes: 24 a second is every fifth refresh at 120 Hz, and on a 60 Hz screen it
+// becomes every third (20 a second) rather than an uneven two-three-two. Two things make
+// that true, both found by looking at when the pictures really reached the screen
+// (docs/polish-checks.md section 6): the wait is taken in short hops, because the
+// browser lets a long timer slip; and a frame that belongs to an earlier refresh than
+// the one aimed for (the browser hands a page that has been idle the frame it just
+// missed, at once) is passed over for the next. A frame that does not come (a hidden or
+// covered window) is replaced by a timer after `FALLBACK_MS`, so nothing here ever waits
+// on a frame for good.
 //
 // The rate. `AMBIENT_FPS` when nobody is there: 24, the rate of film and of drawn
 // animation. `ATTENDED_FPS` (60) while the pointer is on something of Doozer's or was a
@@ -60,6 +65,14 @@ export const ATTEND_MS = 4000;
 export const FALLBACK_MS = 300;
 /** A tick asks for its frame this long before it is due, so that it gets the refresh it is due on. */
 const LEAD_MS = 5;
+/** An interval at least this long is one the page goes idle in; see `schedule`. */
+const IDLE_MS = 30;
+/** How long after the refresh aimed for an idle page asks for its frame. */
+const AFTER_MS = 1;
+/** A frame stamped more than this long before the moment aimed for belongs to an earlier refresh. */
+const EARLY_MS = 2;
+/** The longest single timer a tick waits on; see `waitUntil`. */
+const HOP_MS = 24;
 /** Every CSS animation inside an element matching this is held still. */
 const HOLD = '[data-live="0"]';
 
@@ -72,7 +85,7 @@ export interface FrameClockOptions {
   /** Milliseconds, monotonic. */
   now?: () => number;
   /** The screen's own frames. Null: there are none (a test without a DOM), and ticks run on timers alone. */
-  requestFrame?: ((callback: () => void) => unknown) | null;
+  requestFrame?: ((callback: (frameTime?: number) => void) => unknown) | null;
   cancelFrame?: (handle: unknown) => void;
 }
 
@@ -81,6 +94,9 @@ export interface FrameStats {
   /** Ticks that came with a frame of the screen's, and ticks a timer had to stand in for. */
   ticks: number;
   fallbacks: number;
+  /** Frames passed over because they belonged to an earlier refresh than the one aimed for, and pictures that came a refresh late. */
+  passedOver: number;
+  late: number;
   /** Animations taken over, finished by the clock, and handed back after an error. */
   adopted: number;
   finished: number;
@@ -110,13 +126,13 @@ function held(animation: Animation): boolean {
   return !!target && typeof target.closest === 'function' && target.closest(HOLD) !== null;
 }
 
-const globalFrame = (): ((callback: () => void) => unknown) | null =>
-  typeof requestAnimationFrame === 'function' ? (callback) => requestAnimationFrame(() => callback()) : null;
+const globalFrame = (): ((callback: (frameTime?: number) => void) => unknown) | null =>
+  typeof requestAnimationFrame === 'function' ? (callback) => requestAnimationFrame((frameTime) => callback(frameTime)) : null;
 
 export class FrameClock {
   private readonly timers: Timers;
   private readonly now: () => number;
-  private readonly requestFrame: ((callback: () => void) => unknown) | null;
+  private readonly requestFrame: ((callback: (frameTime?: number) => void) => unknown) | null;
   private readonly cancelFrame: (handle: unknown) => void;
 
   private readonly callbacks = new Map<number, FrameCallback>();
@@ -132,13 +148,21 @@ export class FrameClock {
   private pacing_ = false;
   private running_ = false;
   private last = -Infinity;
+  /** The moment the next tick is aiming for. */
+  private aim = -Infinity;
+  /** The interval the ticks are being spaced at, and what has been learnt of the page at that rate. */
+  private interval = 0;
+  /** True: the page goes idle between ticks and is handed a missed frame at once. Null: not known yet. */
+  private idle: boolean | null = null;
+  /** This tick's frame is being asked for just after the moment aimed for, not just before. */
+  private after = false;
   private waiting: unknown = null;
   private frame: unknown = null;
   private fallback: unknown = null;
   private attendedUntil = -Infinity;
   private ambient = AMBIENT_FPS;
   private attended = ATTENDED_FPS;
-  private readonly stats_ = { ticks: 0, fallbacks: 0, adopted: 0, finished: 0, released: 0, moving: 0 };
+  private readonly stats_ = { ticks: 0, fallbacks: 0, passedOver: 0, late: 0, adopted: 0, finished: 0, released: 0, moving: 0 };
 
   constructor(options: FrameClockOptions = {}) {
     this.timers = options.timers ?? realTimers;
@@ -262,22 +286,82 @@ export class FrameClock {
   private schedule(): void {
     // Wait out most of the interval, then take the next frame the screen offers. After a
     // rest the wait is over already, and whatever woke the clock is answered at once.
-    const lead = this.requestFrame ? LEAD_MS : 0;
-    const wait = 1000 / Math.min(240, Math.max(1, this.fps)) - (this.now() - this.last) - lead;
-    if (wait > 2) this.waiting = this.timers.set(() => { this.waiting = null; this.ask(); }, wait);
-    else this.ask();
+    const interval = 1000 / Math.min(240, Math.max(1, this.fps));
+    if (interval !== this.interval) { this.interval = interval; this.idle = null; }
+    this.aim = this.last + interval;
+    // At a quick rate the page is still being offered every refresh, and a frame asked for
+    // a little before the one aimed for is that one. At a slow rate the page has gone idle
+    // by then, and is handed the refresh it has just missed the moment it asks: asked for
+    // a little *after* the one aimed for, that is the very one, with nothing to pass over.
+    // Which of the two the page is, at this rate, is learnt from what the last frame turned
+    // out to be (`askFrame`); until then it is guessed from the length of the interval.
+    this.after = this.requestFrame !== null && (this.idle ?? interval >= IDLE_MS);
+    const lead = !this.requestFrame ? 0 : this.after ? -AFTER_MS : LEAD_MS;
+    this.waitUntil(this.aim - lead);
+  }
+
+  /**
+   * Wait until `due`, then ask for the frame. A long wait is taken in hops of at most
+   * `HOP_MS`: the browser keeps a timer to the millisecond only if it is short (under
+   * about 32 ms on Windows) and otherwise lets it slip to the system's 15.6 ms beat, which
+   * at 24 pictures a second showed one picture for four refreshes of the screen and the
+   * next for six (docs/polish-checks.md section 6).
+   */
+  private waitUntil(due: number): void {
+    const left = due - this.now();
+    if (left <= 2) { this.ask(); return; }
+    const hop = left > HOP_MS ? left / Math.ceil(left / HOP_MS) : left;
+    this.waiting = this.timers.set(() => { this.waiting = null; this.waitUntil(due); }, hop);
   }
 
   private ask(): void {
-    if (this.requestFrame) this.frame = this.requestFrame(() => { this.frame = null; this.tick(true); });
+    this.askFrame(true);
     this.fallback = this.timers.set(() => { this.fallback = null; this.tick(false); }, this.requestFrame ? FALLBACK_MS : 0);
   }
 
-  private tick(framed: boolean): void {
+  /**
+   * Take the screen's frame, if it is the one this tick is aiming for. The browser stamps
+   * a frame with the moment of the refresh it belongs to. A page that has been idle for a
+   * few refreshes is handed, at once, the frame of the refresh it has just missed: drawn
+   * on that one, pictures come whenever the timer happened to fire and are shown for four
+   * refreshes or six as it falls. So a frame from before the aimed-for refresh is passed
+   * over, once, for the next one, which is the refresh itself.
+   */
+  private askFrame(mayPassOver: boolean): void {
+    if (!this.requestFrame) return;
+    this.frame = this.requestFrame((frameTime) => {
+      this.frame = null;
+      const now = this.now();
+      // A stamp is believed only if it is a moment ago on this clock.
+      const stamped = typeof frameTime === 'number' && frameTime <= now + 1 && now - frameTime < 100;
+      // (Only a frame near the moment aimed for says anything: after a rest there was no aim.)
+      const near = stamped && Math.abs(frameTime - this.aim) < 40;
+      if (near && frameTime < this.aim - EARLY_MS) {
+        // The refresh before the one aimed for: the page had gone idle and was handed it at once.
+        this.idle = true;
+        if (mayPassOver) {
+          this.stats_.passedOver++;
+          this.askFrame(false);
+          return;
+        }
+      } else if (near && this.after && frameTime > this.aim + EARLY_MS) {
+        // Asked just after the refresh aimed for, and given the next one: the page was not
+        // idle after all. This picture is a refresh late; the next is asked for beforehand.
+        this.idle = false;
+        this.stats_.late++;
+      }
+      this.tick(true, stamped ? frameTime : now);
+    });
+  }
+
+  private tick(framed: boolean, frameTime?: number): void {
     this.clear();
     if (!this.running_) return;
     const now = this.now();
-    this.last = now;
+    // Counting from the refresh the picture belongs to, not from when its turn came, keeps
+    // the ticks in step with the screen instead of drifting across it.
+    // (With no stamp to go by, a tick that came just after the moment it aimed for counts as that moment.)
+    this.last = frameTime ?? (now >= this.aim && now - this.aim < 8 ? this.aim : now);
     if (framed) this.stats_.ticks++; else this.stats_.fallbacks++;
 
     // The animations first, while nothing in the page has been touched yet: looking at
