@@ -534,7 +534,17 @@ fn window_info(mode: &WindowMode, view: Option<String>, rect: Rect, monitor: Mon
 /// still has it and that one still exists. If the user has already clicked elsewhere, the
 /// keyboard is where they put it and stays there.
 fn give_keyboard_back(ours: Hwnd, from: isize) {
-  if win::foreground_window() == ours.0 && win::is_window(Hwnd(from)) {
+  // While the foreground is passing from one window to another Windows says there is
+  // none. That is not "the user has gone elsewhere": wait it out, briefly.
+  let mut front = win::foreground_window();
+  for _ in 0..12 {
+    if front != 0 {
+      break;
+    }
+    std::thread::sleep(Duration::from_millis(10));
+    front = win::foreground_window();
+  }
+  if front == ours.0 && win::is_window(Hwnd(from)) {
     win::set_foreground(Hwnd(from));
   }
 }

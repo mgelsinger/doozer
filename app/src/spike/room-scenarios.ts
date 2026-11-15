@@ -346,17 +346,30 @@ const furnitureRun: RoomScenario = async (app) => {
   const readWrong = await settle(app);
   const reading = snap();
   await sleep(2200);
+  // Nobody is there: the time left is shown to the minute (Phase 10; a countdown in seconds
+  // has the window drawn again every second for nobody).
+  await park();
+  await sleep(300);
+  const alone = snap().time;
+  // The pointer comes into the room and stays: to the second again.
+  const middle = centre(scene);
+  await cursor(middle, false);
+  pointer(scene, 'pointermove', middle, 0);
+  await sleep(260);
+  pointer(scene, 'pointermove', { x: middle.x + 2, y: middle.y }, 0);
+  await sleep(350);
   const later = snap().time;
   const clockArt = scene.querySelector('.roomv-f-clock')?.getAttribute('data-status');
   const wedge = scene.querySelector('.roomv-clock-wedge')?.getAttribute('d') ?? '';
   await press(furniture.clock);
   const stopped = { focus: brain.state.focus.status, station: snap().station, time: snap().time };
   const stopWrong = await settle(app);
-  rows.clock = { started, reading: { station: reading.station, pose: reading.pose, x: reading.x, book: reading.bookHeld }, later, stopped };
+  rows.clock = { started, reading: { station: reading.station, pose: reading.pose, x: reading.x, book: reading.bookHeld }, alone, later, stopped };
   check(failures, {
     'clock: a click starts a session': started.focus === 'running' && started.scene === 'fetch-book' && started.time === '25:00' && started.glasses === '1',
     'clock: Doozer fetches its book and reads on the rug': readWrong === '' && reading.station === 'reading' && reading.pose === 'read' && reading.x === SPOT.rug && reading.bookHeld,
-    'clock: the clock on the shelf runs': clockArt === 'running' && wedge.length > 10 && /^24:5\d$/.test(later),
+    'clock: the clock on the shelf runs': clockArt === 'running' && wedge.length > 10 && /^24:[45]\d$/.test(later),
+    'clock: with nobody there the time left is shown to the minute': alone === '25 min',
     'clock: another click stops it, and nothing is lost or owed': stopped.focus === 'idle' && stopped.station === 'free' && /M$/.test(stopped.time) && stopWrong === '' && brain.state.sessionsCompleted === 0,
   });
 

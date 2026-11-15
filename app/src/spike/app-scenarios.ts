@@ -601,7 +601,8 @@ const windowChecks: Scenario = async (app) => {
     autostart.skipped = 'DOOZER_AUTOSTART_KEY is not set, so the real Run key was left alone';
   }
 
-  // The tray menu: unbuilt views are greyed out and say so; Settings opens the panel.
+  // The tray menu: every view is built now, so none is greyed out as "coming soon" (as
+  // the three that were not yet built were when this check was written); Settings opens the panel.
   const menu = await invoke<{ ticked: string[]; trayIconExists: boolean; labels?: Record<string, string>; enabled?: Record<string, boolean> }>('spike_menu', { id: null });
   await invoke('spike_menu', { id: 'settings' });
   await sleep(300);
@@ -610,7 +611,8 @@ const windowChecks: Scenario = async (app) => {
   check(failures, {
     'tray: the icon exists': menu.trayIconExists,
     'tray: the Pill is ticked': menu.ticked.join() === 'pill',
-    'tray: unbuilt views say "coming soon" and cannot be chosen': !!menu.labels && menu.labels.room === 'Room (coming soon)' && menu.enabled?.room === false && menu.enabled?.pill === true,
+    'tray: every view is offered by its name and can be chosen': !!menu.labels && !!menu.enabled
+      && (['pill', 'room', 'island', 'desktop'] as const).every((id) => menu.enabled?.[id] === true && !/coming soon/i.test(menu.labels?.[id] ?? 'coming soon')),
     'tray: Settings opens the settings panel': settingsOpen,
   });
 
