@@ -33,6 +33,25 @@ describe('need levels', () => {
     expect(needText('clean', 3, FAKE_LIMITS)).toBe('Clean 3%, urgent');
   });
 
+  it('a low or urgent need is marked by shape as well as colour, wherever a need is shown', () => {
+    // The stylesheet is where a level becomes a look. Seen in greyscale, a need that is low
+    // or urgent must still differ from one that is fine: these are the rules that do it.
+    const css = readFileSync(fileURLToPath(new URL('./kit.css', import.meta.url)), 'utf8').replace(/\s+/g, ' ');
+    // The meters (the Card, the Room's strip): a "!" flag, and stripes on an urgent bar.
+    expect(css).toMatch(/\[data-level="low"\] > \.dzk-flag, \.dzk \[data-level="urgent"\] > \.dzk-flag \{ display: grid; \}/);
+    expect(css).toMatch(/\[data-level="urgent"\] \.dzk-meter b \{ background-image: repeating-linear-gradient/);
+    // The Radial's rings: a "!" badge on the button.
+    expect(css).toMatch(/\.dzk-rb\[data-level="low"\] \.dzk-rb-badge, \.dzk-rb\[data-level="urgent"\] \.dzk-rb-badge \{ display: grid; \}/);
+    // And the length of a bar or a ring is the level itself: no rule colours a meter without a width or an arc beside it.
+    const meters = readFileSync(fileURLToPath(new URL('./meters.ts', import.meta.url)), 'utf8');
+    expect(meters).toContain('part.bar.style.width = `${percent}%`');
+    expect(meters).toContain("part.root.dataset.level = level");
+    expect(meters).toContain('<span class="dzk-flag" aria-hidden="true">!</span>');
+    const radial = readFileSync(fileURLToPath(new URL('./radial.ts', import.meta.url)), 'utf8');
+    expect(radial).toContain('node.dataset.level = needLevel(value, limits)');
+    expect(radial).toContain(`<span class="dzk-rb-badge" aria-hidden="true">\${item.need ? '!' : ''}</span>`);
+  });
+
   it('every need has a label and an icon', () => {
     for (const key of NEED_KEYS) {
       expect(NEED_ART[key].label).toBeTruthy();
