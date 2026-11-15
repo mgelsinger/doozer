@@ -305,7 +305,38 @@ mod tests {
     }
   }
 
-  /// Start the writer child, plus a thread that forwards each "saved N" line with its arrival time.
+  /// The generation a line of the writer's output reports as saved, if it reports one.
+  ///
+  /// The report is looked for anywhere in the line, not only at its start. The test
+  /// harness the writer runs under prints "test save::tests::torture_writer ... " with no
+  /// line break before the test begins, so the writer's first report arrives as
+  /// "test save::tests::torture_writer ... saved 236". Reading only lines that *begin*
+  /// with "saved " lost the first report of every writer. It went unnoticed for as long
+  /// as the second report followed; but a writer killed just after its second save had
+  /// swapped in, and before it could say so, then left the file two generations ahead of
+  /// the last report the parent had seen, and the parent called that a jump. It happened
+  /// about once in forty runs on a busy disk, and the save was never at fault.
+  fn reported_generation(line: &str) -> Option<u64> {
+    let (_, tail) = line.rsplit_once("saved ")?;
+    let digits: String = tail.chars().take_while(char::is_ascii_digit).collect();
+    digits.parse().ok()
+  }
+
+  #[test]
+  fn every_report_of_the_writer_is_read_wherever_it_is_on_the_line() {
+    assert_eq!(reported_generation("saved 12"), Some(12));
+    assert_eq!(reported_generation("saved 12\r"), Some(12));
+    // The first report of every writer shares its line with the harness's own words.
+    assert_eq!(reported_generation("test save::tests::torture_writer ... saved 236"), Some(236));
+    // A writer killed between a report and its line break leaves the report whole.
+    assert_eq!(reported_generation("saved 7"), Some(7));
+    assert_eq!(reported_generation("running 1 test"), None);
+    assert_eq!(reported_generation("test save::tests::torture_writer ... "), None);
+    assert_eq!(reported_generation("saved "), None);
+    assert_eq!(reported_generation(""), None);
+  }
+
+  /// Start the writer child, plus a thread that forwards each "saved N" report with its arrival time.
   fn spawn_writer(
     dir: &Path,
     fill_bytes: usize,
@@ -322,7 +353,7 @@ mod tests {
     let (tx, rx) = std::sync::mpsc::channel();
     let reader = std::thread::spawn(move || {
       for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-        if let Some(n) = line.strip_prefix("saved ").and_then(|n| n.trim().parse().ok()) {
+        if let Some(n) = reported_generation(&line) {
           let _ = tx.send((n, Instant::now()));
         }
       }

@@ -160,6 +160,22 @@ const frames = {
   animationFrameFired: count('FireAnimationFrame'),
 };
 
+// Cadence: the gaps between one picture put on the screen and the next. An even rhythm is
+// what makes a capped rate read as smooth; a cap that drops and doubles frames does not.
+const drawn = events.filter((e) => e.name === 'Display::DrawAndSwap' && typeof e.ts === 'number').map((e) => e.ts).sort((x, y) => x - y);
+const gaps = [];
+for (let i = 1; i < drawn.length; i++) gaps.push((drawn[i] - drawn[i - 1]) / 1000);
+gaps.sort((x, y) => x - y);
+const at = (share) => (gaps.length ? +gaps[Math.min(gaps.length - 1, Math.floor(share * gaps.length))].toFixed(1) : 0);
+const middle = at(0.5);
+const cadence = {
+  pictures: drawn.length,
+  gapMs: { shortest: at(0), tenth: at(0.1), median: middle, ninetieth: at(0.9), ninetyNinth: at(0.99), longest: at(0.9999) },
+  // How many of the gaps are within a quarter of the usual one, and how many are half as long again or more (a picture missed).
+  withinAQuarter: gaps.length ? +(gaps.filter((g) => Math.abs(g - middle) <= middle / 4).length / gaps.length).toFixed(3) : 0,
+  missed: gaps.filter((g) => g >= middle * 1.5).length,
+};
+
 const busiest = threads.filter((t) => t.cpuMsPerSecond >= 0.2).slice(0, 14);
 const detail = {};
 for (const t of busiest) {
@@ -174,6 +190,7 @@ const summary = {
   seconds: +spanSeconds.toFixed(2),
   events: events.length,
   framesPerSecond: Object.fromEntries(Object.entries(frames).map(([k, v]) => [k, +(v / spanSeconds).toFixed(1)])),
+  cadence,
   totalCpuMsPerSecond: +threads.reduce((sum, t) => sum + t.cpuMsPerSecond, 0).toFixed(1),
   threads: busiest.map((t) => ({ process: t.process, thread: t.thread, cpuMsPerSecond: +t.cpuMsPerSecond.toFixed(2) })),
   detail,
@@ -182,6 +199,7 @@ const summary = {
 if (args.out) (await import('node:fs')).writeFileSync(args.out, JSON.stringify(summary, null, 2));
 console.log(`traced ${summary.seconds} s, ${summary.events} events`);
 console.log('frames per second:', JSON.stringify(summary.framesPerSecond));
+console.log('gaps between pictures on screen, ms:', JSON.stringify(summary.cadence));
 console.log(`all threads together: ${summary.totalCpuMsPerSecond} ms of processor time per second (10 ms = 1 % of one core)`);
 console.table(summary.threads);
 for (const [thread, rows] of Object.entries(detail).slice(0, Number(args.threads ?? 6))) {
