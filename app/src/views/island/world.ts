@@ -241,6 +241,8 @@ export class World {
 
   burst(kind: ParticleKind, x: number, y: number, z: number, count: number,
     options: { spread?: number; up?: number; size?: number; life?: number; gravity?: number; out?: number } = {}): void {
+    // With motion reduced nothing flies about: no crumbs, no raindrops, no puff of stars.
+    if (this.reduce) return;
     const { spread = 0.35, up = 1.1, size = 0.3, life = 1.2, gravity = 0, out = 0.5 } = options;
     for (let i = 0; i < count; i++) {
       if (this.particles.length >= MAX_PARTICLES) this.particles.shift();
@@ -267,7 +269,10 @@ export class World {
   }
   /** True while someone is there to watch: fireflies drift and stars twinkle. */
   setLively(on: boolean): void { this.lively = on; }
-  /** With motion reduced Doozer is placed rather than hopped, and nothing drifts. */
+  /**
+   * With motion reduced Doozer is placed rather than hopped, and nothing drifts, falls,
+   * flies or bounces: a snack is simply there, the ball is simply where a push leaves it.
+   */
   setReduceMotion(on: boolean): void {
     this.reduce = on;
     if (on) this.settle();
@@ -282,7 +287,8 @@ export class World {
   // ---- time ----------------------------------------------------------------------------
 
   get moving(): boolean {
-    return this.trip !== null || this.chasing || (this.ball !== null && !this.ball.resting) || (this.snack !== null && !this.snack.landed)
+    // (With motion reduced Doozer does not run after the ball, so a chase moves nothing.)
+    return this.trip !== null || (this.chasing && !this.reduce) || (this.ball !== null && !this.ball.resting) || (this.snack !== null && !this.snack.landed)
       || this.particles.length > 0 || this.night !== this.nightTarget || this.duck !== this.duckTarget || this.rain !== this.rainTarget
       || this.rain > 0;
   }
@@ -379,6 +385,24 @@ export class World {
   private stepBall(dt: number, body: BodyMotion): void {
     const ball = this.ball;
     if (!ball || ball.resting) return;
+    if (this.reduce) {
+      // No flight and no bounce: the ball is put down a little way along whatever push it was given.
+      const to = this.onIsland(ball.x + ball.vx * 0.45, ball.z + ball.vz * 0.45, ISLAND.fence);
+      let dx = to.x - this.doozer.x;
+      let dz = to.z - this.doozer.z;
+      const flat = Math.hypot(dx, dz);
+      if (flat < 0.94) {
+        // Not inside Doozer.
+        if (flat < 1e-3) { dx = 1; dz = 0; } else { dx /= flat; dz /= flat; }
+        const beside = this.onIsland(this.doozer.x + dx * 0.94, this.doozer.z + dz * 0.94, ISLAND.fence);
+        to.x = beside.x; to.z = beside.z;
+      }
+      ball.x = to.x; ball.z = to.z;
+      ball.vx = 0; ball.vy = 0; ball.vz = 0;
+      ball.y = groundY(ball.x, ball.z) + BALL_RADIUS;
+      ball.resting = true;
+      return;
+    }
     ball.movedFor += dt;
     ball.vy -= 14 * dt;
     ball.x += ball.vx * dt; ball.y += ball.vy * dt; ball.z += ball.vz * dt;
@@ -450,6 +474,13 @@ export class World {
   private stepSnack(dt: number): void {
     const snack = this.snack;
     if (!snack || snack.landed) return;
+    if (this.reduce) {
+      // It does not fall or hop: it is there.
+      snack.y = groundY(snack.x, snack.z);
+      snack.vy = 0;
+      snack.landed = true;
+      return;
+    }
     snack.vy -= 15 * dt;
     snack.y += snack.vy * dt;
     const floor = groundY(snack.x, snack.z);

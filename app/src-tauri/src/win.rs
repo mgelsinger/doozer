@@ -20,11 +20,36 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
 use windows::Win32::UI::Shell::SHQueryUserNotificationState;
 use windows::Win32::UI::WindowsAndMessaging::{
   GWL_EXSTYLE, GetClassNameW, GetCursorPos, GetForegroundWindow, GetWindowLongPtrW, GetWindowRect, HWND_NOTOPMOST,
-  HWND_TOPMOST, IsWindowVisible, LWA_ALPHA, SW_HIDE, SW_SHOWNOACTIVATE, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE,
+  HWND_TOPMOST, IsWindow, IsWindowVisible, LWA_ALPHA, SW_HIDE, SW_SHOWNOACTIVATE, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE,
   SWP_NOCOPYBITS, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetForegroundWindow, SetLayeredWindowAttributes,
   SetWindowLongPtrW, SetWindowPos,
   ShowWindow, WS_EX_APPWINDOW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT,
 };
+
+/// How much larger than usual the whole interface is drawn (the "Interface size"
+/// setting): 1.0, or a little more. The page is zoomed by this in the browser, so one of
+/// its CSS pixels is this many times more device pixels than the display's scaling alone
+/// would make it. Folded into `scale_of` and into every `Monitor`, which is everywhere the
+/// shell turns CSS pixels into device pixels and back: window sizes, hit regions, drags.
+static UI_ZOOM_BITS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0x3FF0_0000_0000_0000);
+
+/// The smallest and largest interface size the shell will draw.
+pub const UI_ZOOM_RANGE: (f64, f64) = (0.75, 2.0);
+
+pub fn ui_zoom() -> f64 {
+  f64::from_bits(UI_ZOOM_BITS.load(std::sync::atomic::Ordering::Relaxed))
+}
+
+/// Returns the zoom actually set: nonsense is taken for 1, and the rest is kept in range.
+pub fn set_ui_zoom(zoom: f64) -> f64 {
+  let zoom = clamp_ui_zoom(zoom);
+  UI_ZOOM_BITS.store(zoom.to_bits(), std::sync::atomic::Ordering::Relaxed);
+  zoom
+}
+
+pub fn clamp_ui_zoom(zoom: f64) -> f64 {
+  if zoom.is_finite() && zoom > 0.0 { zoom.max(UI_ZOOM_RANGE.0).min(UI_ZOOM_RANGE.1) } else { 1.0 }
+}
 
 /// A window handle that can cross threads. Win32 window handles are process-wide
 /// integers; the `HWND` wrapper is only `!Send` because it holds a raw pointer.
@@ -59,7 +84,11 @@ fn monitor_from_handle(handle: HMONITOR) -> Option<Monitor> {
   let (mut dpi_x, mut dpi_y) = (96u32, 96u32);
   // SAFETY: both out-pointers are valid for the call.
   let _ = unsafe { GetDpiForMonitor(handle, MDT_EFFECTIVE_DPI, &mut dpi_x, &mut dpi_y) };
-  Some(Monitor { full: rect_from(info.rcMonitor), work: rect_from(info.rcWork), scale: f64::from(dpi_x.max(1)) / 96.0 })
+  Some(Monitor {
+    full: rect_from(info.rcMonitor),
+    work: rect_from(info.rcWork),
+    scale: f64::from(dpi_x.max(1)) / 96.0 * ui_zoom(),
+  })
 }
 
 /// The monitor the window is (mostly) on.
@@ -101,11 +130,11 @@ pub fn client_to_screen(hwnd: Hwnd, x: i32, y: i32) -> Option<(i32, i32)> {
   unsafe { ClientToScreen(hwnd.raw(), &mut p) }.as_bool().then_some((p.x, p.y))
 }
 
-/// Device pixels per CSS pixel for this window.
+/// Device pixels per CSS pixel for this window: the display's scaling times the interface size.
 pub fn scale_of(hwnd: Hwnd) -> f64 {
   // SAFETY: plain query; returns 0 for an invalid window.
   let dpi = unsafe { GetDpiForWindow(hwnd.raw()) };
-  if dpi == 0 { 1.0 } else { f64::from(dpi) / 96.0 }
+  (if dpi == 0 { 1.0 } else { f64::from(dpi) / 96.0 }) * ui_zoom()
 }
 
 /// The window rectangle in screen pixels.
@@ -206,6 +235,12 @@ pub fn foreground_window() -> isize {
 pub fn set_foreground(hwnd: Hwnd) -> bool {
   // SAFETY: plain window operation on a handle Windows gave us.
   unsafe { SetForegroundWindow(hwnd.raw()) }.as_bool()
+}
+
+/// Is this still a window? (The one that had the keyboard may have closed meanwhile.)
+pub fn is_window(hwnd: Hwnd) -> bool {
+  // SAFETY: plain query; any value is allowed.
+  hwnd.0 != 0 && unsafe { IsWindow(Some(hwnd.raw())) }.as_bool()
 }
 
 /// Claim a machine-wide name for this run. Returns false if another process

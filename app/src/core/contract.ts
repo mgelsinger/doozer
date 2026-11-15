@@ -107,6 +107,7 @@ export interface Settings {
   tuckAwayInFullscreen: boolean;                         // default true
   startWithWindows: boolean;                             // default false
   reduceMotion: 'system' | 'on' | 'off';                 // default 'system'
+  uiScale: 'normal' | 'large' | 'larger';                // default 'normal'; how large the whole interface is drawn
   hat: HatId | null;                                     // default null; only unlocked hats take effect
   lastView: ViewId;                                      // default 'pill'
 }

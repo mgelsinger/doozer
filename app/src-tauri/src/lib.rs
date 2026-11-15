@@ -8,6 +8,7 @@
 //! * `shell` — the window's state and the cursor tracker thread
 //! * `tray`  — tray icon and native menu
 //! * `autostart` — "Start with Windows"
+//! * `hotkey` — the one keyboard shortcut, which opens the Card
 //! * `webview` — asking the browser to hold less memory
 //! * `spike` — test hooks for the Phase 3 spike (`--features spike` only)
 
@@ -16,6 +17,7 @@ compile_error!("Doozer's shell is Windows-only in v1 (DESIGN_SPEC.md section 11)
 
 mod autostart;
 mod hit;
+mod hotkey;
 mod mode;
 pub mod save;
 mod shell;
@@ -216,6 +218,17 @@ fn set_autostart(enabled: bool) -> Result<bool, String> {
   Ok(autostart::is_registered(&key, autostart::VALUE_NAME, &exe))
 }
 
+/// The "Interface size" setting: draw everything `scale` times its usual size. The page
+/// is zoomed in the browser and the shell's own arithmetic follows (`win::scale_of`); the
+/// page then asks for its window again, which comes out that much larger. Returns the
+/// scale that was set.
+#[tauri::command(async)]
+fn set_ui_scale(window: WebviewWindow, scale: f64) -> Result<f64, String> {
+  let zoom = win::clamp_ui_zoom(scale);
+  window.set_zoom(zoom).map_err(|e| e.to_string())?;
+  Ok(win::set_ui_zoom(zoom))
+}
+
 /// Ask the browser to hold as little memory as it can (`low`), or to carry on as normal.
 /// The page asks for this when Doozer is tucked away, and for a moment after a view that
 /// used a lot (the Island) has been left.
@@ -257,6 +270,7 @@ pub fn run() {
       autostart_enabled,
       set_autostart,
       set_low_memory,
+      set_ui_scale,
       quit,
       spike::spike_config,
       spike::spike_inject,
@@ -268,6 +282,7 @@ pub fn run() {
       spike::spike_mark,
       spike::spike_clobber_style,
       spike::spike_menu,
+      spike::spike_shortcut,
       spike::spike_autostart_is_scratch,
       spike::spike_look,
       spike::spike_report,
@@ -299,6 +314,11 @@ pub fn run() {
       let menu = tray::build(&handle)?;
       app.manage(menu);
 
+      // Test runs do not listen for the shortcut: several run at once, cloaked, on a
+      // machine somebody is using, and none of them may take the keyboard from that person.
+      if !spike::allow_many_instances() {
+        hotkey::spawn(handle.clone(), Arc::clone(&shell));
+      }
       shell::spawn_tracker(shell);
       spike::start(&handle);
       Ok(())
@@ -318,6 +338,18 @@ mod tests {
     let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
     assert_eq!(config["identifier"], APP_ID);
     assert_eq!(APP_ID, "com.doozer.desktop");
+  }
+
+  #[test]
+  fn the_interface_size_is_kept_within_reason() {
+    assert_eq!(win::clamp_ui_zoom(1.0), 1.0);
+    assert_eq!(win::clamp_ui_zoom(1.3), 1.3);
+    assert_eq!(win::clamp_ui_zoom(9.0), win::UI_ZOOM_RANGE.1);
+    assert_eq!(win::clamp_ui_zoom(0.1), win::UI_ZOOM_RANGE.0);
+    // Nonsense is no zoom at all, never a window of no size or of endless size.
+    for bad in [0.0, -2.0, f64::NAN, f64::INFINITY] {
+      assert_eq!(win::clamp_ui_zoom(bad), 1.0);
+    }
   }
 
   #[test]

@@ -276,6 +276,118 @@ describe('opening and closing', () => {
   });
 });
 
+describe('the Card from the keyboard (the shortcut)', () => {
+  const focusCalls = (r: Rig): string[] => r.host.calls.filter((call) => call.startsWith('focusable'));
+
+  it('opens the Card, asks for the keyboard and puts the focus on the first action', async () => {
+    const r = mount();
+    r.view.openCard?.(true);
+    expect(r.snap().open).toBe('card');
+    expect(r.parts().card.isOpen).toBe(true);
+    expect(r.host.state.focusable).toBe(true);
+    expect(document.activeElement).toBe(button(r, 'feed'));
+    // The Card catches the mouse as it does when opened with a click.
+    expect(r.view.hitRegions()).toHaveLength(3);
+  });
+
+  it('Escape closes it and gives the keyboard back', async () => {
+    const r = mount();
+    r.view.openCard?.(true);
+    r.parts().card.el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(r.snap().open).toBe('none');
+    expect(r.host.state.focusable).toBe(false);
+    expect(focusCalls(r)).toEqual(['focusable:true', 'focusable:false']);
+  });
+
+  it('the shortcut again closes it, and so does a click on the pill: either way the keyboard goes back', async () => {
+    const r = mount();
+    r.view.openCard?.(true);
+    r.view.openCard?.(true);
+    expect(r.snap().open).toBe('none');
+    expect(r.host.state.focusable).toBe(false);
+    r.view.openCard?.(true);
+    expect(r.host.state.focusable).toBe(true);
+    click(r.parts().pill);
+    expect(r.snap().open).toBe('none');
+    expect(r.host.state.focusable).toBe(false);
+  });
+
+  it('a Card opened with the mouse never has the keyboard, until the shortcut asks for it', async () => {
+    const r = mount();
+    click(r.parts().pill);
+    click(button(r, 'feed'));
+    expect(r.snap().open).toBe('card');
+    expect(focusCalls(r).filter((call) => call === 'focusable:true')).toEqual([]);
+    // Now from the keyboard: the same Card, with the keyboard.
+    r.view.openCard?.(true);
+    expect(r.snap().open).toBe('card');
+    expect(r.host.state.focusable).toBe(true);
+    expect(document.activeElement).toBe(button(r, 'feed'));
+    // Closed and opened again with the mouse: back to never.
+    click(r.parts().pill);
+    expect(r.host.state.focusable).toBe(false);
+    click(r.parts().pill);
+    expect(r.snap().open).toBe('card');
+    expect(r.host.state.focusable).toBe(false);
+  });
+
+  it('from the tray menu the Card opens without the keyboard', async () => {
+    const r = mount();
+    r.view.openCard?.(false);
+    expect(r.snap().open).toBe('card');
+    expect(focusCalls(r).filter((call) => call === 'focusable:true')).toEqual([]);
+  });
+
+  it('keeps the keyboard through the settings and back, and does not invent it for a Card opened with the mouse', async () => {
+    const r = mount();
+    r.view.openCard?.(true);
+    click(button(r, 'settings'));
+    expect(r.snap().open).toBe('settings');
+    expect(r.host.state.focusable).toBe(true);
+    const close = (): HTMLButtonElement | null => r.parts().settings.el.querySelector<HTMLButtonElement>('[aria-label="Close settings"]');
+    click(close() as HTMLButtonElement);
+    // Back on the Card, still with the keyboard, and the focus is on it again.
+    expect(r.snap().open).toBe('card');
+    expect(r.host.state.focusable).toBe(true);
+    expect(document.activeElement).toBe(button(r, 'feed'));
+    click(r.parts().pill);
+    expect(r.host.state.focusable).toBe(false);
+    // The same journey begun with the mouse ends without the keyboard.
+    click(r.parts().pill);
+    click(button(r, 'settings'));
+    click(close() as HTMLButtonElement);
+    expect(r.snap().open).toBe('card');
+    expect(r.host.state.focusable).toBe(false);
+  });
+
+  it('tucked away, the shortcut opens nothing and asks for nothing', async () => {
+    const r = mount();
+    r.view.setAwake?.(false);
+    r.view.openCard?.(true);
+    expect(r.snap().open).toBe('none');
+    expect(focusCalls(r).filter((call) => call === 'focusable:true')).toEqual([]);
+  });
+
+  it('every action on the Card can be reached and pressed from the keyboard', async () => {
+    const r = mount();
+    r.brain.debug?.setNeeds({ tummy: 40 });
+    r.view.openCard?.(true);
+    const card = r.parts().card.el;
+    // Everything that can be pressed is a real button, in the tab order, with a name.
+    const buttons = [...card.querySelectorAll<HTMLButtonElement>('button')].filter((b) => !b.disabled && !b.hidden);
+    expect(buttons.length).toBeGreaterThanOrEqual(12);
+    for (const b of buttons) {
+      expect(b.getAttribute('aria-label') || b.textContent?.trim() || b.dataset.tip, b.outerHTML.slice(0, 80)).toBeTruthy();
+      // Radio-like groups keep one stop in the tab order (the arrows move within them).
+      expect(b.tabIndex === 0 || b.getAttribute('role') === 'radio' || b.closest('[role="radiogroup"]') !== null, b.outerHTML.slice(0, 80)).toBe(true);
+    }
+    // Enter on the focused button is a press: Doozer is fed.
+    const before = r.brain.state.needs.tummy;
+    (document.activeElement as HTMLButtonElement).click();
+    expect(r.brain.state.needs.tummy).toBeGreaterThan(before);
+  });
+});
+
 describe('settings', () => {
   it('take the place of the Card, may use the keyboard, and hand both back when closed', async () => {
     const r = mount();

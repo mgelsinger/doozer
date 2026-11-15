@@ -33,6 +33,10 @@ const TICK_RESTING: Duration = Duration::from_millis(100);
 /// How often the window is moved while it is being dragged.
 const TICK_DRAGGING: Duration = Duration::from_millis(6);
 const ACTIVE_FOR: Duration = Duration::from_millis(1500);
+/// After the shortcut has given the window the keyboard, the page has this long to say it
+/// wants it (by asking to be focusable). If it does not, the keyboard is given back.
+const KEYBOARD_GRACE: Duration = Duration::from_millis(1500);
+
 /// The page must check in at least this often or its hit regions are dropped.
 pub const WATCHDOG_TIMEOUT: Duration = Duration::from_secs(6);
 /// How often the monitor layout is compared with the one the window was placed on.
@@ -95,6 +99,10 @@ struct Inner {
   drag: Option<Drag>,
   /// A button is down on a press that went to the page (see `hit::hold_step`).
   holding: bool,
+  /// The window that had the keyboard when the shortcut took it, to give it back to.
+  keyboard_from: Option<isize>,
+  /// The shortcut took the keyboard at this moment and the page has not yet said it wants it.
+  keyboard_pending: Option<Instant>,
   last_heartbeat: Instant,
   last_cursor: (i32, i32),
   last_cursor_move: Instant,
@@ -215,6 +223,8 @@ impl Shell {
         topmost: true,
         drag: None,
         holding: false,
+        keyboard_from: None,
+        keyboard_pending: None,
         last_heartbeat: now,
         last_cursor: (i32::MIN, i32::MIN),
         last_cursor_move: now,
@@ -385,8 +395,45 @@ impl Shell {
   }
 
   pub fn set_focusable(&self, focusable: bool) {
-    self.lock().focusable = focusable;
+    let give_back = {
+      let mut s = self.lock();
+      s.focusable = focusable;
+      // The page has spoken: whatever the shortcut began is its business now.
+      s.keyboard_pending = None;
+      if focusable { None } else { s.keyboard_from.take().map(|from| (s.hwnd, from)) }
+    };
+    if let Some((hwnd, from)) = give_back {
+      give_keyboard_back(hwnd, from);
+    }
     self.sync_style();
+  }
+
+  /// The keyboard shortcut was pressed: take the keyboard for the Card, now, remembering
+  /// who had it. Returns false if Windows would not let the window have it.
+  pub fn take_keyboard(&self) -> bool {
+    let hwnd = {
+      let mut s = self.lock();
+      let before = win::foreground_window();
+      if before != 0 && before != s.hwnd.0 && s.keyboard_from.is_none() {
+        s.keyboard_from = Some(before);
+      }
+      s.focusable = true;
+      s.keyboard_pending = Some(Instant::now());
+      s.hwnd
+    };
+    // The window may not be activated while it has the no-activate style.
+    self.sync_style();
+    let taken = win::set_foreground(hwnd) || win::foreground_window() == hwnd.0;
+    if !taken {
+      // Windows refused. Leave everything as it was: the Card still opens, without the keyboard.
+      let mut s = self.lock();
+      s.focusable = false;
+      s.keyboard_pending = None;
+      s.keyboard_from = None;
+      drop(s);
+      self.sync_style();
+    }
+    taken
   }
 
   /// Show or hide the window without ever taking keyboard focus. **UI thread only.**
@@ -483,6 +530,15 @@ fn window_info(mode: &WindowMode, view: Option<String>, rect: Rect, monitor: Mon
   }
 }
 
+/// Hand the keyboard back to the window that had it before the shortcut, if this window
+/// still has it and that one still exists. If the user has already clicked elsewhere, the
+/// keyboard is where they put it and stays there.
+fn give_keyboard_back(ours: Hwnd, from: isize) {
+  if win::foreground_window() == ours.0 && win::is_window(Hwnd(from)) {
+    win::set_foreground(Hwnd(from));
+  }
+}
+
 /// Write the wanted style if the window does not already have it. Returns true if it changed.
 fn apply_style(hwnd: Hwnd, catching: bool, focusable: bool, layered_always: bool) -> bool {
   let actual = win::ex_style(hwnd);
@@ -547,7 +603,7 @@ fn tick(shell: &Shell) -> Duration {
   let mut slow_checks_due = false;
   let mut released: Option<Option<ReleasedAt>> = None;
 
-  let (hwnd, catching, focusable, layered_always, pause) = {
+  let (hwnd, catching, focusable, layered_always, pause, keyboard_back) = {
     let mut s = shell.lock();
     s.stats.ticks += 1;
     let (cursor, button_down) = match s.injected {
@@ -570,6 +626,17 @@ fn tick(shell: &Shell) -> Duration {
           drag_ended = true;
         }
       }
+    }
+
+    // The shortcut gave the window the keyboard and the page never said it wanted it
+    // (it is hung, or the view has no Card to open): give it back.
+    let mut keyboard_back = None;
+    if let Some(since) = s.keyboard_pending
+      && now.duration_since(since) > KEYBOARD_GRACE
+    {
+      s.keyboard_pending = None;
+      s.focusable = false;
+      keyboard_back = s.keyboard_from.take().map(|from| (s.hwnd, from));
     }
 
     // Watchdog: a page that has stopped checking in cannot be trusted to have
@@ -633,8 +700,11 @@ fn tick(shell: &Shell) -> Duration {
     } else {
       TICK_RESTING
     };
-    (s.hwnd, s.catching, s.focusable, s.layered_always, pause)
+    (s.hwnd, s.catching, s.focusable, s.layered_always, pause, keyboard_back)
   };
+  if let Some((ours, from)) = keyboard_back {
+    give_keyboard_back(ours, from);
+  }
 
   // From here on the lock is released: these calls can send window messages.
   if let Some((x, y)) = move_to {

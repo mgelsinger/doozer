@@ -106,6 +106,13 @@ export interface View {
   /** The tray or the right-click menu asked for the settings. */
   openSettings?(): void;
   /**
+   * The Card was asked for. `keyboard` is true when the keyboard shortcut asked and the
+   * window has been given the keyboard for it: open the Card, ask to be focusable
+   * (`host.setFocusable(true)`) until it closes, and put the focus on it. Asked again
+   * with the Card already open that way, close it. False (the tray menu): just open it.
+   */
+  openCard?(keyboard: boolean): void;
+  /**
    * This view uses a good deal more memory than the others (the Island: a 3D engine, a
    * model, a graphics context). After it has been left, the host asks the browser to give
    * back what it can.

@@ -194,6 +194,11 @@ export function createSettingsPanel(brain: Brain, options: SettingsPanelOptions 
   row('Tuck away during fullscreen apps', toggle('Tuck away during fullscreen apps', () => brain.settings.tuckAwayInFullscreen, (value) => set('tuckAwayInFullscreen', value)));
   row('Start with Windows', toggle('Start with Windows', () => brain.settings.startWithWindows, (value) => set('startWithWindows', value)));
 
+  // ---- Interface size -----------------------------------------------------------------
+  row('Interface size', segmented<Settings['uiScale']>('Interface size', () => [
+    { value: 'normal', label: 'Normal' }, { value: 'large', label: 'Large' }, { value: 'larger', label: 'Larger' },
+  ], () => brain.settings.uiScale, (value) => set('uiScale', value)), '', true);
+
   // ---- Reduce motion ------------------------------------------------------------------
   row('Reduce motion', segmented<Settings['reduceMotion']>('Reduce motion', () => [
     { value: 'system', label: 'Follow system' }, { value: 'on', label: 'On' }, { value: 'off', label: 'Off' },

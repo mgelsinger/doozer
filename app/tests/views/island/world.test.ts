@@ -295,6 +295,77 @@ describe('night, rain and the duck', () => {
   });
 });
 
+describe('with motion reduced', () => {
+  it('a snack is simply there: it does not fall, and a tap does not make it hop', () => {
+    const { world, run } = setup();
+    world.setReduceMotion(true);
+    const snack = world.dropSnack('donut', -0.6, 0.4);
+    run(FRAME);
+    expect(snack.landed).toBe(true);
+    expect(snack.y).toBeCloseTo(groundY(snack.x, snack.z), 6);
+    world.bopSnack();
+    run(FRAME);
+    expect(snack.landed).toBe(true);
+    expect(snack.y).toBeCloseTo(groundY(snack.x, snack.z), 6);
+    expect(world.moving).toBe(false);
+  });
+
+  it('the ball is put down, not dropped or bounced: on the island, on the ground, and not inside Doozer', () => {
+    const { world, run } = setup();
+    world.setReduceMotion(true);
+    const ball = world.serveBall('ball');
+    run(FRAME);
+    expect(ball.resting).toBe(true);
+    expect(ball.y).toBeCloseTo(groundY(ball.x, ball.z) + BALL_RADIUS, 6);
+    for (let i = 0; i < 30; i++) {
+      world.bopBall();
+      run(FRAME);
+      expect(ball.resting).toBe(true);
+      expect(Math.hypot(ball.x, ball.z)).toBeLessThanOrEqual(ISLAND.fence + 1e-6);
+      expect(Math.hypot(ball.x - world.doozer.x, ball.z - world.doozer.z)).toBeGreaterThanOrEqual(0.9);
+      expect(ball.y).toBeCloseTo(groundY(ball.x, ball.z) + BALL_RADIUS, 6);
+    }
+    expect(world.moving).toBe(false);
+  });
+
+  it('nothing flies about: no crumbs from a bite, no raindrops in a bath, no stars when the ball goes', () => {
+    const { world, run } = setup();
+    world.setReduceMotion(true);
+    world.dropSnack('cookie', 0.5, 0.4);
+    run(0.1);
+    world.biteSnack();
+    world.setRain(true);
+    run(2);
+    world.serveBall('ball');
+    run(0.1);
+    world.removeBall();
+    world.burst('star', 0, 1, 0, 8);
+    expect(world.particles).toHaveLength(0);
+    // The cloud is still there for the bath (it fades in, which is not motion), and goes again.
+    expect(world.rain).toBe(1);
+    world.setRain(false);
+    run(2);
+    expect(world.rain).toBe(0);
+    world.removeSnack();
+    expect(world.moving).toBe(false);
+  });
+
+  it('switching it on in the middle of things puts everything down at once', () => {
+    const { world, run } = setup();
+    const ball = world.serveBall('ball');
+    const snack = world.dropSnack('apple', 0.6, 0.3);
+    world.burst('crumb', 0, 1, 0, 6);
+    run(0.2);
+    expect(ball.resting).toBe(false);
+    world.setReduceMotion(true);
+    run(FRAME);
+    expect(world.particles).toHaveLength(0);
+    expect(ball.resting).toBe(true);
+    expect(snack.landed).toBe(true);
+    expect(world.moving).toBe(false);
+  });
+});
+
 describe('settling, and telling the view', () => {
   it('settle puts everything where it was going, at once', async () => {
     const { world } = setup();

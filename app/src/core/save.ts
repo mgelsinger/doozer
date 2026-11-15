@@ -136,6 +136,7 @@ const SETTING_READERS: { readonly [K in keyof Settings]: (v: unknown) => Setting
   tuckAwayInFullscreen: bool,
   startWithWindows: bool,
   reduceMotion: oneOf(['system', 'on', 'off'] as const),
+  uiScale: oneOf(['normal', 'large', 'larger'] as const),
   hat: oneOf(HATS),
   lastView: oneOf(VIEWS),
 };

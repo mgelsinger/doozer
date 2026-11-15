@@ -125,6 +125,7 @@ export function defaultSettings(): Settings {
     tuckAwayInFullscreen: true,
     startWithWindows: false,
     reduceMotion: 'system',
+    uiScale: 'normal',
     hat: null,
     lastView: 'pill',
   };

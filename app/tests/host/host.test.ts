@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBrain, type Brain, type Settings, type ViewId } from '../../src/core';
-import { ENTER_LIMIT_MS, HIDE_FRAMES, LEAVE_LIMIT_MS, RELEASE_AFTER_MS, RELEASE_FOR_MS, createHost, type Host } from '../../src/host/host';
+import { ENTER_LIMIT_MS, HIDE_FRAMES, LEAVE_LIMIT_MS, RELEASE_AFTER_MS, RELEASE_FOR_MS, UI_SCALE, createHost, type Host } from '../../src/host/host';
 import { freshHostData, parseSave, type HostData } from '../../src/host/store';
 import type { View, ViewContext, WindowRequest } from '../../src/host/view';
 import type { Region, Shell, ShellEvents, WindowInfo, WindowMode } from '../../src/shell';
@@ -114,6 +114,7 @@ function fakeView(id: ViewId, log: Log, options: FakeViewOptions = {}) {
     setAwake(awake) { seen.awake.push(awake); log.push(`${id}.awake:${awake}`); },
     windowChanged() { log.push(`${id}.windowChanged`); },
     openSettings() { log.push(`${id}.openSettings`); },
+    openCard(keyboard) { log.push(`${id}.openCard:${keyboard}`); },
   };
   return { view, seen };
 }
@@ -151,10 +152,13 @@ function rig(options: {
   frameHangs?: boolean; persist?: boolean; setup?(shell: ReturnType<typeof fakeShell>): void;
   /** The shell can ask the browser to hold less memory (the real one can). */
   lowMemory?: boolean;
+  /** The shell can draw the interface larger (the real one can). */
+  uiScale?: boolean;
 } = {}): Rig {
   const log: Log = [];
   const shell = fakeShell(log);
   if (options.lowMemory) shell.shell.setLowMemory = async (low) => { log.push(`low:${low}`); };
+  if (options.uiScale) shell.shell.setUiScale = async (factor) => { log.push(`scale:${factor}`); return factor; };
   options.setup?.(shell);
   const clock = fakeClock(START);
   const brain = createBrain({ save: options.save, now: clock.now, random: seeded(7), debug: true });
@@ -538,6 +542,76 @@ describe('tuck away during fullscreen apps', () => {
   });
 });
 
+describe('the interface size', () => {
+  it('normal size asks the shell for nothing', async () => {
+    const r = await started(rig({ uiScale: true }));
+    expect(r.log.filter((entry) => entry.startsWith('scale:'))).toEqual([]);
+  });
+
+  it('a saved size is set before the first window is asked for, so the window is the right size from the start', async () => {
+    const first = await started(rig());
+    first.brain.setSetting('uiScale', 'larger');
+    const save = first.brain.serialize();
+    first.host.stop();
+    const r = await started(rig({ uiScale: true, save }));
+    expect(r.log.indexOf(`scale:${UI_SCALE.larger}`)).toBeGreaterThanOrEqual(0);
+    expect(r.log.indexOf(`scale:${UI_SCALE.larger}`)).toBeLessThan(r.log.indexOf('window:pill:docked'));
+  });
+
+  it('changing it hides the view, resizes everything and asks for the window again, in that order', async () => {
+    const r = await started(rig({ uiScale: true }));
+    r.log.length = 0;
+    r.brain.setSetting('uiScale', 'large');
+    await settle();
+    await r.host.settled();
+    const order = ['root:hidden', `scale:${UI_SCALE.large}`, 'window:pill:docked', 'pill.windowChanged', 'root:visible', 'regions:2'];
+    const at = order.map((entry) => r.log.indexOf(entry));
+    expect(at.every((index) => index >= 0), r.log.join(' ')).toBe(true);
+    expect([...at].sort((a, b) => a - b)).toEqual(at);
+    // The view was not rebuilt for it.
+    expect(r.log).not.toContain('pill.unmount');
+    // Back to normal is a change like any other.
+    r.log.length = 0;
+    r.brain.setSetting('uiScale', 'normal');
+    await settle();
+    await r.host.settled();
+    expect(r.log).toContain('scale:1');
+    expect(r.log).toContain('window:pill:docked');
+  });
+
+  it('applies in whichever view is showing, and carries over a switch', async () => {
+    const r = await started(rig({ uiScale: true }));
+    await r.host.switchTo('room');
+    r.log.length = 0;
+    r.brain.setSetting('uiScale', 'larger');
+    await settle();
+    await r.host.settled();
+    expect(r.log).toContain(`scale:${UI_SCALE.larger}`);
+    expect(r.log).toContain('window:room:floating');
+    r.log.length = 0;
+    await r.host.switchTo('pill');
+    // It is already that size: a switch does not set it again.
+    expect(r.log.filter((entry) => entry.startsWith('scale:'))).toEqual([]);
+  });
+
+  it('a shell that cannot do it, or refuses, leaves everything else working', async () => {
+    const plain = await started(rig());
+    plain.brain.setSetting('uiScale', 'large');
+    await settle();
+    await plain.host.settled();
+    expect(plain.host.current()).toBe('pill');
+    expect(plain.errors).toEqual([]);
+
+    const refusing = await started(rig({ setup: (s) => { s.shell.setUiScale = async () => { throw new Error('no zoom'); }; } }));
+    refusing.brain.setSetting('uiScale', 'large');
+    await settle();
+    await refusing.host.settled();
+    expect(refusing.host.current()).toBe('pill');
+    expect(refusing.errors).toContain('setUiScale');
+    expect(refusing.shell.state.regions.length).toBe(2);
+  });
+});
+
 describe('giving memory back', () => {
   const lows = (log: Log): string[] => log.filter((entry) => entry.startsWith('low:'));
 
@@ -806,6 +880,18 @@ describe('what the host does for a view', () => {
     expect(r.log.slice(-2)).toEqual(['menu', 'pill.openSettings']);
     expect(r.host.services.currentView()).toBe('pill');
     expect(r.host.services.availableViews).toEqual(['pill', 'room']);
+  });
+
+  it('passes a request for the Card on to the view, saying whether the keyboard came with it', async () => {
+    const r = await started(rig());
+    r.shell.emit('card-requested', { keyboard: true });
+    r.shell.emit('card-requested', { keyboard: false });
+    expect(r.log.slice(-2)).toEqual(['pill.openCard:true', 'pill.openCard:false']);
+    // Tucked away there is no Card to open (the shell takes the keyboard back by itself).
+    r.shell.emit('fullscreen-changed', true);
+    r.log.length = 0;
+    r.shell.emit('card-requested', { keyboard: true });
+    expect(r.log).toEqual([]);
   });
 
   it('gives a view the window it asked for', async () => {

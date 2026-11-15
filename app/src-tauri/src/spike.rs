@@ -174,6 +174,16 @@ pub fn spike_menu(_app: tauri::AppHandle, _id: Option<String>) -> Result<Value, 
   Err(DISABLED.into())
 }
 
+/// Act as if the keyboard shortcut had been pressed. This really takes the keyboard, so a
+/// scripted run only does it when nobody has touched the machine for a while.
+#[tauri::command(async)]
+pub fn spike_shortcut(_app: tauri::AppHandle) -> Result<Value, String> {
+  #[cfg(feature = "spike")]
+  return imp::shortcut(&_app);
+  #[cfg(not(feature = "spike"))]
+  Err(DISABLED.into())
+}
+
 /// True when "start with Windows" is pointed at a scratch registry key, so a
 /// test may switch it on and off without touching the real one.
 #[tauri::command]
@@ -392,6 +402,13 @@ mod imp {
       }));
     }
     Ok(Value::Array(results))
+  }
+
+  pub fn shortcut(app: &tauri::AppHandle) -> Result<Value, String> {
+    let shell = Arc::clone(&*app.state::<Arc<Shell>>());
+    let before = win::foreground_window();
+    crate::hotkey::pressed(app, &shell);
+    Ok(json!({ "foregroundBefore": before, "foregroundAfter": win::foreground_window(), "ours": shell.hwnd().0 }))
   }
 
   pub fn menu(app: &tauri::AppHandle, id: Option<String>) -> Result<Value, String> {

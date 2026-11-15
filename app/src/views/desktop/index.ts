@@ -217,6 +217,7 @@ export function createDesktopView(options: DesktopViewOptions = {}): DesktopView
     setAwake(awake: boolean): void;
     windowChanged(info: WindowInfo): void;
     openSettings(): void;
+    openCard(keyboard: boolean): void;
     setOpen(open: DesktopOpen): void;
     snapshot(): DesktopSnapshot;
     parts(): DesktopParts;
@@ -508,11 +509,16 @@ export function createDesktopView(options: DesktopViewOptions = {}): DesktopView
       else clock.arm('open-limit', OPEN_LIMIT_MS[open], () => setOpen('none'));
     }
 
+    /** The Card was opened by the keyboard shortcut: it has the keyboard until it closes (as in the Pill). */
+    let cardKeyboard = false;
+
     function setOpen(next: DesktopOpen): void {
       if (scope.disposed) return;
       if (next !== 'none' && (!awake || away() || !theBody.onGround || theBody.offstage)) return;
       if (open === next) return;
       open = next;
+      // (It keeps it through a detour to the settings, which may have the keyboard anyway.)
+      if (next !== 'card' && next !== 'settings') cardKeyboard = false;
       root.dataset.open = next;
       if (next !== 'none') {
         // Doozer has your attention: it stops wandering off.
@@ -529,8 +535,10 @@ export function createDesktopView(options: DesktopViewOptions = {}): DesktopView
       if (next === 'card' || next === 'settings') placePanel();
       if (next === 'card') theCard.open(); else theCard.close();
       if (next === 'settings') settings.open(); else settings.close();
-      // Only the settings panel may take the keyboard: feeding and petting never do.
-      services.setFocusable(next === 'settings');
+      // The settings panel may take the keyboard, and a Card asked for from the keyboard;
+      // a Card opened with the mouse never does.
+      services.setFocusable(next === 'settings' || (next === 'card' && cardKeyboard));
+      if (next === 'card' && cardKeyboard) theCard.focus();
       armOpenLimit();
       theDirector.syncAutonomy();
       syncLive();
@@ -944,6 +952,14 @@ export function createDesktopView(options: DesktopViewOptions = {}): DesktopView
         if (open !== 'settings') settingsFrom = open === 'card' ? 'card' : 'none';
         setOpen('settings');
       },
+      openCard(keyboard) {
+        if (!keyboard) { setOpen('card'); return; }
+        // The shortcut again, with the Card already under the keyboard: close it.
+        if (open === 'card' && cardKeyboard) { setOpen('none'); return; }
+        cardKeyboard = true;
+        if (open === 'card') services.setFocusable(true); else setOpen('card');
+        if (open === 'card') theCard.focus(); else cardKeyboard = false;
+      },
       setOpen,
       snapshot: () => {
         const scene = theDirector.scene;
@@ -1020,6 +1036,7 @@ export function createDesktopView(options: DesktopViewOptions = {}): DesktopView
     setAwake: (awake) => live?.setAwake(awake),
     windowChanged: (info) => live?.windowChanged(info),
     openSettings: () => live?.openSettings(),
+    openCard: (keyboard) => live?.openCard(keyboard),
     setOpen: (open) => live?.setOpen(open),
     snapshot: () => live?.snapshot() ?? null,
     parts: () => live?.parts() ?? null,

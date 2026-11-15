@@ -25,6 +25,7 @@ pub const EVENT_QUIT_REQUESTED: &str = "shell://quit-requested";
 const QUIT_GRACE: Duration = Duration::from_millis(900);
 
 const VIEW_PREFIX: &str = "view:";
+const ID_CARD: &str = "card";
 const ID_SETTINGS: &str = "settings";
 const ID_QUIT: &str = "quit";
 
@@ -88,6 +89,8 @@ pub fn build(app: &AppHandle) -> tauri::Result<TrayMenu> {
   for (id, label) in VIEWS {
     views.push((id, CheckMenuItem::with_id(app, format!("{VIEW_PREFIX}{id}"), label, true, false, None::<&str>)?));
   }
+  // The shortcut is shown beside the item; it is the shell that listens for it (hotkey.rs).
+  let card = MenuItem::with_id(app, ID_CARD, format!("Open Doozer's card\t{}", crate::hotkey::SHORTCUT_LABEL), true, None::<&str>)?;
   let settings = MenuItem::with_id(app, ID_SETTINGS, "Settings…", true, None::<&str>)?;
   let quit = MenuItem::with_id(app, ID_QUIT, "Quit Doozer", true, None::<&str>)?;
   let line_1 = PredefinedMenuItem::separator(app)?;
@@ -97,7 +100,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<TrayMenu> {
   for (_, item) in &views {
     menu.append(item)?;
   }
-  menu.append_items(&[&line_1, &settings, &line_2, &quit])?;
+  menu.append_items(&[&line_1, &card, &settings, &line_2, &quit])?;
 
   let mut tray = TrayIconBuilder::with_id("doozer").tooltip("Doozer").menu(&menu).show_menu_on_left_click(true);
   if let Some(icon) = app.default_window_icon() {
@@ -113,6 +116,8 @@ pub fn on_menu_event(app: &AppHandle, event: MenuEvent) {
   let id = event.id().as_ref();
   if id == ID_QUIT {
     request_quit(app);
+  } else if id == ID_CARD {
+    crate::hotkey::requested_from_menu(app);
   } else if id == ID_SETTINGS {
     let _ = app.emit(EVENT_SETTINGS_REQUESTED, ());
   } else if let Some(view) = id.strip_prefix(VIEW_PREFIX) {

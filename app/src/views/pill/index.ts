@@ -138,6 +138,7 @@ export function createPillView(options: PillViewOptions = {}): PillView {
     setAwake(awake: boolean): void;
     windowChanged(info: WindowInfo): void;
     openSettings(): void;
+    openCard(keyboard: boolean): void;
     setOpen(open: PillOpen): void;
     snapshot(): PillSnapshot;
     parts(): NonNullable<ReturnType<PillView['parts']>>;
@@ -345,18 +346,29 @@ export function createPillView(options: PillViewOptions = {}): PillView {
     }
 
     // ---- open and closed -----------------------------------------------------------
+    /**
+     * The Card was opened by the keyboard shortcut: it has the keyboard until it closes.
+     * Opened any other way it never does, so that feeding and petting cannot pull the
+     * keyboard away from what you are typing in.
+     */
+    let cardKeyboard = false;
+
     function setOpen(next: PillOpen): void {
       if (scope.disposed) return;
       if (!awake && next !== 'none') return;
       if (open === next) return;
       open = next;
+      // (It keeps it through a detour to the settings, which may have the keyboard anyway.)
+      if (next !== 'card' && next !== 'settings') cardKeyboard = false;
       root.dataset.open = next;
       placeOrigin();
       if (next === 'card') theCard.open(); else theCard.close();
       if (next === 'settings') settings.open(); else settings.close();
       pill.setAttribute('aria-expanded', String(next !== 'none'));
-      // Only the settings panel may take the keyboard: feeding and petting never do.
-      services.setFocusable(next === 'settings');
+      // The settings panel may take the keyboard, and a Card that was asked for from the
+      // keyboard; a Card opened with the mouse never does.
+      services.setFocusable(next === 'settings' || (next === 'card' && cardKeyboard));
+      if (next === 'card' && cardKeyboard) theCard.focus();
       if (next !== 'none') attention.poke(SCENE_MS);
       syncAsk();
       paint();
@@ -632,6 +644,14 @@ export function createPillView(options: PillViewOptions = {}): PillView {
         if (open !== 'settings') settingsFrom = open;
         setOpen('settings');
       },
+      openCard(keyboard) {
+        if (!keyboard) { setOpen('card'); return; }
+        // The shortcut again, with the Card already under the keyboard: close it.
+        if (open === 'card' && cardKeyboard) { setOpen('none'); return; }
+        cardKeyboard = true;
+        if (open === 'card') services.setFocusable(true); else setOpen('card');
+        if (open === 'card') theCard.focus(); else cardKeyboard = false;
+      },
       setOpen,
       snapshot: () => ({
         open,
@@ -675,6 +695,7 @@ export function createPillView(options: PillViewOptions = {}): PillView {
     setAwake: (awake) => live?.setAwake(awake),
     windowChanged: (info) => live?.windowChanged(info),
     openSettings: () => live?.openSettings(),
+    openCard: (keyboard) => live?.openCard(keyboard),
     setOpen: (open) => live?.setOpen(open),
     snapshot: () => live?.snapshot() ?? null,
     parts: () => live?.parts() ?? null,

@@ -16,6 +16,7 @@ describe('settings', () => {
       tuckAwayInFullscreen: true,
       startWithWindows: false,
       reduceMotion: 'system',
+      uiScale: 'normal',
       hat: null,
       lastView: 'pill',
     } satisfies Settings);
@@ -45,6 +46,7 @@ describe('settings', () => {
       tuckAwayInFullscreen: [false, true],
       startWithWindows: [true, false],
       reduceMotion: ['on', 'off', 'system'],
+      uiScale: ['large', 'larger', 'normal'],
       hat: ['nightcap', 'bow', null],
       lastView: ['room', 'island', 'desktop', 'pill'],
     };

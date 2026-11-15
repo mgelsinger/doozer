@@ -37,6 +37,7 @@ export const DEFAULT_SETTINGS: Settings = {
   tuckAwayInFullscreen: true,
   startWithWindows: false,
   reduceMotion: 'system',
+  uiScale: 'normal',
   hat: null,
   lastView: 'pill',
 };

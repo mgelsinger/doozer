@@ -102,6 +102,13 @@ export interface ShellEvents {
   'view-requested': ViewId;
   'settings-requested': null;
   /**
+   * The Card was asked for: by the keyboard shortcut (Ctrl+Alt+D), which has already given
+   * the window the keyboard (`keyboard: true`), or from the tray menu, which has not.
+   * A view that opens its Card for the shortcut asks to be focusable for as long as the
+   * Card is open; when it stops asking, the keyboard goes back to the window that had it.
+   */
+  'card-requested': { keyboard: boolean };
+  /**
    * Quit was chosen in the tray or right-click menu. Write the save, then call
    * `shell.quit()`. The native side quits by itself about a second later whether
    * or not the page answers, so a hung page cannot keep the app alive.
@@ -149,6 +156,14 @@ export interface Shell {
   /** Show or hide the window. Showing never takes keyboard focus. */
   setVisible(visible: boolean): Promise<void>;
   setAlwaysOnTop(onTop: boolean): Promise<void>;
+  /**
+   * Draw the whole interface `factor` times its usual size (the "Interface size"
+   * setting). The page is zoomed and the native side's arithmetic follows; ask for the
+   * window again afterwards (`setWindowMode`), and it comes out that much larger. CSS
+   * pixels mean what they always meant to the page: nothing in a view changes.
+   * Resolves with the factor that was set. Absent where there is no browser to ask.
+   */
+  setUiScale?(factor: number): Promise<number>;
   /**
    * Ask the browser to hold as little memory as it can (true), or to carry on as normal.
    * Low, it collects its garbage and lets Windows take back the pages it is not using;
@@ -424,6 +439,7 @@ export function createNativeShell(bridge: Bridge, host: PageHost): Shell & { sto
     },
     setAlwaysOnTop: (onTop: boolean) => bridge.invoke<void>('set_always_on_top', { onTop }),
     setLowMemory: (low: boolean) => bridge.invoke<void>('set_low_memory', { low }),
+    setUiScale: (factor: number) => bridge.invoke<number>('set_ui_scale', { scale: factor }),
     fullscreenInFront: () => bridge.invoke<boolean>('fullscreen_in_front'),
     load: () => bridge.invoke<LoadResult>('load_save'),
     save: (json: string) => bridge.invoke<void>('write_save', { json }),

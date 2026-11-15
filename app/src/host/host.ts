@@ -41,6 +41,8 @@ const FRAME_LIMIT_MS = 60;
  */
 export const RELEASE_AFTER_MS = 3000;
 export const RELEASE_FOR_MS = 4000;
+/** The "Interface size" setting as how many times larger than usual everything is drawn. */
+export const UI_SCALE: Readonly<Record<Settings['uiScale'], number>> = { normal: 1, large: 1.15, larger: 1.3 };
 
 export interface HostOptions {
   /** The element views are mounted in. */
@@ -302,6 +304,22 @@ export function createHost(options: HostOptions): Host {
     return false;
   }
 
+  // ---- the interface size ------------------------------------------------------------
+  let uiScale = 1;
+
+  /** Have the shell draw everything at the size the setting asks for. True if that changed anything. */
+  async function syncUiScale(): Promise<boolean> {
+    const wanted = UI_SCALE[brain.settings.uiScale] ?? 1;
+    if (wanted === uiScale) return false;
+    uiScale = wanted;
+    try {
+      await shell.setUiScale?.(wanted);
+    } catch (error) {
+      log('setUiScale', error);
+    }
+    return true;
+  }
+
   /** The mounted view wants a different window: move it without remounting. */
   async function replace(): Promise<void> {
     replaceQueued = false;
@@ -310,6 +328,9 @@ export function createHost(options: HostOptions): Host {
     if (awake && shown) await within(view.leave?.(), LEAVE_LIMIT_MS, `${view.id}.leave`);
     hide();
     await frames(HIDE_FRAMES);
+    // With nothing showing: the size of everything, if the setting has changed. The window
+    // is asked for again just below and comes out larger or smaller to match.
+    await syncUiScale();
     try {
       const info = await shell.setWindowMode(view.window(request(view)), view.id);
       safely(`${view.id}.windowChanged`, () => view.windowChanged?.(info));
@@ -421,7 +442,8 @@ export function createHost(options: HostOptions): Host {
     } else if (key === 'tuckAwayInFullscreen') {
       applyTuck();
     }
-    if (current?.windowSettings?.includes(key)) requestReplace();
+    // The interface size changes every view's window: re-place whichever is showing.
+    if (key === 'uiScale' || current?.windowSettings?.includes(key)) requestReplace();
   }
 
   // ---- quitting ------------------------------------------------------------------
@@ -480,6 +502,13 @@ export function createHost(options: HostOptions): Host {
       const view = current;
       if (view) safely(`${view.id}.openSettings`, () => view.openSettings?.());
     }));
+    offs.push(shell.on('card-requested', (request) => {
+      const view = current;
+      // Nothing to open while switching or tucked away. (If the shortcut gave the window the
+      // keyboard, the shell takes it back by itself when nobody asks to keep it.)
+      if (!view || !awake || !shown) return;
+      safely(`${view.id}.openCard`, () => view.openCard?.(request?.keyboard === true));
+    }));
     offs.push(shell.on('quit-requested', () => void quit()));
     offs.push(shell.on('drag-end', (info) => {
       if (!current) return;
@@ -512,6 +541,8 @@ export function createHost(options: HostOptions): Host {
       awake = false;
       await shell.setVisible(false).catch((error: unknown) => log('setVisible', error));
     }
+    // Before the first window is asked for, so that it is the right size from the start.
+    await syncUiScale();
     const first = views.get(brain.settings.lastView) ?? fallback;
     await enqueue(() => show(first, false), false);
     started = true;
