@@ -111,7 +111,7 @@ export interface Behaviour {
 // open all day, and what costs is Doozer moving. As first built, at the screen's 120
 // frames a second, a second of animation cost about a third of a processor core, and
 // Doozer alone was held to one real outing in six minutes (docs/room-checks.md section 6).
-// Drawn 24 times a second (src/frames.ts) the same second costs about a fifth of that,
+// Drawn 24 times a second (src/frames.ts) the same second costs about a quarter of that,
 // and Phase 10 gave most of the saving back to Doozer (docs/polish-checks.md section 5):
 // left alone it now really goes somewhere about every two and three-quarter minutes, and
 // in between it glances about, which is two redraws and costs nothing. With somebody

@@ -4,8 +4,8 @@
 // paints, its compositor commits, the browser's display compositor draws, and the picture
 // is presented, across three processes. Measured (docs/polish-checks.md section 2): two to
 // three milliseconds of processor time a frame, so Doozer walking on a 120 Hz screen cost
-// 37 to 40 % of one core, and 120 of those frames a second is far more than a small soft
-// creature needs. Drawing the same motion 24 times a second costs about a fifth as much.
+// about a third of one core, and 120 of those frames a second is far more than a small soft
+// creature needs. Drawing the same motion 24 times a second costs about a quarter as much.
 //
 // How. The browser runs CSS animations, CSS transitions and Web Animations at the
 // screen's rate and offers no way to slow them. But an animation that is paused costs
