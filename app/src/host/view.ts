@@ -105,4 +105,10 @@ export interface View {
   windowChanged?(info: WindowInfo): void;
   /** The tray or the right-click menu asked for the settings. */
   openSettings?(): void;
+  /**
+   * This view uses a good deal more memory than the others (the Island: a 3D engine, a
+   * model, a graphics context). After it has been left, the host asks the browser to give
+   * back what it can.
+   */
+  readonly heavy?: boolean;
 }

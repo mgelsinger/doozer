@@ -74,6 +74,7 @@ fn nearest(p: f64, lo: f64, hi: f64) -> f64 {
   if lo <= hi { p.max(lo).min(hi) } else { (lo + hi) / 2.0 }
 }
 
+#[cfg(test)]
 pub fn any_contains(regions: &[Region], px: f64, py: f64) -> bool {
   regions.iter().any(|r| r.contains(px, py))
 }

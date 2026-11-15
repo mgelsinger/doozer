@@ -149,6 +149,12 @@ export interface Shell {
   /** Show or hide the window. Showing never takes keyboard focus. */
   setVisible(visible: boolean): Promise<void>;
   setAlwaysOnTop(onTop: boolean): Promise<void>;
+  /**
+   * Ask the browser to hold as little memory as it can (true), or to carry on as normal.
+   * Low, it collects its garbage and lets Windows take back the pages it is not using;
+   * they are read back as they are needed. Absent where there is no browser to ask.
+   */
+  setLowMemory?(low: boolean): Promise<void>;
   /** Is a fullscreen app in front right now? Changes arrive as `fullscreen-changed`. */
   fullscreenInFront(): Promise<boolean>;
   load(): Promise<LoadResult>;
@@ -417,6 +423,7 @@ export function createNativeShell(bridge: Bridge, host: PageHost): Shell & { sto
       if (visible) beat();
     },
     setAlwaysOnTop: (onTop: boolean) => bridge.invoke<void>('set_always_on_top', { onTop }),
+    setLowMemory: (low: boolean) => bridge.invoke<void>('set_low_memory', { low }),
     fullscreenInFront: () => bridge.invoke<boolean>('fullscreen_in_front'),
     load: () => bridge.invoke<LoadResult>('load_save'),
     save: (json: string) => bridge.invoke<void>('write_save', { json }),

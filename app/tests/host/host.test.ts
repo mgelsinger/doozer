@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBrain, type Brain, type Settings, type ViewId } from '../../src/core';
-import { ENTER_LIMIT_MS, HIDE_FRAMES, LEAVE_LIMIT_MS, createHost, type Host } from '../../src/host/host';
+import { ENTER_LIMIT_MS, HIDE_FRAMES, LEAVE_LIMIT_MS, RELEASE_AFTER_MS, RELEASE_FOR_MS, createHost, type Host } from '../../src/host/host';
 import { freshHostData, parseSave, type HostData } from '../../src/host/store';
 import type { View, ViewContext, WindowRequest } from '../../src/host/view';
 import type { Region, Shell, ShellEvents, WindowInfo, WindowMode } from '../../src/shell';
@@ -80,12 +80,15 @@ interface FakeViewOptions {
   mountThrows?: boolean;
   windowSettings?: readonly (keyof Settings)[];
   regions?: number;
+  /** Uses a lot of memory: the host has the browser give it back afterwards. */
+  heavy?: boolean;
 }
 
 function fakeView(id: ViewId, log: Log, options: FakeViewOptions = {}) {
   const seen = { requests: [] as WindowRequest[], contexts: [] as ViewContext[], awake: [] as boolean[], away: 0, mounted: false };
   const view: View = {
     id,
+    heavy: options.heavy,
     windowSettings: options.windowSettings,
     window(request) {
       seen.requests.push(request);
@@ -146,9 +149,12 @@ interface Rig {
 function rig(options: {
   save?: unknown; hostData?: HostData; pill?: FakeViewOptions; room?: FakeViewOptions;
   frameHangs?: boolean; persist?: boolean; setup?(shell: ReturnType<typeof fakeShell>): void;
+  /** The shell can ask the browser to hold less memory (the real one can). */
+  lowMemory?: boolean;
 } = {}): Rig {
   const log: Log = [];
   const shell = fakeShell(log);
+  if (options.lowMemory) shell.shell.setLowMemory = async (low) => { log.push(`low:${low}`); };
   options.setup?.(shell);
   const clock = fakeClock(START);
   const brain = createBrain({ save: options.save, now: clock.now, random: seeded(7), debug: true });
@@ -529,6 +535,115 @@ describe('tuck away during fullscreen apps', () => {
     expect(r.room.seen.awake).toEqual([false]);
     expect(r.shell.state.regions).toEqual([]);
     expect(r.log).not.toContain('pill.leave');
+  });
+});
+
+describe('giving memory back', () => {
+  const lows = (log: Log): string[] => log.filter((entry) => entry.startsWith('low:'));
+
+  it('tucked away, the browser is asked to hold as little as it can, and to carry on when Doozer is back', async () => {
+    const r = await started(rig({ lowMemory: true }));
+    expect(lows(r.log)).toEqual([]);
+    r.log.length = 0;
+    r.shell.emit('fullscreen-changed', true);
+    expect(r.log).toEqual(['pill.awake:false', 'regions:0', 'visible:false', 'low:true']);
+    await settle(10 * MIN);
+    expect(lows(r.log)).toEqual(['low:true']);
+    r.log.length = 0;
+    r.shell.emit('fullscreen-changed', false);
+    // Back to normal before anything is shown or started again.
+    expect(r.log).toEqual(['low:false', 'visible:true', 'pill.awake:true', 'regions:2']);
+  });
+
+  it('after a heavy view has been left, once the next one has settled, for a few seconds', async () => {
+    const r = await started(rig({ lowMemory: true, room: { heavy: true } }));
+    await r.host.switchTo('room');
+    await settle(60_000);
+    // Being in the heavy view asks for nothing.
+    expect(lows(r.log)).toEqual([]);
+    await r.host.switchTo('pill');
+    await settle(RELEASE_AFTER_MS - 1);
+    expect(lows(r.log)).toEqual([]);
+    await settle(1);
+    expect(lows(r.log)).toEqual(['low:true']);
+    await settle(RELEASE_FOR_MS - 1);
+    expect(lows(r.log)).toEqual(['low:true']);
+    await settle(1);
+    expect(lows(r.log)).toEqual(['low:true', 'low:false']);
+    await settle(10 * MIN);
+    expect(lows(r.log)).toEqual(['low:true', 'low:false']);
+  });
+
+  it('leaving a view that is not heavy asks for nothing', async () => {
+    const r = await started(rig({ lowMemory: true }));
+    await r.host.switchTo('room');
+    await r.host.switchTo('pill');
+    await settle(MIN);
+    expect(lows(r.log)).toEqual([]);
+  });
+
+  it('a switch in the middle of it puts the browser back to normal first: a view is never built on a browser held low', async () => {
+    const r = await started(rig({ lowMemory: true, room: { heavy: true } }));
+    await r.host.switchTo('room');
+    await r.host.switchTo('pill');
+    await settle(RELEASE_AFTER_MS + 100);
+    expect(lows(r.log)).toEqual(['low:true']);
+    r.log.length = 0;
+    await r.host.switchTo('room');
+    expect(r.log.indexOf('low:false')).toBeGreaterThanOrEqual(0);
+    expect(r.log.indexOf('low:false')).toBeLessThan(r.log.indexOf('pill.unmount'));
+    await settle(MIN);
+    // Back in the heavy view: nothing more is asked, and the old timer is gone.
+    expect(lows(r.log)).toEqual(['low:false']);
+  });
+
+  it('switching back before it began means it never begins', async () => {
+    const r = await started(rig({ lowMemory: true, room: { heavy: true } }));
+    await r.host.switchTo('room');
+    await r.host.switchTo('pill');
+    await settle(RELEASE_AFTER_MS - 500);
+    await r.host.switchTo('room');
+    await settle(MIN);
+    expect(lows(r.log)).toEqual([]);
+  });
+
+  it('tucked away in the middle of it: low until Doozer is back, with no flapping', async () => {
+    const r = await started(rig({ lowMemory: true, room: { heavy: true } }));
+    await r.host.switchTo('room');
+    await r.host.switchTo('pill');
+    await settle(RELEASE_AFTER_MS + 100);
+    r.shell.emit('fullscreen-changed', true);
+    await settle(MIN);
+    expect(lows(r.log)).toEqual(['low:true']);
+    r.shell.emit('fullscreen-changed', false);
+    expect(lows(r.log)).toEqual(['low:true', 'low:false']);
+  });
+
+  it('stopping puts the browser back to normal and leaves no timer', async () => {
+    const r = await started(rig({ lowMemory: true, room: { heavy: true } }));
+    await r.host.switchTo('room');
+    await r.host.switchTo('pill');
+    await settle(RELEASE_AFTER_MS + 100);
+    r.host.stop();
+    expect(lows(r.log)).toEqual(['low:true', 'low:false']);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('a browser that cannot be asked, or that refuses, changes nothing else', async () => {
+    const plain = await started(rig({ room: { heavy: true } }));
+    await plain.host.switchTo('room');
+    await plain.host.switchTo('pill');
+    await settle(MIN);
+    plain.shell.emit('fullscreen-changed', true);
+    expect(plain.host.current()).toBe('pill');
+    expect(plain.errors).toEqual([]);
+
+    const refusing = await started(rig({ room: { heavy: true }, setup: (s) => { s.shell.setLowMemory = async () => { throw new Error('no such switch'); }; } }));
+    await refusing.host.switchTo('room');
+    expect(await refusing.host.switchTo('pill')).toBe(true);
+    await settle(MIN);
+    expect(refusing.host.current()).toBe('pill');
+    expect(refusing.errors).toContain('setLowMemory');
   });
 });
 

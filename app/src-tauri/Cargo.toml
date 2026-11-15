@@ -46,6 +46,11 @@ windows = { version = "0.62", features = [
 # "Start with Windows" (src/autostart.rs). Already in the build through tauri-build.
 winreg = "0.56"
 
+# The browser's own "hold less memory" switch (src/webview.rs). Both are already in the
+# build through Tauri, at these versions.
+webview2-com = "0.39"
+windows-core = "0.62"
+
 [profile.release]
 codegen-units = 1
 lto = true

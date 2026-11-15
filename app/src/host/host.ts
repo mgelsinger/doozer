@@ -34,6 +34,13 @@ export const LEAVE_LIMIT_MS = 400;
 export const ENTER_LIMIT_MS = 1200;
 /** An animation frame that has not come after this long is not coming (hidden window). */
 const FRAME_LIMIT_MS = 60;
+/**
+ * After a heavy view has been left: how long the new view is given to settle before the
+ * browser is asked to hold less memory, and how long it is held to that before it is
+ * told to carry on as normal (docs/polish-checks.md, "What the Island leaves behind").
+ */
+export const RELEASE_AFTER_MS = 3000;
+export const RELEASE_FOR_MS = 4000;
 
 export interface HostOptions {
   /** The element views are mounted in. */
@@ -200,6 +207,42 @@ export function createHost(options: HostOptions): Host {
     },
   });
 
+  // ---- asking the browser to hold less memory --------------------------------------
+  // Two moments: while Doozer is tucked away behind a fullscreen app (for as long as that
+  // lasts), and for a few seconds after a heavy view has been left. Never stuck low: the
+  // level is worked out afresh from these two facts every time one of them changes.
+  let releasing = false;
+  let releaseTimer: unknown = null;
+  let lowMemory = false;
+
+  function syncMemory(): void {
+    const low = !stopped && (!awake || releasing);
+    if (low === lowMemory) return;
+    lowMemory = low;
+    void shell.setLowMemory?.(low).catch((error: unknown) => log('setLowMemory', error));
+  }
+
+  function cancelRelease(): void {
+    if (releaseTimer !== null) timers.clear(releaseTimer);
+    releaseTimer = null;
+    releasing = false;
+  }
+
+  /** A heavy view has just been left: once the new one has settled, give back what it used. */
+  function releaseSoon(): void {
+    cancelRelease();
+    if (stopped) return;
+    releaseTimer = timers.set(() => {
+      releasing = true;
+      syncMemory();
+      releaseTimer = timers.set(() => {
+        releaseTimer = null;
+        releasing = false;
+        syncMemory();
+      }, RELEASE_FOR_MS);
+    }, RELEASE_AFTER_MS);
+  }
+
   /** Take the mounted view off the screen and release it. */
   async function retire(animate: boolean): Promise<void> {
     const old = current;
@@ -236,7 +279,12 @@ export function createHost(options: HostOptions): Host {
 
   async function show(view: View, animate: boolean): Promise<boolean> {
     if (stopped) return false;
+    const leavingHeavy = current?.heavy === true && current !== view;
+    // Whatever was being given back, a view is about to be built: at full speed.
+    cancelRelease();
+    syncMemory();
     await retire(animate);
+    if (leavingHeavy) releaseSoon();
     try {
       await bring(view);
       return true;
@@ -333,7 +381,10 @@ export function createHost(options: HostOptions): Host {
       shell.setHitRegions([]);
       void shell.setVisible(false).catch((error: unknown) => log('setVisible', error));
       void saver.flush();
+      // Hidden behind somebody's game: hold as little memory as possible until it is over.
+      syncMemory();
     } else {
+      syncMemory();
       void shell.setVisible(true).catch((error: unknown) => log('setVisible', error));
       if (view) safely(`${view.id}.setAwake`, () => view.setAwake?.(true));
       tick();
@@ -475,6 +526,8 @@ export function createHost(options: HostOptions): Host {
     stopped = true;
     if (tickTimer !== null) timers.clear(tickTimer);
     tickTimer = null;
+    cancelRelease();
+    syncMemory();
     for (const off of offs.splice(0)) safely('unsubscribe', off);
     saver.dispose();
     const view = current;

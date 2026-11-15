@@ -8,6 +8,7 @@
 //! * `shell` — the window's state and the cursor tracker thread
 //! * `tray`  — tray icon and native menu
 //! * `autostart` — "Start with Windows"
+//! * `webview` — asking the browser to hold less memory
 //! * `spike` — test hooks for the Phase 3 spike (`--features spike` only)
 
 #[cfg(not(windows))]
@@ -20,6 +21,7 @@ pub mod save;
 mod shell;
 mod spike;
 mod tray;
+mod webview;
 mod win;
 
 use hit::Region;
@@ -214,6 +216,14 @@ fn set_autostart(enabled: bool) -> Result<bool, String> {
   Ok(autostart::is_registered(&key, autostart::VALUE_NAME, &exe))
 }
 
+/// Ask the browser to hold as little memory as it can (`low`), or to carry on as normal.
+/// The page asks for this when Doozer is tucked away, and for a moment after a view that
+/// used a lot (the Island) has been left.
+#[tauri::command]
+fn set_low_memory(window: WebviewWindow, low: bool) -> Result<(), String> {
+  webview::set_low_memory(&window, low)
+}
+
 /// The page has finished saving (or the user quit from the page): leave now.
 #[tauri::command]
 fn quit(app: AppHandle) {
@@ -246,6 +256,7 @@ pub fn run() {
       set_available_views,
       autostart_enabled,
       set_autostart,
+      set_low_memory,
       quit,
       spike::spike_config,
       spike::spike_inject,
