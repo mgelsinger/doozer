@@ -11,7 +11,7 @@
 //   - what the settings do to the window: always on top, start with Windows, tuck away
 //     while a fullscreen app is in front, and re-placing the window when a view's dock
 //     or size changes;
-//   - the one sound of this phase, the chime when a focus session ends.
+//   - sound: which of the small set (sound.ts) is played for what, and when none is.
 //
 // What it never does: draw anything, or decide a rule about the pet.
 //
@@ -23,6 +23,7 @@
 import type { Brain, BrainEvents, Settings, ViewId } from '../core/contract';
 import { realTimers, type Timers } from '../character/timers';
 import type { Region, Shell, WindowInfo } from '../shell';
+import type { SoundName } from './sound';
 import { buildSave, createSaver, type HostData, type Saver } from './store';
 import type { HostServices, View, ViewContext, WindowRequest } from './view';
 
@@ -53,7 +54,8 @@ export interface HostOptions {
   views: readonly View[];
   /** The host's part of the save, as read at start-up. The host keeps it up to date. */
   hostData: HostData;
-  sound?: { chime(): void };
+  /** Plays one of the set if sound is on (sound.ts). `chime` alone is enough for a test. */
+  sound?: { chime(): void; play?(name: SoundName): void };
   timers?: Timers;
   /** Resolves on the next animation frame. The host adds its own time limit. */
   frame?: () => Promise<void>;
@@ -157,6 +159,36 @@ export function createHost(options: HostOptions): Host {
     soonMs: 1000,
     onError: (error) => log('the save could not be written', error),
   });
+
+  // ---- sound ---------------------------------------------------------------------
+  // Which sound goes with what Doozer was just made to do. Only for what the user did:
+  // a Doozer that helps itself from the bowl at three in the afternoon, falls asleep worn
+  // out or wakes up rested does so without a sound ("silent unless asked").
+  function soundFor(event: BrainEvents['action']): SoundName | null {
+    switch (event.type) {
+      case 'feed': return 'munch';
+      case 'treat': return 'yum';
+      case 'fill-bowl': return 'kibble';
+      case 'play': return 'boing';
+      case 'wash': return 'bubbles';
+      case 'pet': return 'chirp';
+      case 'sleep': return event.why === 'tucked-in' ? 'lullaby' : null;
+      case 'wake': return event.why === 'woken' ? 'morning' : null;
+      default: return null;
+    }
+  }
+
+  let chimeTimer: unknown = null;
+
+  /**
+   * Play one of the set, unless this is no time for it: during a focus session Doozer
+   * makes no sound at all (spec 4.5), and tucked away behind a fullscreen app it keeps
+   * quiet too. (The session's own two sounds are played where the session is followed.)
+   */
+  function play(name: SoundName): void {
+    if (stopped || !awake || brain.state.quiet) return;
+    sound.play?.(name);
+  }
 
   // ---- hit regions ---------------------------------------------------------------
 
@@ -282,6 +314,8 @@ export function createHost(options: HostOptions): Host {
   async function show(view: View, animate: boolean): Promise<boolean> {
     if (stopped) return false;
     const leavingHeavy = current?.heavy === true && current !== view;
+    // Doozer pops out of one home and into the next.
+    if (animate && current && current !== view) play('pop');
     // Whatever was being given back, a view is about to be built: at full speed.
     cancelRelease();
     syncMemory();
@@ -485,7 +519,12 @@ export function createHost(options: HostOptions): Host {
     // Anything that happened is written soon; time merely passing can wait, because the
     // brain works the elapsed time out again from the save on the next start.
     brainOn('change', () => saver.touch('lazy'));
-    brainOn('action', () => saver.touch('soon'));
+    brainOn('action', (event) => {
+      saver.touch('soon');
+      const name = soundFor(event);
+      if (name) play(name);
+    });
+    brainOn('refuse', () => play('hm'));
     brainOn('away', () => saver.touch('soon'));
     brainOn('settings', ({ key }) => {
       saver.touch('soon');
@@ -493,8 +532,18 @@ export function createHost(options: HostOptions): Host {
     });
     brainOn('focus', (event) => {
       saver.touch('soon');
-      // DESIGN_SPEC.md 4.5: one soft chime when a session ends, if sound is on.
-      if (event.type === 'complete') sound.chime();
+      if (event.type === 'start') {
+        // The one sound of a session's beginning; from here on it is quiet.
+        if (awake && !stopped) sound.play?.('begin');
+      } else if (event.type === 'complete') {
+        // DESIGN_SPEC.md 4.5: one soft chime when a session ends, if sound is on. It is
+        // played even while Doozer is tucked away: it is how you hear that the time is up.
+        sound.chime();
+        if (event.unlocked.length > 0 && sound.play) {
+          const sparkle = sound.play;
+          chimeTimer = timers.set(() => { chimeTimer = null; if (!stopped) sparkle('sparkle'); }, 650);
+        }
+      }
     });
 
     offs.push(shell.on('view-requested', (view) => void switchTo(view)));
@@ -557,6 +606,8 @@ export function createHost(options: HostOptions): Host {
     stopped = true;
     if (tickTimer !== null) timers.clear(tickTimer);
     tickTimer = null;
+    if (chimeTimer !== null) timers.clear(chimeTimer);
+    chimeTimer = null;
     cancelRelease();
     syncMemory();
     for (const off of offs.splice(0)) safely('unsubscribe', off);

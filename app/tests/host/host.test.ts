@@ -143,6 +143,8 @@ interface Rig {
   room: ReturnType<typeof fakeView>;
   hostData: HostData;
   chimes: { count: number };
+  /** Every sound the host asked for, in order (the chime included). */
+  sounds: string[];
   errors: string[];
   clock: ReturnType<typeof fakeClock>;
 }
@@ -166,6 +168,7 @@ function rig(options: {
   const room = fakeView('room', log, options.room);
   const hostData = options.hostData ?? freshHostData();
   const chimes = { count: 0 };
+  const sounds: string[] = [];
   const errors: string[] = [];
   const host = createHost({
     root: fakeRoot(log),
@@ -173,7 +176,7 @@ function rig(options: {
     brain,
     views: [pill.view, room.view],
     hostData,
-    sound: { chime: () => void chimes.count++ },
+    sound: { chime: () => { chimes.count++; sounds.push('chime'); }, play: (name) => void sounds.push(name) },
     frame: () => {
       log.push('frame');
       return options.frameHangs ? new Promise(() => undefined) : Promise.resolve();
@@ -181,7 +184,7 @@ function rig(options: {
     persist: options.persist,
     log: (message) => void errors.push(message),
   });
-  return { log, host, brain, shell, pill, room, hostData, chimes, errors, clock };
+  return { log, host, brain, shell, pill, room, hostData, chimes, sounds, errors, clock };
 }
 
 /** Start the host and let every promise settle. */
@@ -539,6 +542,159 @@ describe('tuck away during fullscreen apps', () => {
     expect(r.room.seen.awake).toEqual([false]);
     expect(r.shell.state.regions).toEqual([]);
     expect(r.log).not.toContain('pill.leave');
+  });
+});
+
+describe('sound', () => {
+  const ready = (r: Rig): void => {
+    r.brain.debug?.setNeeds({ tummy: 50, fun: 40, energy: 70, clean: 40 });
+    r.brain.debug?.addTreats(3);
+    r.sounds.length = 0;
+  };
+
+  it('each thing you do has its sound', async () => {
+    const r = await started(rig());
+    ready(r);
+    r.brain.feed();
+    r.brain.giveTreat();
+    r.brain.fillBowl();
+    r.brain.play();
+    r.brain.wash();
+    r.brain.pet();
+    expect(r.sounds).toEqual(['munch', 'yum', 'kibble', 'boing', 'bubbles', 'chirp']);
+    r.sounds.length = 0;
+    r.brain.debug?.setNeeds({ energy: 30 });
+    r.brain.sleep();
+    r.brain.wake();
+    expect(r.sounds).toEqual(['lullaby', 'morning']);
+  });
+
+  it('a refusal has one too', async () => {
+    const r = await started(rig());
+    ready(r);
+    r.brain.debug?.setNeeds({ tummy: 100 });
+    expect(r.brain.feed().ok).toBe(false);
+    expect(r.sounds).toEqual(['hm']);
+  });
+
+  it('what Doozer does by itself makes no sound: eating from the bowl, falling asleep worn out, waking rested', async () => {
+    const r = await started(rig());
+    ready(r);
+    r.brain.fillBowl();
+    r.sounds.length = 0;
+    const seen: string[] = [];
+    r.brain.on('action', (event) => { seen.push(event.type === 'sleep' || event.type === 'wake' ? `${event.type}:${event.why}` : event.type); });
+    // Hungry and worn out, and then left alone for half a day.
+    r.brain.debug?.setNeeds({ tummy: 40, energy: 6 });
+    for (let i = 0; i < 12 * 60; i++) {
+      r.clock.advance(MIN);
+      await settle(1000);
+    }
+    expect(seen).toContain('auto-eat');
+    expect(seen).toContain('sleep:exhausted');
+    expect(seen).toContain('wake:rested');
+    expect(r.sounds).toEqual([]);
+  });
+
+  it('a session begins with one sound and ends with the chime, and is silent in between whatever you do', async () => {
+    const r = await started(rig());
+    ready(r);
+    r.brain.startFocus();
+    expect(r.sounds).toEqual(['begin']);
+    r.brain.feed();
+    r.brain.pet();
+    r.brain.wash();
+    r.brain.debug?.setNeeds({ tummy: 100 });
+    r.brain.feed();
+    expect(r.sounds).toEqual(['begin']);
+    // Paused, it is not a session for the moment: Doozer answers again.
+    r.brain.pauseFocus();
+    r.brain.pet();
+    expect(r.sounds).toEqual(['begin', 'chirp']);
+    r.brain.resumeFocus();
+    r.sounds.length = 0;
+    r.clock.advance(26 * MIN);
+    await settle(1000);
+    expect(r.brain.state.focus.status).toBe('idle');
+    expect(r.sounds[0]).toBe('chime');
+    expect(r.chimes.count).toBe(1);
+  });
+
+  it('an unlock adds a sparkle after the chime', async () => {
+    const r = await started(rig());
+    r.brain.startFocus();
+    r.sounds.length = 0;
+    r.clock.advance(26 * MIN);
+    await settle(400);
+    // The first session ever unlocks the cookie.
+    expect(r.brain.state.sessionsCompleted).toBe(1);
+    expect(r.sounds).toEqual(['chime']);
+    // A moment later, once the chime has had its say.
+    await settle(700);
+    expect(r.sounds).toEqual(['chime', 'sparkle']);
+    // The second unlocks nothing: the chime alone.
+    r.brain.startFocus();
+    r.sounds.length = 0;
+    r.clock.advance(26 * MIN);
+    await settle(2000);
+    expect(r.sounds).toEqual(['chime']);
+  });
+
+  it('moving to another view pops; arriving at start-up and falling back do not', async () => {
+    const r = await started(rig());
+    expect(r.sounds).toEqual([]);
+    await r.host.switchTo('room');
+    expect(r.sounds).toEqual(['pop']);
+    await r.host.switchTo('room');
+    expect(r.sounds).toEqual(['pop']);
+  });
+
+  it('tucked away, Doozer is silent, but a session that ends is still heard', async () => {
+    const r = await started(rig());
+    ready(r);
+    r.shell.emit('fullscreen-changed', true);
+    r.brain.feed();
+    r.brain.pet();
+    expect(r.sounds).toEqual([]);
+    r.brain.startFocus();
+    expect(r.sounds).toEqual([]);
+    r.clock.advance(26 * MIN);
+    await settle(2500);
+    expect(r.sounds).toEqual(['chime', 'sparkle']);
+  });
+
+  it('a host given only a chime (an older caller) still chimes and plays nothing else', async () => {
+    const log: Log = [];
+    const shell = fakeShell(log);
+    const clock = fakeClock(START);
+    const brain = createBrain({ now: clock.now, random: seeded(7), debug: true });
+    let chimes = 0;
+    const host = createHost({
+      root: fakeRoot(log), shell: shell.shell, brain, views: [fakeView('pill', log).view], hostData: freshHostData(),
+      sound: { chime: () => void chimes++ }, frame: () => Promise.resolve(), log: () => undefined,
+    });
+    const starting = host.start();
+    await settle();
+    await starting;
+    brain.debug?.setNeeds({ tummy: 50 });
+    brain.feed();
+    brain.startFocus();
+    clock.advance(26 * MIN);
+    await settle(2000);
+    expect(chimes).toBe(1);
+    host.stop();
+  });
+
+  it('stopping leaves no sound waiting', async () => {
+    const r = await started(rig());
+    r.brain.startFocus();
+    r.clock.advance(26 * MIN);
+    await settle(300);
+    r.sounds.length = 0;
+    r.host.stop();
+    await settle(2000);
+    expect(r.sounds).toEqual([]);
+    expect(vi.getTimerCount()).toBe(0);
   });
 });
 
