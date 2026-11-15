@@ -23,5 +23,12 @@ export default defineConfig({
   test: {
     include: ['tests/**/*.test.ts', 'src/**/*.test.ts'],
     environment: 'node',
+    // Some tests play hours of pet time on a fake clock (the never-stuck matrices, the
+    // soaks, every scene cut at every moment). They take a second or two on a quiet machine
+    // and five or more on a busy one, which is what this machine usually is. What they
+    // prove is in what they assert, not in how long the machine took over it: the limit is
+    // only there to stop a test that hangs, and a hang is still a hang after thirty seconds.
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
   },
 });

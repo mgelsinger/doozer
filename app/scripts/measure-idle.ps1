@@ -30,6 +30,10 @@ param(
   [string] $ScenarioArgs = '',
   [string] $Label = 'idle',
   [string] $Out = '',
+  # A browser profile to use and keep. A new profile spends its first minute or so on
+  # the browser's own first-run chores, which reads as a busy browser process; a profile
+  # that has been used once before does not. Default: a new one, removed afterwards.
+  [string] $Profile = '',
   [switch] $Cloak
 )
 
@@ -43,6 +47,9 @@ $env:DOOZER_SPIKE_OUT = Join-Path $scratch 'out'
 if ($Scenario) { $env:DOOZER_SPIKE = $Scenario } else { Remove-Item Env:DOOZER_SPIKE -ErrorAction SilentlyContinue }
 if ($ScenarioArgs) { $env:DOOZER_SPIKE_ARGS = $ScenarioArgs } else { Remove-Item Env:DOOZER_SPIKE_ARGS -ErrorAction SilentlyContinue }
 if ($Cloak) { $env:DOOZER_SPIKE_CLOAK = '1' } else { Remove-Item Env:DOOZER_SPIKE_CLOAK -ErrorAction SilentlyContinue }
+# A browser profile of its own: copies of the app that share a profile share one WebView2
+# browser process, and then the process tree measured here is not this copy's alone.
+$env:WEBVIEW2_USER_DATA_FOLDER = if ($Profile) { New-Item -ItemType Directory -Force -Path $Profile | Out-Null; (Resolve-Path $Profile).Path } else { Join-Path $scratch 'webview' }
 foreach ($pair in $Set) { $name, $value = $pair -split '=', 2; Set-Item -Path "Env:$name" -Value $value }
 
 function Get-Tree([int] $rootId) {
@@ -144,12 +151,28 @@ try {
   $windows | Select-Object window, seconds, processes, cpuPercentOfOneCore, cpuPercentOfMachine, privateWorkingSetMB, workingSetMB, commitMB |
     Format-Table -AutoSize | Out-String -Width 200
 
+  # The mean of each kind of process over all the windows: where the time went.
+  $byKind = $windows | ForEach-Object { $_.rows } | Group-Object Kind | ForEach-Object {
+    [pscustomobject]@{ kind = $_.Name; cpuPercentOfOneCore = [math]::Round((($_.Group | Measure-Object 'CPU % of 1 core' -Sum).Sum) / $windows.Count, 3) }
+  } | Sort-Object cpuPercentOfOneCore -Descending
+  $mean = [math]::Round(($windows | Measure-Object cpuPercentOfOneCore -Average).Average, 3)
+  "mean over $($windows.Count) windows: $mean % of one core   (" + (($byKind | Where-Object cpuPercentOfOneCore -gt 0 | ForEach-Object { "$($_.kind) $($_.cpuPercentOfOneCore)" }) -join ', ') + ')'
+
+  # What the scenario wrote down about itself (what Doozer was doing meanwhile).
+  $reports = @{}
+  if (Test-Path $env:DOOZER_SPIKE_OUT) {
+    Get-ChildItem $env:DOOZER_SPIKE_OUT -Filter '*.json' | Where-Object Length -lt 200kb | ForEach-Object {
+      try { $reports[$_.BaseName] = Get-Content $_.FullName -Raw | ConvertFrom-Json } catch { }
+    }
+  }
+
   if ($Out) {
     [pscustomobject]@{
       label = $Label; exe = $exePath; scenario = $Scenario; scenarioArgs = $ScenarioArgs; cloaked = [bool]$Cloak
       measuredAt = (Get-Date).ToString('s'); logicalCores = $cores
-      warmupSeconds = $WarmupSeconds; sampleSeconds = $SampleSeconds; windows = $windows
-    } | ConvertTo-Json -Depth 6 | Set-Content -Path $Out -Encoding utf8
+      warmupSeconds = $WarmupSeconds; sampleSeconds = $SampleSeconds
+      meanCpuPercentOfOneCore = $mean; byKind = $byKind; windows = $windows; reports = $reports
+    } | ConvertTo-Json -Depth 12 | Set-Content -Path $Out -Encoding utf8
     "written: $Out"
   }
 }
