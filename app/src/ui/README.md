@@ -73,3 +73,10 @@ Tests for all of this run without a browser: `lifecycle.test.ts`, `presenter.tes
 - **Colour is never the only signal.** A need shows as bar or ring length *and* colour *and* a “!” flag when low (striped too when urgent); its text says “Tummy 23%, low”. Selected things are bolder and marked as well as coloured; switches say On/Off.
 - **Reduced motion** follows `settings.reduceMotion` (and the system when it is `'system'`): every kit root carries `data-motion`. No springs or travel; emotes fade in place.
 - During a focus session (`state.quiet`) the stage shows no hearts, sparkles or z's. The one emote that still appears is the “?” of a refusal, because that answers something the user just pressed.
+
+Added in Phase 10, and checked in every view ([docs/polish-checks.md](../../../docs/polish-checks.md)):
+
+- **The rules that mark a need by shape are held by a test** (`kit.test.ts`): the "!" flag, the stripes of an urgent bar, the "!" badge on the Radial's need buttons.
+- **Interface size** (Settings: Normal, Large, Larger) scales everything, text and Doozer included, through the shell.
+- **The Card can be opened from the keyboard** (Ctrl+Alt+D, or the tray menu) in every view, with focus on its first button; closing it gives the keyboard back to the window that had it.
+- **The countdown is quiet when nobody is looking.** `createFocusChip({ precise: () => ... })` and the Pill's face show minutes instead of seconds while the pointer is away (`quietClock` in `format.ts`), and seconds again in the last minute, so a running session does not have the window drawn again every second for nobody.

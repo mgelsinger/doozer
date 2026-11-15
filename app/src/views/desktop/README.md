@@ -29,7 +29,9 @@ Tests: `app/tests/views/desktop/` (the whole view against the real brain in a te
 
 **What is open** is one variable, `'none' | 'radial' | 'card' | 'settings'`, mirrored in `data-open`. A click on Doozer pokes it and opens the Radial (or closes whatever is open); *More* opens the Card over Doozer's head (beside it on a screen too short for that); the settings panel takes the Card's place and is the only thing that may take the keyboard.
 
-**Movement** is a function of the clock (`motion.ts`): where Doozer is at any moment is worked out from when the move began. A timer steps it every 33 ms and reports the hit region; animation frames, when they come, only make it smoother. So a walk ends when its time is up whether or not a frame was ever drawn (a hidden window draws none).
+**Movement** is a function of the clock (`motion.ts`): where Doozer is at any moment is worked out from when the move began. It is drawn on the page's frame clock (`src/frames.ts`: 24 times a second with nobody there, 60 with the pointer on it), in step with the feet, and a timer steps it instead if no frame has come for 150 ms. So a walk ends when its time is up whether or not a frame was ever drawn (a hidden window draws none).
+
+**The hit region of a walk is reported once** (Phase 10). A walk in a straight line at a steady speed is told to the shell as where the region is now, how fast it is going and for how long (`walkingRegion()`; `vx`, `vy`, `ms` in `shell.ts`), and the shell works out where it is each time it looks at the pointer. Before, the region was sent thirty times a second, and each sending is a round trip through the browser's network stack: a tenth of what a walk cost. Anything that is not such a walk (a carry, the float down) still reports as it moves; the bridge sends a region again only when it is no longer where the shell thinks it is.
 
 **The spot.** Doozer starts right of the middle of the screen. Where it is put down becomes its spot: Calm strolls stay within 300 px of it, a peek returns to it, and it is kept in the save per monitor (`context.memory`, as how far across the screen) so Doozer is there again next time, on each monitor separately.
 

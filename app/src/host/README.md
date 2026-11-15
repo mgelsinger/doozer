@@ -7,7 +7,7 @@ Phase 6. `main.ts` reads the save, creates the brain and hands both to the host 
 | `view.ts` | The view contract: what the host asks of a view and what a view may ask of the host. Types only. |
 | `host.ts` | `createHost`: mounting and switching views, the clock, saving, tuck-away, and what the window settings do. |
 | `store.ts` | The save document (`{ brain, host }`) and `createSaver`, which decides when it is written. |
-| `sound.ts` | The one sound of this phase: the chime when a focus session ends. Silent unless Sound is on. |
+| `sound.ts` | The sounds: thirteen short ones, synthesised in the page from one small instrument and one five-note scale. Silent unless Sound is on. |
 
 Tests: `app/tests/host/` (no DOM needed; the shell, the root and the views are fakes).
 
@@ -60,3 +60,13 @@ Rules for a view:
 **Settings that are about the window:** always on top, start with Windows (if registering fails the switch turns itself back off, so it never lies), tuck away.
 
 **First run.** `host.needsWelcome()` is true until the mounted view calls `host.welcomed()` for this pet (its `bornAt` is remembered in the save), so a pet hatches exactly once and a new pet hatches again.
+
+## Added in Phase 10
+
+**Sound** (`sound.ts`, and `soundFor` in `host.ts`). The set is data (`SOUNDS`: notes with a time, a pitch, a ring and a loudness), so what it promises is tested without a loudspeaker: every pitch is on the scale, nothing is louder than a tenth of full volume or longer than a second and a half. The *host* decides when one is played, so no view has to: for something you did (fed, a treat, the bowl, play, a wash, a pet, tucked in, woken, a refusal, a move to another view), when a session starts, and when one ends (the chime, and a sparkle after it if something was unlocked). Never for what Doozer does by itself, never in the middle of a session, and nothing but the chime while tucked away. The audio device is opened at the first sound and let go again when the last note has died away. Hear them all at `/viewer.html#sounds`.
+
+**The Card from the keyboard.** The shell's `card-requested` (Ctrl+Alt+D, or *Open Doozer's card* in the tray menu) is passed to the view's optional `openCard(keyboard)`. With `keyboard` true the shell has already given the window the keyboard; the view opens its Card with focus on the first button, and when the Card closes the host's `setFocusable(false)` hands the keyboard back to the window that had it. Nothing else ever gives the window the keyboard unasked.
+
+**Interface size** (`uiScale` in the settings: Normal, Large, Larger). The host tells the shell (`shell.setUiScale`), which zooms the page and counts the zoom into every pixel calculation it makes, so the window, the hit regions and the pointer stay in step. A view needs to do nothing: it is simply handed a smaller `info.workArea` in its own pixels.
+
+**Memory** (`syncMemory`). Tucked away, and for a few seconds after leaving a view that says it is `heavy` (the Island), the host asks the browser to hold less (`shell.setLowMemory`). It is a hint the browser may take or leave; what it gave back, measured, is in [docs/polish-checks.md](../../../docs/polish-checks.md).

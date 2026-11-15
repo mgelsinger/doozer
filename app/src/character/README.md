@@ -80,3 +80,12 @@ Rebuilding the model (headless: no window opens):
 ```
 "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" --background --factory-startup --python app/assets/doozer/build_doozer.py
 ```
+
+## How often it is drawn (Phase 10)
+
+The rig does not draw itself at the display's rate. `src/frames.ts` (one clock for the whole page; `main.ts` attaches it) takes every running animation in the document (the loops of `rig.css`, the kit's transitions, the performances) and steps them all together: **24 times a second** when nobody is there, **60 times** for four seconds after the pointer or a key touches the page. On a 120 Hz display that is a fifth of the pictures and about a quarter of the cost: drawing pictures is what animation costs here ([docs/polish-checks.md](../../../docs/polish-checks.md)). Nothing in this folder knows about it, with two exceptions:
+
+- **Loop lengths are whole pictures.** At 24 pictures a second a loop whose length is not a whole number of them is caught at a different point each time round and stutters. The quick loops of `rig.css` are whole twelfths of a second (its "Timing" comment lists them), `walkCycleMs` rounds a walk cycle to a whole twelfth, and the shake-off is ten whole swings. Keep to that when adding one.
+- **A thing moved from script** asks the same clock for its frames (`frames.request`, or `frames.frameSource()` where a pair of functions is wanted) instead of `requestAnimationFrame`, so it moves in step with the feet.
+
+See every picture of every animation as it is drawn at a given rate: `/viewer.html?only=rig&strip=24` (or 30, 60). Watch the rig at a given rate: the *Drawn* selector at the top of the viewer.

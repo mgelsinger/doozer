@@ -44,7 +44,7 @@ Tucked away (`setAwake(false)`): the Card folds, every timer of the view stops, 
 ## Decisions made here (also in WORK_PLAN.md's log)
 
 - **Size** (Small / Medium / Large) scales the pill's face (0.86 / 1 / 1.18). The Card is the same in every view and size.
-- **Keyboard.** The window may take keyboard focus only while the settings panel is open. With the Card open it still never does, so feeding, petting or starting a session never pulls you out of what you were typing in. The Card's keyboard support is therefore unreachable in this view until there is a way in that does not need a click (Phase 10).
+- **Keyboard.** The window may take keyboard focus only while the settings panel is open. With the Card open it still never does, so feeding, petting or starting a session never pulls you out of what you were typing in. The way to the Card's keyboard support is one you have to ask for (Phase 10): **Ctrl+Alt+D**, or *Open Doozer's card* in the tray menu. The shell gives the window the keyboard at that moment and no other, the Card opens with focus on its first button, and closing it (Escape) gives the keyboard back to the window that had it.
 - **Stroke to pet** is on Doozer itself (the pocket and the part above the pill); a click anywhere on the pill opens or closes the Card.
 - **Emotes** from the pill are small and drift sideways as much as up: a pill docked to the top of the screen has almost no room above it.
 - **No props** in the pill: an eating or playing scene is played by Doozer's face alone. The Card's stage shows the snack and the ball.
