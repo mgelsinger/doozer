@@ -62,6 +62,26 @@ describe('the pill face', () => {
     expect(face(brain).label).toContain('15:00 left of 25 minutes');
   });
 
+  it('with nobody looking, a running session is counted in whole minutes', () => {
+    const { brain, clock } = pet();
+    brain.startFocus();
+    const quiet = () => pillFace(brain.state, brain.limits, false);
+    expect(quiet()).toMatchObject({ status: '25 min', statusTone: 'focus', ring: { kind: 'focus', percent: 0 } });
+    clock.advance(10 * MIN + 20_000);
+    brain.tick();
+    expect(quiet().status).toBe('15 min');
+    expect(quiet().label).toContain('15 min left of 25 minutes');
+    // The ring is the same either way: it fills by the percent.
+    expect(quiet().ring).toEqual(face(brain).ring);
+    // The last minute is counted in seconds whoever is looking.
+    clock.advance(14 * MIN);
+    brain.tick();
+    expect(quiet().status).toBe('00:40');
+    // A paused session stands still: it is shown exactly.
+    brain.pauseFocus();
+    expect(quiet().status.endsWith('00:40')).toBe(true);
+  });
+
   it('shows nothing but the timer during a session, even with a need urgent (spec 4.5)', () => {
     const { brain } = pet();
     brain.startFocus();

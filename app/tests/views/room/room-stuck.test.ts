@@ -610,7 +610,8 @@ describe('switching Pill to Room and back in the middle of a focus session', () 
     await vi.advanceTimersByTimeAsync(4 * MIN);
     const before = a.brain.state;
     expect(before.focus).toMatchObject({ status: 'running', remainingMs: 21 * MIN });
-    expect(a.pill.snapshot()?.status).toBe('21:00');
+    // Nobody is looking at the pill: it counts in whole minutes.
+    expect(a.pill.snapshot()?.status).toBe('21 min');
 
     // Into the Room, mid-session.
     expect(await a.go('room')).toBe(true);

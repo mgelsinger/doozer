@@ -26,5 +26,5 @@ export { ICONS, ITEM_NAME, VIEW_ICON, icon } from './icons';
 export type { IconName } from './icons';
 export { NEED_ART, NEED_KEYS, TONE_COLOR, needLevel, needText, needTone } from './needs';
 export type { NeedTone } from './needs';
-export { clockText, formatClock } from './format';
+export { clockText, formatClock, quietClock, quietRemaining } from './format';
 export { resolveReduceMotion, systemPrefersReducedMotion, watchReduceMotion } from './motion';

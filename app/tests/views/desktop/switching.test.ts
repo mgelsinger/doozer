@@ -140,7 +140,9 @@ describe('the Desktop view under the real host, beside the Pill', () => {
     brain.setSetting('desktopActivity', 'lively');
     expect(brain.startFocus().ok).toBe(true);
     await tick(5 * MIN);
-    expect(app.pill.snapshot()?.status).toMatch(/^20:0[01]$/);
+    // To the second in the brain; in whole minutes on a pill nobody is looking at.
+    expect(Math.abs(brain.state.focus.remainingMs - 20 * MIN)).toBeLessThanOrEqual(1000);
+    expect(app.pill.snapshot()?.status).toMatch(/^2[01] min$/);
     const before = { treats: brain.state.treats, sessions: brain.state.sessionsCompleted, streak: brain.state.streak.current, bowl: brain.state.bowl };
 
     await go(app, 'desktop');

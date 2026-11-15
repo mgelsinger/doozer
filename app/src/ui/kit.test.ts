@@ -5,7 +5,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type { FoodId, UnlockId } from '../core/contract';
-import { clockText, formatClock } from './format';
+import { clockText, formatClock, quietClock, quietRemaining } from './format';
 import { ICONS, ITEM_NAME, VIEW_ICON } from './icons';
 import { resolveReduceMotion } from './motion';
 import { NEED_ART, NEED_KEYS, needLevel, needText, needTone } from './needs';
@@ -56,6 +56,37 @@ describe('the clock', () => {
     expect(clockText(25 * 60_000)).toBe('25 minutes left');
     expect(clockText(61_000)).toBe('1 minute 1 second left');
     expect(clockText(30_000)).toBe('30 seconds left');
+  });
+
+  it('for nobody it counts in whole minutes, rounded up, and in seconds for the last minute', () => {
+    expect(quietClock(25 * 60_000)).toBe('25 min');
+    expect(quietClock(25 * 60_000 - 1)).toBe('25 min');
+    expect(quietClock(24 * 60_000 + 1)).toBe('25 min');
+    expect(quietClock(24 * 60_000)).toBe('24 min');
+    // It never says less than is left.
+    expect(quietClock(61_000)).toBe('2 min');
+    expect(quietClock(60_001)).toBe('2 min');
+    // The last minute, to the second, as the precise clock has it.
+    expect(quietClock(60_000)).toBe('01:00');
+    expect(quietClock(42_000)).toBe('00:42');
+    expect(quietClock(1)).toBe('00:01');
+    expect(quietClock(0)).toBe('00:00');
+    expect(quietClock(Number.NaN)).toBe('00:00');
+  });
+
+  it('changes once a minute over a whole session, until the last minute', () => {
+    let changes = 0;
+    let shown = quietClock(25 * 60_000);
+    for (let ms = 25 * 60_000; ms > 60_000; ms -= 1000) {
+      const text = quietClock(ms);
+      if (text !== shown) { changes++; shown = text; }
+    }
+    // "25 min" down to "2 min": twenty-four readings, twenty-three changes in twenty-four minutes.
+    expect(changes).toBe(23);
+    // What is drawn for nobody (the room's kitchen timer) steps the same way.
+    expect(quietRemaining(24 * 60_000 + 1)).toBe(25 * 60_000);
+    expect(quietRemaining(24 * 60_000)).toBe(24 * 60_000);
+    expect(quietRemaining(42_500)).toBe(42_500);
   });
 });
 

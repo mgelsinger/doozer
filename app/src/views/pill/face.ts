@@ -3,7 +3,7 @@
 // and colours what the brain's state already says.
 
 import type { Limits, Mood, NeedKey, PetState, TreatId } from '../../core/contract';
-import { formatClock } from '../../ui/format';
+import { formatClock, quietClock } from '../../ui/format';
 import type { IconName } from '../../ui/icons';
 import { NEED_ART, needLevel, needTone, type NeedTone } from '../../ui/needs';
 
@@ -50,15 +50,20 @@ const LOW_MOODS: readonly Mood[] = ['hungry', 'bored', 'sleepy', 'dirty'];
 
 const clampPercent = (value: number): number => (Number.isFinite(value) ? Math.round(Math.min(100, Math.max(0, value))) : 0);
 
-export function pillFace(state: PetState, limits: Limits): PillFace {
+/**
+ * `precise` is whether someone is looking. While nobody is, a running session is counted
+ * in whole minutes ("25 min"), so that the pill changes once a minute and not once a
+ * second (ui/format.ts, `quietClock`).
+ */
+export function pillFace(state: PetState, limits: Limits, precise = true): PillFace {
   const focus = state.focus;
   const wellbeing = clampPercent(state.wellbeing);
 
   // During a session the pill is a timer. A need running low shows only in Doozer's
   // own face (spec 4.5), so neither the words nor the ring change colour.
   if (focus.status !== 'idle') {
-    const clock = formatClock(focus.remainingMs);
     const running = focus.status === 'running';
+    const clock = running && !precise ? quietClock(focus.remainingMs) : formatClock(focus.remainingMs);
     const percent = clampPercent(focus.progress * 100);
     return {
       name: state.name,

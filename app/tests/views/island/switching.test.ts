@@ -159,12 +159,12 @@ describe('a focus session carried between the Pill and the Island', () => {
     expect(inIsland).toBeLessThan(21 * MIN + 1000);
     const chip = document.querySelector<HTMLElement>('.dzk-focus-chip');
     expect(chip?.dataset.show).toBe('1');
-    expect(chip?.textContent).toMatch(/^2[01]:\d\d$/);
+    expect(chip?.textContent).toMatch(/^2[01] min$/);                  // in minutes: nobody is at the island
 
     await go(app, 'pill');
     expect(app.island.snapshot()).toBeNull();
     expect(app.brain.state.focus.status).toBe('running');
-    expect(app.pill.snapshot()?.status).toMatch(/^2[01]:\d\d$/);     // the pill is a countdown
+    expect(app.pill.snapshot()?.status).toMatch(/^2[01]:\d\d$/);     // the pill is a countdown (in seconds: it has just popped in)
     await tick(6 * MIN);
     app.brain.tick();
     expect(app.brain.state.focus.status).toBe('running');

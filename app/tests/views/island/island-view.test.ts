@@ -629,7 +629,9 @@ describe('the focus timer', () => {
     expect(named(r, 'glasses').visible).toBe(true);
     expect(r.snap().showing).toBe('focus');
     expect(chip?.dataset.show).toBe('1');
-    expect(chip?.textContent).toMatch(/^\d\d:\d\d$/);
+    // At rest, with nobody there, the chip counts in whole minutes.
+    expect(r.snap().lively).toBe(false);
+    expect(chip?.textContent).toMatch(/^2[45] min$/);
     expect(Math.hypot(r.snap().doozer.x, r.snap().doozer.z - 0.3)).toBeLessThan(0.15);
     // No wandering and no stirring during a session.
     const at = { ...r.parts().world.doozer };
@@ -852,15 +854,24 @@ describe('render on demand', () => {
     const off = r.brain.on('change', () => { changes++; });
     const frames = r.snap().frames;
     const asked = r.screen.state.requested;
+    const chipEl = r.parts().root.querySelector('.dzk-focus-chip');
+    let shown = chipEl?.textContent;
+    let chipChanges = 0;
     // As the host's clock does it: the brain is ticked once a second, and says "change" each time.
-    for (let i = 0; i < 60; i++) { await tick(1000); r.brain.tick(); }
+    for (let i = 0; i < 60; i++) {
+      await tick(1000);
+      r.brain.tick();
+      if (chipEl?.textContent !== shown) { chipChanges++; shown = chipEl?.textContent; }
+    }
     off();
     expect(r.brain.state.focus.remainingMs).toBeLessThan(left - 55_000);
     expect(changes).toBeGreaterThanOrEqual(55);
     // A minute holds five to twelve blinks of two redraws each, and nothing else.
     expect(r.snap().frames - frames).toBeLessThanOrEqual(24);
     expect(r.screen.state.requested - asked).toBeLessThanOrEqual(24);
-    expect(r.parts().root.querySelector('.dzk-focus-chip')?.textContent).toMatch(/^2[34]:\d\d$/);
+    // And the chip itself, with nobody there, counts in minutes: in a minute it changes once.
+    expect(chipEl?.textContent).toMatch(/^2[34] min$/);
+    expect(chipChanges).toBeLessThanOrEqual(1);
   });
 
   it('every minute to three, alone and awake, a small stir: a second of movement, and Doozer does not come alive for it', async () => {

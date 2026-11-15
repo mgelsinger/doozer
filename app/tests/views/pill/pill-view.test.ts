@@ -149,6 +149,39 @@ describe('the pill face', () => {
     expect(r.parts().mini.el.dataset.glasses).toBe('1');
   });
 
+  it('a session nobody is watching is counted in minutes: the pill changes once a minute, not once a second', async () => {
+    const r = mount();
+    r.brain.startFocus();
+    // Just started: Doozer is lively for a moment, and the pill counts the seconds.
+    expect(r.snap()).toMatchObject({ status: '25:00', lively: true });
+    await tick(20_000);
+    expect(r.snap().lively).toBe(false);
+    expect(r.snap().status).toBe('25 min');
+    // Two minutes, ticked every second as the host's clock does it.
+    const statusEl = r.parts().root.querySelector('.pillv-status');
+    let shown = statusEl?.textContent;
+    let changes = 0;
+    for (let i = 0; i < 120; i++) {
+      r.clock.advance(1000);
+      r.brain.tick();
+      if (statusEl?.textContent !== shown) { changes++; shown = statusEl?.textContent; }
+    }
+    expect(changes).toBeLessThanOrEqual(2);
+    expect(r.snap().status).toMatch(/^2[23] min$/);
+    // The pointer comes to rest on the pill: seconds again.
+    const pill = r.parts().pill;
+    pointer(pill, 'pointerenter');
+    await tick(250);
+    pointer(pill, 'pointermove');
+    expect(r.snap().lively).toBe(true);
+    expect(r.snap().status).toMatch(/^2[23]:\d\d$/);
+    // And it goes back to minutes by itself once the pointer has gone.
+    pointer(pill, 'pointerleave');
+    await tick(20_000);
+    expect(r.snap().lively).toBe(false);
+    expect(r.snap().status).toMatch(/^2[23] min$/);
+  });
+
   it('wears the palette and the size from the settings', async () => {
     const r = mount();
     r.brain.setSetting('palette', 'mint');

@@ -381,7 +381,10 @@ describe('the furniture table, against the real brain', () => {
     const wedge = scene.querySelector('.roomv-clock-wedge')?.getAttribute('d');
     expect(wedge).toMatch(/^M268 80/);
     await pass(r, 5 * MIN, 1000);
-    expect(r.snap().time).toMatch(/^(19:5\d|20:00)$/);
+    // Nobody has been in the room for five minutes: the title bar counts in whole minutes.
+    expect(r.brain.state.focus.remainingMs).toBeGreaterThan(19 * MIN + 50_000);
+    expect(r.brain.state.focus.remainingMs).toBeLessThanOrEqual(20 * MIN);
+    expect(r.snap().time).toBe('20 min');
     expect(scene.querySelector('.roomv-clock-wedge')?.getAttribute('d')).not.toBe(wedge);
     expect(unrest(r.snap())).toBe('');
 
