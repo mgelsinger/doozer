@@ -97,12 +97,20 @@ export const SMALL_SIZE_PX = 84;
  * a quarter of its own width per cycle at a walk, a bit under half at a trot.
  */
 export function walkCycleMs(widthPx: number, speedPxPerSec: number, gait: 'walk' | 'trot' = 'walk'): number {
-  const base = gait === 'walk' ? 960 : 520;
+  const base = gait === 'walk' ? 1000 : 500;
   if (!(speedPxPerSec > 0) || !(widthPx > 0)) return base;
   const stride = widthPx * (gait === 'walk' ? 0.26 : 0.42);
   const ms = (stride / speedPxPerSec) * 1000;
-  return Math.round(Math.min(base * 1.5, Math.max(base * 0.6, ms)));
+  // A whole number of twelfths of a second: an even number of pictures at 24 a second, so
+  // that each foot is caught at the same points of its step every time round (rig.css,
+  // "Timing"). At most a twenty-fourth of a second off what the ground speed asks for,
+  // which is a pixel of slide in a whole step.
+  const twelfths = Math.round(Math.min(base * 1.5, Math.max(base * 0.6, ms)) / WALK_STEP_MS);
+  return Math.round(twelfths * WALK_STEP_MS * 1000) / 1000;
 }
+
+/** Walk cycles are a whole number of these: two pictures at 24 frames a second. */
+export const WALK_STEP_MS = 1000 / 12;
 
 const PART_SELECTORS: Record<PartName, string> = {
   root: '.dz-root', body: '.dz-bodywrap', face: '.dz-face', shadow: '.dz-shadow', tail: '.dz-tail',
@@ -191,7 +199,8 @@ export function createDoozer(options: DoozerOptions = {}): Doozer {
       return;
     }
     for (const eye of eyes) {
-      quick(eye, [{ transform: 'scaleY(1)' }, { transform: 'scaleY(.08)', offset: 0.45 }, { transform: 'scaleY(1)' }], 150);
+      // Four pictures at 24 a second: open, closing, shut, opening.
+      quick(eye, [{ transform: 'scaleY(1)' }, { transform: 'scaleY(.08)', offset: 0.45 }, { transform: 'scaleY(1)' }], 167);
     }
   }
 
@@ -273,7 +282,7 @@ export function createDoozer(options: DoozerOptions = {}): Doozer {
       el.style.setProperty('--dz-look-y', clamp(y).toFixed(2));
     },
     setWalkCycle(ms) {
-      if (ms !== null && ms > 0) el.style.setProperty('--dz-walk-ms', `${Math.round(ms)}ms`);
+      if (ms !== null && ms > 0) el.style.setProperty('--dz-walk-ms', `${Math.round(ms * 1000) / 1000}ms`);
       else el.style.removeProperty('--dz-walk-ms');
     },
 

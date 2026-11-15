@@ -285,8 +285,13 @@ export function mountRig(host: HTMLElement, controls: ViewerControls): Cleanup {
   // ---- Frame by frame ------------------------------------------------------------------
   // The same animations as stills, so they can be judged without watching them move
   // (and in a browser pane that is not drawing frames).
-  const frames = section('frames', 'Frame by frame',
-    'Each strip is one animation frozen at evenly spaced moments, left to right. The walk strips cover one full cycle.');
+  // `?strip=24` (or 30, 60) shows instead every picture as the app draws it at that many
+  // frames a second (src/frames.ts): the timing pass of Phase 10 was judged from these.
+  const stripFps = Number(new URLSearchParams(location.search).get('strip')) || 0;
+  const frameMs = stripFps > 0 ? 1000 / stripFps : 0;
+  const frames = section('frames', 'Frame by frame', stripFps > 0
+    ? `Every picture of each animation as it is drawn at ${stripFps} frames a second (one every ${frameMs.toFixed(1)} ms), left to right. Loops show one cycle, or a quarter of a second if the cycle is shorter.`
+    : 'Each strip is one animation frozen at evenly spaced moments, left to right. The walk strips cover one full cycle. Add ?strip=24 to the address to see every picture as the app draws it at 24 frames a second.');
   const freezers: (() => void)[] = [];
   const strip = (label: string, count: number, build: (index: number) => { doozer: Doozer; at: number }) => {
     const row = el('div', { class: 'vw-grid vw-bg vw-strip' });
@@ -297,25 +302,54 @@ export function mountRig(host: HTMLElement, controls: ViewerControls): Cleanup {
     }
     frames.body.append(el('div', { class: 'vw-cap vw-strip-cap' }, [label]), row);
   };
-  const stripSize = Math.min(controls.size, 88);
+  const stripSize = Math.min(controls.size, stripFps > 0 ? 64 : 88);
   for (const gait of ['walk', 'trot'] as const) {
-    const cycle = gait === 'walk' ? 960 : 520;
-    strip(`${gait}: one cycle, heading right (${cycle} ms)`, 8, (i) => {
+    const cycle = gait === 'walk' ? 1000 : 500;
+    const count = stripFps > 0 ? Math.ceil(cycle / frameMs) : 8;
+    strip(`${gait}: one cycle, heading right (${cycle} ms${stripFps > 0 ? `, ${count} pictures` : ''})`, count, (i) => {
       const d = make({ size: stripSize, fidget: false, reduceMotion: false });
       d.setPose(gait); d.setFacing(1); d.lookAt(0.8, 0);
       d.setLive(true);
-      return { doozer: d, at: (cycle * i) / 8 };
+      return { doozer: d, at: stripFps > 0 ? i * frameMs : (cycle * i) / 8 };
     });
+  }
+  if (stripFps > 0) {
+    // The other loops: how long one cycle of each is, and the face that goes with it.
+    const cycles: readonly { pose: Pose; ms: number; mood: ExpressionName; note?: string }[] = [
+      { pose: 'idle', ms: 2800, mood: 'content', note: 'every other picture' },
+      { pose: 'eat', ms: 1000 / 3, mood: 'eat' },
+      { pose: 'play', ms: 1000, mood: 'cheer' },
+      { pose: 'hop', ms: 625, mood: 'cheer' },
+      { pose: 'shake', ms: 1000 / 6, mood: 'shake' },
+      { pose: 'no', ms: 1000 / 3, mood: 'no' },
+      { pose: 'carried', ms: 1000, mood: 'wow' },
+      { pose: 'wave', ms: 5000 / 12, mood: 'joyful' },
+      { pose: 'peek', ms: 1800, mood: 'content', note: 'every other picture' },
+    ];
+    for (const loop of cycles) {
+      const stride = loop.note ? 2 : 1;
+      const span = Math.max(loop.ms, 250);
+      const count = Math.min(36, Math.ceil(span / (frameMs * stride) - 0.01));
+      strip(`${loop.pose}: a cycle of ${Math.round(loop.ms)} ms (${count} pictures${loop.note ? `, ${loop.note}` : ''})`, count, (i) => {
+        const d = make({ size: stripSize, fidget: false, reduceMotion: false });
+        d.setMood(loop.mood);
+        d.setPose(loop.pose); d.setFacing(loop.pose === 'peek' ? 1 : 0);
+        d.setLive(true);
+        return { doozer: d, at: i * frameMs * stride };
+      });
+    }
   }
   for (const name of PERFORMANCE_NAMES) {
     const spec = PERFORMANCES[name];
     const moods = ONE_SHOT_MOOD[name];
-    strip(`${name} (${spec.duration} ms)`, 7, (i) => {
+    const stride = stripFps > 0 && spec.duration > 1000 ? 2 : 1;
+    const count = stripFps > 0 ? Math.ceil(spec.duration / (frameMs * stride)) : 7;
+    strip(`${name} (${spec.duration} ms${stripFps > 0 ? `, ${count} pictures${stride > 1 ? ', every other one' : ''}` : ''})`, count, (i) => {
       const clock = manualTimers();
       const d = createDoozer({ palette: controls.palette, style: controls.style, size: stripSize, fidget: false, reduceMotion: false, timers: clock });
       doozers.push(d);
       d.setMood(moods?.after ?? 'content');
-      const at = (spec.duration * (i + 0.5)) / 7;
+      const at = stripFps > 0 ? Math.min(spec.duration - 1, i * frameMs * stride) : (spec.duration * (i + 0.5)) / 7;
       void d.perform(name, 1.2);
       clock.advance(at);
       return { doozer: d, at };

@@ -16,7 +16,7 @@
   --dz-tuft: 0deg;
   --dz-lid: 0;                      /* 0 open .. 1 shut */
   --dz-sw: 4.5;                     /* outline width in view-box units */
-  --dz-walk: var(--dz-walk-ms, 960ms);
+  --dz-walk: var(--dz-walk-ms, 1000ms);
   --dz-bob: -4px; --dz-roll: 2.8deg; --dz-lift: -8px; --dz-stride: 4.5px; --dz-swing: 12deg;
 }
 .dz-svg { display: block; width: 100%; height: 100%; overflow: visible; }
@@ -90,7 +90,7 @@
 .dz[data-mouth="o"] .m-o, .dz[data-mouth="flat"] .m-flat, .dz[data-mouth="frown"] .m-frown,
 .dz[data-mouth="wavy"] .m-wavy, .dz[data-mouth="chew"] .m-chew, .dz[data-mouth="yawn"] .m-yawn { display: block; }
 @keyframes dz-chew { 0%, 100% { transform: scale(1.05, .28); } 50% { transform: scale(1, 1); } }
-.dz[data-mouth="chew"] .m-chew { transform: scale(1, .6); animation: dz-chew .3s ease-in-out infinite; }
+.dz[data-mouth="chew"] .m-chew { transform: scale(1, .6); animation: dz-chew .3333s ease-in-out infinite; }
 
 /* ---- Extras: drool, grime, glasses, book, hats ------------------------------ */
 .dz-drool { fill: #BFE8FF; stroke: var(--dz-ink); stroke-width: 1.6px; stroke-linejoin: round; display: none; }
@@ -126,7 +126,16 @@
 .dz-bow-crease { fill: none; stroke: #D8436D; stroke-width: 2.2px; stroke-linecap: round; }
 
 /* ---- Poses: looping animation selected by data-pose -------------------------- */
-/* Each pose has a static base (so it still reads with motion reduced) plus a loop. */
+/* Each pose has a static base (so it still reads with motion reduced) plus a loop.
+
+   Timing. The app draws these 24 times a second when nobody is there and 60 times when
+   somebody is (src/frames.ts). A short loop whose length is not a whole number of
+   pictures is caught at a different point of its swing every time round, and reads as
+   a stutter rather than a rhythm: the shake, at 0.16 s, was 3.84 pictures long. So the
+   quick loops are a whole number of twelfths of a second (2 pictures at 24 a second, 5
+   at 60): the shake 2/12, chewing and the head-shake 4/12, the wave 5/12, play 6/12,
+   the hop 7.5/12, the dangle 6/12. The slow ones (breathing, the sway of the tuft) have
+   so many pictures to a cycle that it does not matter. */
 
 @keyframes dz-breathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.028, .972); } }
 @keyframes dz-settle  { 0%, 100% { transform: scale(1.012, .988); } 50% { transform: scale(1.024, .976); } }
@@ -160,7 +169,7 @@
 /* Walk: a gentle waddle (spec 6.4). The weight rolls from foot to foot like a slow
    pendulum, with a small dip as the feet swap; ears, tail and belly follow a beat late,
    which is where the character comes from. `trot` is the same cycle, quicker and bouncier. */
-.dz[data-pose="trot"] { --dz-walk: var(--dz-walk-ms, 520ms); --dz-bob: -5.5px; --dz-roll: 3.2deg; --dz-lift: -9.5px; --dz-stride: 5px; --dz-swing: 16deg; }
+.dz[data-pose="trot"] { --dz-walk: var(--dz-walk-ms, 500ms); --dz-bob: -5.5px; --dz-roll: 3.2deg; --dz-lift: -9.5px; --dz-stride: 5px; --dz-swing: 16deg; }
 @keyframes dz-walk-roll { from { rotate: calc(var(--dz-roll) * -1); } to { rotate: var(--dz-roll); } }
 @keyframes dz-walk-bob {
   0%, 100% { translate: 0 0; animation-timing-function: ease-out; }
@@ -197,50 +206,50 @@
 @keyframes dz-hop-shadow { 0%, 82%, 100% { transform: scale(1); opacity: 1; } 40% { transform: scale(.7); opacity: .55; } }
 @keyframes dz-arms-up-l { 0%, 100% { transform: rotate(0); } 30%, 60% { transform: rotate(60deg) translateY(-6px); } }
 @keyframes dz-arms-up-r { 0%, 100% { transform: rotate(0); } 30%, 60% { transform: rotate(-60deg) translateY(-6px); } }
-.dz[data-pose="hop"] .dz-root { animation: dz-hop .62s cubic-bezier(.3, .6, .4, 1) infinite; }
-.dz[data-pose="hop"] .dz-shadow { animation: dz-hop-shadow .62s ease-in-out infinite; }
-.dz[data-pose="hop"] .dz-arm-l { transform: rotate(40deg) translateY(-4px); animation: dz-arms-up-l .62s ease-in-out infinite; }
-.dz[data-pose="hop"] .dz-arm-r { transform: rotate(-40deg) translateY(-4px); animation: dz-arms-up-r .62s ease-in-out infinite; }
+.dz[data-pose="hop"] .dz-root { animation: dz-hop .625s cubic-bezier(.3, .6, .4, 1) infinite; }
+.dz[data-pose="hop"] .dz-shadow { animation: dz-hop-shadow .625s ease-in-out infinite; }
+.dz[data-pose="hop"] .dz-arm-l { transform: rotate(40deg) translateY(-4px); animation: dz-arms-up-l .625s ease-in-out infinite; }
+.dz[data-pose="hop"] .dz-arm-r { transform: rotate(-40deg) translateY(-4px); animation: dz-arms-up-r .625s ease-in-out infinite; }
 
 @keyframes dz-eat { 0%, 100% { transform: translateY(0) scale(1, 1); } 50% { transform: translateY(3px) scale(1.04, .95); } }
 @keyframes dz-cheek-puff { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.16, 1.1); } }
-.dz[data-pose="eat"] .dz-bodywrap { animation: dz-eat .3s ease-in-out infinite; }
-.dz[data-pose="eat"] .dz-cheek { animation: dz-cheek-puff .3s ease-in-out infinite; }
+.dz[data-pose="eat"] .dz-bodywrap { animation: dz-eat .3333s ease-in-out infinite; }
+.dz[data-pose="eat"] .dz-cheek { animation: dz-cheek-puff .3333s ease-in-out infinite; }
 
 /* Play: bouncing on the spot, batting upward with alternate paws. */
 @keyframes dz-play { 0%, 100% { transform: translateY(0) scale(1.06, .93); } 50% { transform: translateY(-7px) scale(.97, 1.04); } }
 @keyframes dz-bat-l { 0%, 100% { transform: rotate(48deg) translateY(-3px); } 50% { transform: rotate(104deg) translateY(-7px); } }
 @keyframes dz-bat-r { 0%, 100% { transform: rotate(-104deg) translateY(-7px); } 50% { transform: rotate(-48deg) translateY(-3px); } }
-.dz[data-pose="play"] .dz-bodywrap { animation: dz-play .52s ease-in-out infinite; }
-.dz[data-pose="play"] .dz-arm-l { transform: rotate(70deg) translateY(-5px); animation: dz-bat-l 1.04s ease-in-out infinite; }
-.dz[data-pose="play"] .dz-arm-r { transform: rotate(-70deg) translateY(-5px); animation: dz-bat-r 1.04s ease-in-out infinite; }
-.dz[data-pose="play"] .dz-ear { animation: dz-walk-ear .26s ease-in-out infinite alternate; }
+.dz[data-pose="play"] .dz-bodywrap { animation: dz-play .5s ease-in-out infinite; }
+.dz[data-pose="play"] .dz-arm-l { transform: rotate(70deg) translateY(-5px); animation: dz-bat-l 1s ease-in-out infinite; }
+.dz[data-pose="play"] .dz-arm-r { transform: rotate(-70deg) translateY(-5px); animation: dz-bat-r 1s ease-in-out infinite; }
+.dz[data-pose="play"] .dz-ear { animation: dz-walk-ear .25s ease-in-out infinite alternate; }
 
 @keyframes dz-shake { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(7deg); } }
 @keyframes dz-ear-flap-l { 0%, 100% { transform: rotate(10deg); } 50% { transform: rotate(-12deg); } }
 @keyframes dz-ear-flap-r { 0%, 100% { transform: rotate(12deg); } 50% { transform: rotate(-10deg); } }
-.dz[data-pose="shake"] .dz-bodywrap { animation: dz-shake .16s linear infinite; }
-.dz[data-pose="shake"] .dz-ear-l { animation: dz-ear-flap-l .16s linear infinite; }
-.dz[data-pose="shake"] .dz-ear-r { animation: dz-ear-flap-r .16s linear infinite; }
+.dz[data-pose="shake"] .dz-bodywrap { animation: dz-shake .1667s linear infinite; }
+.dz[data-pose="shake"] .dz-ear-l { animation: dz-ear-flap-l .1667s linear infinite; }
+.dz[data-pose="shake"] .dz-ear-r { animation: dz-ear-flap-r .1667s linear infinite; }
 
 /* No: a small head-shake. The face slides side to side while the body twists against it. */
 @keyframes dz-no-body { 0%, 100% { transform: rotate(-2.6deg); } 50% { transform: rotate(2.6deg); } }
 @keyframes dz-no-face { 0%, 100% { transform: translateX(-6px); } 50% { transform: translateX(6px); } }
-.dz[data-pose="no"] .dz-bodywrap { animation: dz-no-body .3s ease-in-out infinite; }
-.dz[data-pose="no"] .dz-face { animation: dz-no-face .3s ease-in-out infinite; }
+.dz[data-pose="no"] .dz-bodywrap { animation: dz-no-body .3333s ease-in-out infinite; }
+.dz[data-pose="no"] .dz-face { animation: dz-no-face .3333s ease-in-out infinite; }
 
 /* Carried: hanging from the top of the head, feet dangling. */
 @keyframes dz-carried-body { 0%, 100% { transform: rotate(-4deg) scale(.95, 1.07); } 50% { transform: rotate(4deg) scale(.95, 1.07); } }
 @keyframes dz-dangle { 0%, 100% { transform: rotate(-16deg) translateY(5px); } 50% { transform: rotate(16deg) translateY(5px); } }
-.dz[data-pose="carried"] .dz-bodywrap { transform-origin: 100px 60px; transform: scale(.95, 1.07); animation: dz-carried-body .9s ease-in-out infinite; }
-.dz[data-pose="carried"] .dz-foot { transform-origin: var(--px) 170px; transform: translateY(5px); animation: dz-dangle .45s ease-in-out infinite; }
-.dz[data-pose="carried"] .dz-foot-r { animation-delay: -.22s; }
+.dz[data-pose="carried"] .dz-bodywrap { transform-origin: 100px 60px; transform: scale(.95, 1.07); animation: dz-carried-body 1s ease-in-out infinite; }
+.dz[data-pose="carried"] .dz-foot { transform-origin: var(--px) 170px; transform: translateY(5px); animation: dz-dangle .5s ease-in-out infinite; }
+.dz[data-pose="carried"] .dz-foot-r { animation-delay: -.25s; }
 .dz[data-pose="carried"] .dz-arm-l { transform: rotate(70deg) translateY(-8px); }
 .dz[data-pose="carried"] .dz-arm-r { transform: rotate(-70deg) translateY(-8px); }
 .dz[data-pose="carried"] .dz-shadow { opacity: 0; }
 
 @keyframes dz-wave { 0%, 100% { transform: translate(12px, -8px) rotate(-125deg); } 50% { transform: translate(12px, -8px) rotate(-165deg); } }
-.dz[data-pose="wave"] .dz-arm-r { transform: translate(12px, -8px) rotate(-145deg); animation: dz-wave .4s ease-in-out infinite; }
+.dz[data-pose="wave"] .dz-arm-r { transform: translate(12px, -8px) rotate(-145deg); animation: dz-wave .4167s ease-in-out infinite; }
 .dz[data-pose="wave"] .dz-root { rotate: -2.5deg; }
 
 /* Read: sitting behind a book, eyes over the top; now and then a page turns. */

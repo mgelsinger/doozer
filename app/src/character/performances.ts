@@ -206,7 +206,9 @@ export const PERFORMANCES: Readonly<Record<PerformanceName, PerformanceSpec>> = 
   },
 
   'shake-off': {
-    duration: 900,
+    // Ten swings of a twelfth of a second each: two pictures a swing at 24 a second, so
+    // every swing is seen at its end and at its middle (rig.css, "Timing").
+    duration: 833,
     pose: 'none',
     faces: [[0, 'shake']],
     tracks: () => [
