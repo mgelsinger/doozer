@@ -21,7 +21,7 @@ This file says **how and in what order** Doozer gets built. [DESIGN_SPEC.md](DES
 | 7 | Room view | M2 | **Done — Milestone 2 is built.** `app/src/views/room/`; 109 new page tests and 3 native ones; checks and measurements in [docs/room-checks.md](docs/room-checks.md). Checked with scripted input in the real window, not yet by a person at the mouse (its section 7 lists what to try) | high |
 | 8 | 3D Doozer and the Island view | M3 | **Done — Milestone 3 is built.** `app/assets/doozer/` (the model and the Blender script that builds it), `app/src/character/doozer3d.ts`, `app/src/views/island/`; 222 new page tests and 2 native ones; checks and measurements in [docs/island-checks.md](docs/island-checks.md). Idle cost is inside the budget. Leaving the Island leaks nothing that grows, but does not hand back all of its memory (section 4 there). Checked with scripted input in the real window and judged from still pictures, not yet by a person at the mouse (its section 10 lists what to try; whether it beats the mockup for charm is the owner's call) | **xhigh** |
 | 9 | Desktop view (the calm roamer) | M4 | **Built and checked — Milestone 4, with two things waiting for the owner.** `app/src/views/desktop/`; 176 page tests; checks and measurements in [docs/desktop-checks.md](docs/desktop-checks.md). Checked with scripted input in the real window, a three-hour soak included; not yet by a person at the mouse. **Not done, and only the owner can:** trying Calm and Lively to choose the default, and agreeing that Doozer no longer gets stuck (section 9 of that document says what to try) | **xhigh** |
-| 10 | Sound, polish, accessibility, performance | M5 | Not started | high |
+| 10 | Sound, polish, accessibility, performance | M5 | **In progress** (started 2026-11-14). Scope grew when the view phases finished: see section 13 | **xhigh** (was high: the performance work now reaches into the shared rig) |
 | 11 | Packaging and release | M5 | Not started | high |
 
 **How the effort column was chosen.** `high` is for phases that are well specified and mostly construction. `xhigh` ("extra") is for phases where the platform is fiddly and under-documented (transparent click-through windows, DPI, multi-monitor) or where the result is judged by taste (does it feel alive, is it cute, is the movement calm enough). Running everything on `xhigh` is fine; it only costs more.
@@ -335,9 +335,40 @@ One finding matters for the next phase: an animation that never stops costs 13�
 
 ---
 
-## 13. Phase 10 — Sound, polish, accessibility, performance  ·  effort: high  ·  M5
+## 13. Phase 10 — Sound, polish, accessibility, performance  ·  effort: xhigh  ·  M5
 
-A small coherent sound set to replace the synthesised placeholders (off by default); a timing and easing pass on every scene; reduce-motion mode; colour-independent need indicators; scalable interface; a final pass against the performance budget in all four views.
+**Rated xhigh, not high as first planned (changed 2026-11-14).** When this plan was written, Phase 10 was a tidy-up. The view phases then each measured the same thing and left it here: animation is expensive in this window, and the fix they point to is a frame-rate cap in the rig that every view shares. A change to shared code that every view's never-stuck checks stand on, judged partly by eye (does the capped motion still read as smooth), is the kind of work the `xhigh` rating is for.
+
+**Goal:** all four views inside the budget (under 150 MB, under 1 % of one core when idle) with Doozer as lively as that allows; then accessibility, timing and sound.
+
+**Inputs:** spec sections 5 to 9; the four view write-ups, above all their idle-cost sections and what each left for this phase ([docs/pill-checks.md](docs/pill-checks.md) 3, [docs/room-checks.md](docs/room-checks.md) 6, [docs/island-checks.md](docs/island-checks.md) 4 and 5, [docs/desktop-checks.md](docs/desktop-checks.md) 6); the READMEs under `app/src/`.
+
+**What the view phases found and left here** (the added scope):
+
+1. **Animation is expensive.** A second of anything moving costs a third to a half of one core. The Room averages 1.05 % over ten minutes; the Desktop view on Calm 3.6 % over twelve, on Lively about 23 %. The view sessions' diagnosis: everything is drawn at the display's 120 Hz. The Room and the Island were made quieter when nobody is watching in order to fit.
+2. **The focus countdown repaints once a second in every view**, which puts a focus session at about 1 %.
+3. **After the Island has been visited the page's process keeps about 20 MB** that never comes back.
+4. **The Card cannot be reached by keyboard in the Pill**, because the window takes keyboard focus only while settings is open.
+5. **Two tests are fragile under load:** the native `save::tests::kill_mid_write_small_payload` failed once while the disk was busy, and a few Pill and Desktop page tests have hit the 5-second timeout on a loaded machine.
+
+**Tasks, in order of importance**
+
+1. **Performance.** Confirm by measurement why animation costs what it does, then bring it down: a frame-rate cap for the 2D rig and for the Island, less frequent hit-region reports while walking, a focus countdown that does not repaint every second when nobody is looking, and whatever else the measurements point to. Find and return the Island's 20 MB, or show with evidence that it cannot be returned. With drawing cheaper, restore as much life to Doozer alone in the Room and on the Island as the budget allows.
+2. **The two fragile tests**, fixed without weakening what they prove.
+3. **A keyboard way into the Card from the Pill** that does not take focus unasked.
+4. **Accessibility:** reduce-motion mode checked in every view; need indicators that do not depend on colour; a scalable interface.
+5. **A timing and easing pass** on every scene in every view, judged from frame captures.
+6. **Sound:** a small coherent set to replace the single placeholder chime, off by default, synthesised in code or rendered by a script kept in the repo. No downloaded sound files.
+
+**Hard requirement, as everywhere:** never stuck. Every temporary state keeps its time limit and its way back to rest, and each view's never-stuck checks pass again after the changes.
+
+**Done when**
+
+- Measured on a release build and written down, before and after: every view at rest under 1 % of one core and 150 MB; a focus session under 1 % in every view; the Room's ten-minute average and the Desktop view's Calm twelve-minute average under 1 %; the cost of a second of walking at least halved; Lively's average measured. Where a target cannot be met, the numbers and what was tried.
+- Motion still reads as smooth at the capped rate, shown with frame captures (the owner judges this by eye).
+- Every view's never-stuck checks and click-through probes pass on the final build, and the Desktop view's soak is rerun for at least an hour.
+- `npm test`, `npm run typecheck` and `cargo test` pass three times in a row, one of them while the machine is busy.
+- A write-up `docs/polish-checks.md` in the manner of the others; this section, the status row and the log updated.
 
 ---
 
