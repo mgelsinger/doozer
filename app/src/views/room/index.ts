@@ -23,13 +23,14 @@
 import './room.css';
 import type { ActionResult, FoodId, ToyId, UnlockId, ViewId } from '../../core/contract';
 import { createDoozer, type Doozer } from '../../character/doozer';
+import { frames } from '../../frames';
 import { realTimers, type Timers } from '../../character/timers';
 import type { View, ViewContext, WindowRequest } from '../../host/view';
 import type { Region, WindowInfo, WindowMode } from '../../shell';
 import { createCard, type Card } from '../../ui/card';
 import { createMemo, h } from '../../ui/dom';
 import { createEmoteLayer } from '../../ui/emotes';
-import { formatClock, plural } from '../../ui/format';
+import { formatClock, plural, quietClock, quietRemaining } from '../../ui/format';
 import { ICONS } from '../../ui/icons';
 import { Scope, Transients } from '../../ui/lifecycle';
 import { createNeedMeters } from '../../ui/meters';
@@ -277,6 +278,8 @@ export function createRoomView(options: RoomViewOptions = {}): RoomView {
       // An open Card nobody is looking at goes still too.
       card?.setLively(awake && attention.lively);
       syncSnore();
+      // Whether anyone is looking decides how a session's time left is counted.
+      paintClock();
     }
     const attention = new Attention({ timers, now, onChange: () => applyLively() });
     scope.add(() => attention.destroy());
@@ -328,6 +331,8 @@ export function createRoomView(options: RoomViewOptions = {}): RoomView {
         { translate: '0 0' },
       ], { duration: ms });
       ballSpin.animate([{ rotate: '0deg' }, { rotate: `${Math.round((ballX - from) * 3)}deg` }], { duration: ms, easing: 'ease-out' });
+      // Drawn at the page's capped rate, like everything else that moves (src/frames.ts).
+      frames.wake();
       return ms;
     }
 
@@ -449,12 +454,15 @@ export function createRoomView(options: RoomViewOptions = {}): RoomView {
 
     function paintClock(): void {
       const focus = brain.state.focus;
-      const text = focus.status === 'idle' ? wallClock(date()) : formatClock(focus.remainingMs);
+      // A running session is counted in seconds for someone and in minutes for nobody, on
+      // the title bar and on the shelf: a room that changes every second is drawn every second.
+      const exact = focus.status !== 'running' || attention.lively || open !== 'none';
+      const text = focus.status === 'idle' ? wallClock(date()) : exact ? formatClock(focus.remainingMs) : quietClock(focus.remainingMs);
       memo('time', `${focus.status}|${text}`, () => {
         timeEl.textContent = text;
         timeEl.dataset.status = focus.status;
       });
-      scenePaint.clock({ status: focus.status, remainingMs: focus.remainingMs, hands: clockHands(date()) });
+      scenePaint.clock({ status: focus.status, remainingMs: exact ? focus.remainingMs : quietRemaining(focus.remainingMs), hands: clockHands(date()) });
     }
 
     /** What each piece of furniture says it will do, on hover and to a screen reader. */

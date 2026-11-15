@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { CARRY_LIMIT_MS, CARRY_QUIET_MS } from '../../../src/views/desktop/body';
 import { PACES } from '../../../src/views/desktop/pace';
+import type { Region } from '../../../src/shell';
 import { SIZE_PX, hitRegion } from '../../../src/views/desktop/stage';
 import { MIN } from '../../core/helpers';
 import {
@@ -178,16 +179,41 @@ describe('the pace levels', () => {
     const r = mountDesktop({ pace: 'calm' });
     expect(r.view.act('stroll')).toBe(true);
     const before = r.host.state.regions;
+    // The first report of the walk says where it starts, how fast it goes and how long it
+    // lasts. That is all the shell is told (src/shell.ts): it has to be right for the whole walk.
+    const first = r.view.hitRegions()[0] as Region;
+    expect(first).toMatchObject(hitRegion(112, r.snap().x, r.snap().y));
+    expect(Math.abs(first.vx ?? 0)).toBeCloseTo(30, 5);
+    expect(first.vy).toBe(0);
+    expect(first.ms).toBeGreaterThan(500);
     let moved = 0;
-    for (let i = 0; i < 20; i++) {
+    let walked = 0;
+    for (let i = 0; i < 200; i++) {
       await tick(100);
       const s = r.snap();
-      if (s.scene !== 'stroll') break;
+      if (s.scene !== 'stroll' || s.pose !== 'walk') break;
       moved++;
-      expect(r.view.hitRegions()[0]).toEqual(hitRegion(112, s.x, s.y));
+      walked += 100;
+      const now = r.view.hitRegions()[0] as Region;
+      // Doozer's region is where Doozer is drawn, to within the one step (33 ms, a pixel
+      // at this pace) by which the clock runs ahead of the picture...
+      const drawn = hitRegion(112, s.x, s.y);
+      expect(Math.abs(now.x - drawn.x)).toBeLessThanOrEqual(1.01);
+      expect(now).toMatchObject({ y: drawn.y, w: drawn.w, h: drawn.h, r: drawn.r });
+      // ...and exactly where the shell, told only once, works out that it is by now.
+      expect(first.x + ((first.vx ?? 0) * walked) / 1000).toBeCloseTo(now.x, 3);
+      // What is left of the walk shrinks as the walk goes on, and never changes its mind.
+      if ((now.ms ?? 0) > 0) expect((now.ms ?? 0) + walked).toBeCloseTo(first.ms ?? 0, 3);
     }
     expect(moved).toBeGreaterThan(5);
-    // The host was told about every step of the walk.
+    // Standing again: a plain region, exactly where the walk said it would end.
+    await tick(1500);
+    const rest = r.view.hitRegions()[0] as Region;
+    expect(rest.vx).toBeUndefined();
+    expect(rest.ms).toBeUndefined();
+    expect(rest).toEqual(hitRegion(112, r.snap().x, r.snap().y));
+    expect(first.x + ((first.vx ?? 0) * (first.ms ?? 0)) / 1000).toBeCloseTo(rest.x, 3);
+    // The host was asked about every step of the walk (the bridge decides what is worth sending).
     expect(r.host.state.regions - before).toBeGreaterThan(moved * 2);
   });
 

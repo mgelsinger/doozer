@@ -53,6 +53,15 @@ export interface Region {
   w: number;
   h: number;
   r?: number;
+  /**
+   * The region is moving: CSS pixels a second, kept up for `ms` milliseconds from now,
+   * after which it rests where it has got to. The native side follows it by itself, so a
+   * steady move (Doozer walking along the taskbar) is reported once, not thirty times a
+   * second. Leave all three out for a region that is standing still.
+   */
+  vx?: number;
+  vy?: number;
+  ms?: number;
 }
 
 export interface ScreenRect {
@@ -212,34 +221,125 @@ export interface PageHost {
   onVisible(handler: () => void): () => void;
   every(ms: number, handler: () => void): () => void;
   after(ms: number, handler: () => void): () => void;
+  /** Milliseconds, monotonic. Default `performance.now()`. */
+  now?(): number;
 }
 
 /** How long `setWindowMode` waits for the viewport to reach its new size before giving up. */
 const SETTLE_TIMEOUT_MS = 1000;
+
+/**
+ * While the regions only drift (Doozer walking along the taskbar), the native side is
+ * told at most this often. Every report is a round trip through the browser's network
+ * stack, and thirty of them a second cost more than drawing Doozer did
+ * (docs/polish-checks.md section 2). A region that is at most `REGION_NUDGE_PX` from
+ * where the native side believes it to be can wait; anything else is sent at once.
+ */
+export const REGION_NUDGE_MS = 100;
+export const REGION_NUDGE_PX = 8;
+
+/** A moving region may be this far from where the native side believes it to be and still count as there. */
+const REGION_MOVING_PX = 1.5;
+/** ...and its motion may end this much sooner or later than the native side believes. */
+const REGION_MOVING_MS = 60;
+
+/** Where a region reported `elapsed` ms ago is by now, and how its motion stands: what the native side works out too. */
+function believed(sent: Region, elapsed: number): { x: number; y: number; vx: number; vy: number; ms: number } {
+  const lasts = (sent.ms ?? 0) > 0 ? (sent.ms as number) : 0;
+  const t = Math.min(Math.max(0, elapsed), lasts);
+  const moving = t < lasts;
+  return {
+    x: sent.x + ((sent.vx ?? 0) * t) / 1000,
+    y: sent.y + ((sent.vy ?? 0) * t) / 1000,
+    vx: moving ? sent.vx ?? 0 : 0,
+    vy: moving ? sent.vy ?? 0 : 0,
+    ms: lasts - t,
+  };
+}
+
+/**
+ * How what the page wants now compares with what the native side has, `elapsed` ms after
+ * it was sent: 'same' (nothing to say), 'nudged' (the same regions, each a few pixels off:
+ * it can wait a moment) or 'different' (say so at once).
+ */
+export function compareRegions(now: readonly Region[], sent: readonly Region[] | null, elapsed: number): 'same' | 'nudged' | 'different' {
+  if (!sent || now.length !== sent.length) return 'different';
+  let verdict: 'same' | 'nudged' = 'same';
+  for (let i = 0; i < now.length; i++) {
+    const a = now[i] as Region;
+    const b = sent[i] as Region;
+    if (Math.abs((a.r ?? 0) - (b.r ?? 0)) > 0.01) return 'different';
+    const there = believed(b, elapsed);
+    const moving = (a.ms ?? 0) > 0 && ((a.vx ?? 0) !== 0 || (a.vy ?? 0) !== 0);
+    const wasMoving = (b.ms ?? 0) > 0 && ((b.vx ?? 0) !== 0 || (b.vy ?? 0) !== 0);
+    const vx = moving ? a.vx ?? 0 : 0;
+    const vy = moving ? a.vy ?? 0 : 0;
+    // A different speed, or a motion that ends at another moment: the native side must be told.
+    if (Math.abs(vx - there.vx) > 0.01 || Math.abs(vy - there.vy) > 0.01) return 'different';
+    if (Math.abs((moving ? (a.ms as number) : 0) - there.ms) > REGION_MOVING_MS) return 'different';
+    const off = Math.max(Math.abs(a.x - there.x), Math.abs(a.y - there.y));
+    const grown = Math.max(Math.abs(a.w - b.w), Math.abs(a.h - b.h));
+    const exact = moving || wasMoving ? REGION_MOVING_PX : 0.01;
+    if (off <= exact && grown <= 0.01) continue;
+    if (off > REGION_NUDGE_PX || grown > REGION_NUDGE_PX) return 'different';
+    verdict = 'nudged';
+  }
+  return verdict;
+}
 
 export function createNativeShell(bridge: Bridge, host: PageHost): Shell & { stopHeartbeat(): void; startHeartbeat(): void } {
   let latest: readonly Region[] = [];
   let queued = false;
   let sending: Promise<void> = Promise.resolve();
   let stopBeat: (() => void) | null = null;
+  /** What the native side was last sent, and when. Null: nothing it can be relied on to have. */
+  let sent: readonly Region[] | null = null;
+  let sentAt = -Infinity;
+  let later: (() => void) | null = null;
+  const now = (): number => host.now?.() ?? performance.now();
 
   const send = (): void => {
     queued = false;
+    later?.();
+    later = null;
     const regions = latest;
+    sent = regions;
+    sentAt = now();
     // One call at a time, in order, so an older set can never overtake a newer one.
     sending = sending
       .then(() => bridge.invoke<number>('set_hit_regions', { regions }))
       .then(
         () => undefined,
-        (error: unknown) => console.error('[shell] set_hit_regions failed', error),
+        (error: unknown) => {
+          // It may not have arrived: the next report is sent whatever it is.
+          sent = null;
+          console.error('[shell] set_hit_regions failed', error);
+        },
       );
+  };
+
+  /** Send what is waiting, unless it is what the native side has, or is a small drift that can wait a moment. */
+  const flush = (force = false): void => {
+    if (!queued) return;
+    const since = now() - sentAt;
+    const verdict = compareRegions(latest, sent, since);
+    if (verdict === 'same') {
+      queued = false;
+      later?.();
+      later = null;
+      return;
+    }
+    const wait = REGION_NUDGE_MS - since;
+    if (force || wait <= 0 || verdict === 'different') { send(); return; }
+    // Still queued: calls made meanwhile only replace `latest`.
+    later ??= host.after(wait, () => { later = null; flush(true); });
   };
 
   const beat = (): void => {
     bridge.invoke<boolean>('heartbeat').then(
       (lost) => {
         // The native watchdog dropped the regions while the page was stalled.
-        if (lost && !queued) send();
+        if (lost) send();
       },
       () => undefined,
     );
@@ -275,6 +375,10 @@ export function createNativeShell(bridge: Bridge, host: PageHost): Shell & { sto
       // after the window has changed.
       latest = [];
       queued = false;
+      later?.();
+      later = null;
+      // Whatever the native side had belongs to the old window: the next report is sent whatever it is.
+      sent = null;
       await sending;
       const info = await bridge.invoke<WindowInfo>('set_window_mode', { mode, view: view ?? null });
       const ok = await settled(info.cssWidth, info.cssHeight);
@@ -287,17 +391,20 @@ export function createNativeShell(bridge: Bridge, host: PageHost): Shell & { sto
     windowInfo: () => bridge.invoke<WindowInfo | null>('window_info'),
 
     setHitRegions(regions: readonly Region[]): void {
-      latest = regions.map((r) => ({ x: r.x, y: r.y, w: r.w, h: r.h, r: r.r ?? 0 }));
+      latest = regions.map((r) => {
+        const still = { x: r.x, y: r.y, w: r.w, h: r.h, r: r.r ?? 0 };
+        const moving = (r.ms ?? 0) > 0 && ((r.vx ?? 0) !== 0 || (r.vy ?? 0) !== 0);
+        return moving ? { ...still, vx: r.vx ?? 0, vy: r.vy ?? 0, ms: r.ms as number } : still;
+      });
       if (queued) return;
       queued = true;
-      queueMicrotask(() => {
-        if (queued) send();
-      });
+      queueMicrotask(() => flush());
     },
 
     async regionsFlushed(): Promise<void> {
-      // Let a queued microtask run, then wait for the chain it extends.
+      // Let a queued microtask run, send anything that was waiting its turn, then wait for the chain.
       await Promise.resolve();
+      flush(true);
       await sending;
     },
 

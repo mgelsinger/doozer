@@ -7,6 +7,7 @@
 // announced on that tick.
 
 import { createBrain, type Brain } from './core';
+import { frames } from './frames';
 import { createHost, type Host } from './host/host';
 import { createSound } from './host/sound';
 import { parseSave } from './host/store';
@@ -79,6 +80,9 @@ const root = document.getElementById('host');
 if (!root) throw new Error('missing #host');
 
 const run = await readTestRun();
+// Everything that moves in this page is drawn at a capped rate (src/frames.ts). A scripted
+// run may ask for the browser's own rate instead, to measure what the cap saves.
+if (!(run.enabled && run.args?.pacing === false)) frames.attach(document);
 if (run.enabled && !isAppRun(run)) {
   // A shell test run: the Phase 3 test page and its scenarios (docs/shell-spike.md).
   const [{ mountTestPage }, { runSpikeScenarios }] = await Promise.all([import('./spike/test-page'), import('./spike/scenarios')]);
@@ -95,6 +99,10 @@ if (run.enabled && !isAppRun(run)) {
     // The Island view's own scripted runs (docs/island-checks.md).
     const { runIslandChecks } = await import('./views/island/checks');
     void runIslandChecks(app, run).catch((error: unknown) => console.error('[spike]', error));
+  } else if (run.enabled && scenarioNames(run).some((name) => name.startsWith('app-polish'))) {
+    // Phase 10's measurements and checks (docs/polish-checks.md).
+    const { runPolishScenarios } = await import('./spike/polish-scenarios');
+    void runPolishScenarios(app, run).catch((error: unknown) => console.error('[spike]', error));
   } else if (run.enabled) {
     const { runAppScenarios } = await import('./spike/app-scenarios');
     void runAppScenarios(app, run).catch((error: unknown) => console.error('[spike]', error));

@@ -81,6 +81,15 @@ export const CARRY_LIMIT_MS = 120_000;
 export const CARRY_QUIET_MS = 30_000;
 /** How often a move is advanced, the hit regions with it, when no frames are coming. */
 export const STEP_MS = 33;
+/**
+ * A frame within this long means frames are coming, and then only they draw. The timer
+ * still runs, as the guarantee that a move ends on time; but if it drew as well, between
+ * frames, the browser would put out a second picture for each of the timer's and the
+ * frame cap (src/frames.ts) would be undone.
+ */
+export const FRAME_GRACE_MS = 150;
+/** While frames are coming the timer only keeps watch, this often. */
+export const WATCH_STEP_MS = 100;
 /** How long past its time a move may run before the watchdog calls it stuck. */
 const OVERRUN_MS = 1500;
 
@@ -94,6 +103,7 @@ export class Body {
   private grab: { dx: number; dy: number } | null = null;
   private since: number;
   private lastStep: number;
+  private lastFrame = -Infinity;
   private readonly tickers = new Set<Ticker>();
   private cancelFrame: (() => void) | null = null;
   private dead = false;
@@ -124,6 +134,21 @@ export class Body {
   get offstage(): boolean { return this.x_ < this.stage_.minX - 0.5 || this.x_ > this.stage_.maxX + 0.5; }
   /** How long it has been in this mode, in ms. */
   get age(): number { return this.options.now() - this.since; }
+  /**
+   * While walking: where Doozer is at this very moment by the clock (`x`, which may be a
+   * frame ahead of where it was last drawn), its speed along the ground in px a second
+   * (negative: leftward) and how much longer the walk lasts, in ms. Null otherwise. A walk
+   * is a steady move, so this is all the shell needs to follow Doozer's hit region without
+   * being told again.
+   */
+  get heading(): { x: number; vx: number; ms: number } | null {
+    const motion = this.motion;
+    if (!motion || motion.kind !== 'walk' || !(motion.ms > 0)) return null;
+    const now = this.options.now();
+    const left = motion.t0 + motion.ms - now;
+    if (!(left > 0)) return null;
+    return { x: motionAt(motion, now).x, vx: ((motion.x1 - motion.x0) / motion.ms) * 1000, ms: left };
+  }
 
   // ---- walking ---------------------------------------------------------------------
 
@@ -337,10 +362,12 @@ export class Body {
   }
 
   private readonly onStep = (): void => {
-    this.advance();
+    // While frames are coming they do the moving and the drawing; this only keeps watch.
+    const framed = this.options.now() - this.lastFrame < FRAME_GRACE_MS;
+    if (!framed) this.advance();
     if (this.dead) return;
     this.options.changed();
-    if (this.moving) this.options.clock.arm('step', STEP_MS, this.onStep);
+    if (this.moving) this.options.clock.arm('step', framed ? WATCH_STEP_MS : STEP_MS, this.onStep);
   };
 
   private wantFrame(): void {
@@ -349,6 +376,7 @@ export class Body {
     this.cancelFrame = frame(() => {
       this.cancelFrame = null;
       if (this.dead || !this.moving) return;
+      this.lastFrame = this.options.now();
       this.advance();
       this.wantFrame();
     });

@@ -33,6 +33,7 @@
 import './desktop.css';
 import type { UnlockId, ViewId } from '../../core/contract';
 import { createDoozer, type Doozer } from '../../character/doozer';
+import { frames } from '../../frames';
 import { realTimers, type Timers } from '../../character/timers';
 import type { View, ViewContext } from '../../host/view';
 import type { Region, WindowInfo, WindowMode } from '../../shell';
@@ -189,18 +190,15 @@ const WATCH_REST_MS = 5000;
 const PANEL_FALLBACK = { w: 320, h: 540 } as const;
 const RADIAL_BUTTON_PX = 50;
 
-const defaultFrame: FrameSource | null = typeof requestAnimationFrame === 'function'
-  ? (callback) => {
-      const id = requestAnimationFrame(() => callback());
-      return () => cancelAnimationFrame(id);
-    }
-  : null;
+// Frames come from the page's one frame clock, so that Doozer's walk and the rig's own
+// animation are drawn on the same ticks, at the capped rate (src/frames.ts).
+const defaultFrame = (): FrameSource | null => frames.frameSource();
 
 export function createDesktopView(options: DesktopViewOptions = {}): DesktopView {
   const timers = options.timers ?? realTimers;
   const random = options.random ?? Math.random;
   const now = options.now ?? (() => performance.now());
-  const frame = options.frame === undefined ? defaultFrame : options.frame;
+  const frame = options.frame === undefined ? defaultFrame() : options.frame;
 
   /** Everything that exists only while mounted. */
   let live: Mounted | null = null;
@@ -469,9 +467,26 @@ export function createDesktopView(options: DesktopViewOptions = {}): DesktopView
       return regions;
     }
 
+    /**
+     * Doozer's region while it walks: where it is, how fast it goes and for how long, so
+     * that the shell follows it by itself (src/shell.ts, `Region`). Only for as long as all
+     * of it stays on the screen: half off the screen (a peek) the region is clipped, and a
+     * clipped region changes shape as it goes, which has to be reported the plain way.
+     */
+    function walkingRegion(): Region | null {
+      const heading = theBody.heading;
+      if (!heading || heading.vx === 0) return null;
+      // Where the clock says Doozer is now, not where it was last drawn: the speed and the
+      // time left are counted from this moment, so the place has to be too.
+      const region = hitRegion(stage.size, heading.x, theBody.y);
+      const room = heading.vx > 0 ? stage.w - (region.x + region.w) : region.x;
+      const ms = Math.min(heading.ms, (room / Math.abs(heading.vx)) * 1000);
+      return ms > 50 ? { ...region, vx: heading.vx, vy: 0, ms } : null;
+    }
+
     function hitRegions(): Region[] {
       if (!awake || away() || scope.disposed) return [];
-      const regions: Region[] = [hitRegion(stage.size, theBody.x, theBody.y)];
+      const regions: Region[] = [walkingRegion() ?? hitRegion(stage.size, theBody.x, theBody.y)];
       if (open === 'radial') regions.push(...radialRegions());
       if ((open === 'card' || open === 'settings') && panelBox) regions.push(panelBox);
       const inPlay = props.inPlay;

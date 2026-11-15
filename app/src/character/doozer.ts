@@ -13,6 +13,7 @@ import { PALETTES, PALETTE_VARS, isPaletteId } from './palettes';
 import { PERFORMANCES, type PartName, type PerformanceName } from './performances';
 import { hatMarkup, rigMarkup } from './rig-markup';
 import { realTimers, type Timers } from './timers';
+import { frames } from '../frames';
 
 /** Bold outline (Pill, Desktop) or soft and outline-free (Room). Same parts either way. */
 export type LineStyle = 'bold' | 'soft';
@@ -162,20 +163,23 @@ export function createDoozer(options: DoozerOptions = {}): Doozer {
         const node = parts[track.part];
         if (!node || typeof node.animate !== 'function') continue;
         // CSS-style easing: applied between each pair of keyframes, not across the whole run.
-        const frames = track.keyframes.map((frame) => ({ easing: track.easing ?? 'ease-in-out', ...frame }));
-        running.push(node.animate(frames as Keyframe[], {
+        const keyframes = track.keyframes.map((frame) => ({ easing: track.easing ?? 'ease-in-out', ...frame }));
+        running.push(node.animate(keyframes as Keyframe[], {
           duration: track.duration ?? spec.duration,
           delay: track.delay ?? 0,
           fill: 'none',
         }));
       }
+      // The frame clock draws these at the capped rate; it has to be told they exist.
+      frames.wake();
       return () => { for (const animation of running) animation.cancel(); };
     },
   }, { timers, reduceMotion: reduce });
 
-  function quick(node: SVGElement | null | undefined, frames: Keyframe[], duration: number): void {
+  function quick(node: SVGElement | null | undefined, keyframes: Keyframe[], duration: number): void {
     if (!node || typeof node.animate !== 'function' || reduce || !live || destroyed) return;
-    node.animate(frames, { duration, easing: 'ease-in-out', fill: 'none' });
+    node.animate(keyframes, { duration, easing: 'ease-in-out', fill: 'none' });
+    frames.wake();
   }
 
   function blink(still = false): void {

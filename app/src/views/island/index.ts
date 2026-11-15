@@ -27,6 +27,7 @@ import './island.css';
 import modelUrl from '../../../assets/doozer/doozer.glb?url';
 import type { SizeId, ViewId } from '../../core/contract';
 import { realTimers, type Timers } from '../../character/timers';
+import { frames } from '../../frames';
 import type { View, ViewContext, WindowRequest } from '../../host/view';
 import type { Region, WindowInfo, WindowMode } from '../../shell';
 import { createCard, type Card } from '../../ui/card';
@@ -184,8 +185,16 @@ export function createIslandView(options: IslandViewOptions = {}): IslandView {
   const random = options.random ?? Math.random;
   const now = options.now ?? (() => performance.now());
   const load = options.load ?? defaultLoad;
-  const requestFrame = options.requestFrame ?? ((callback: () => void) => requestAnimationFrame(callback));
-  const cancelFrame = options.cancelFrame ?? ((handle: unknown) => cancelAnimationFrame(handle as number));
+  // Frames come from the page's one frame clock (src/frames.ts), so that the island and
+  // whatever the kit animates on top of it (emotes, the Radial, the chip) are drawn on the
+  // same ticks. What it hands out is a function that takes the request back.
+  const requestFrame = options.requestFrame ?? ((callback: () => void) => frames.request(callback));
+  const cancelFrame = options.cancelFrame ?? ((handle: unknown) => {
+    if (typeof handle === 'function') (handle as () => void)();
+    else if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(handle as number);
+  });
+  /** The page's cap, when the clock is pacing; the Island never asks for more than that. */
+  const pageFps = (): number => (options.requestFrame === undefined && frames.pacing ? frames.fps : Infinity);
   const pixelRatio = options.pixelRatio ?? (() => Math.min(typeof devicePixelRatio === 'number' ? devicePixelRatio : 1, 2));
 
   /** Everything that exists only while mounted. */
@@ -258,7 +267,7 @@ export function createIslandView(options: IslandViewOptions = {}): IslandView {
         return moving;
       },
       // Sixty a second only for what somebody is there to see.
-      fps: () => (stage?.active && attention?.lively ? ACTIVE_FPS : AMBIENT_FPS),
+      fps: () => Math.min(stage?.active && attention?.lively ? ACTIVE_FPS : AMBIENT_FPS, pageFps()),
       requestFrame,
       cancelFrame,
       timers,
@@ -296,7 +305,10 @@ export function createIslandView(options: IslandViewOptions = {}): IslandView {
     scope.add(() => emotes.destroy());
     const emoteBox = h('div', { class: 'islv-emotes', 'aria-hidden': 'true' }, [emotes.el]);
     const grip = h('button', { type: 'button', class: 'islv-grip', 'aria-label': 'Move the island', tabindex: '-1' });
-    const chip = createFocusChip(brain);
+    // The chip counts in seconds while someone is there, and in minutes for nobody: a
+    // chip that changes every second has the whole island put on screen again every second.
+    let watched = false;
+    const chip = createFocusChip(brain, { precise: () => watched });
     scope.add(() => chip.destroy());
     const chipBox = h('div', { class: 'islv-chip' }, [chip.el]);
     const scene = h('div', { class: 'islv-scene' }, [theStage.canvas, touch, emoteBox, grip, chipBox]);
@@ -322,6 +334,8 @@ export function createIslandView(options: IslandViewOptions = {}): IslandView {
         world.setLively(lively);
         director?.setLively(lively);
         card?.setLively(lively);
+        watched = lively;
+        chip.refresh();
         syncTimers();
         wake();
       },

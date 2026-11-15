@@ -82,6 +82,8 @@ struct Inner {
   mode: Option<WindowMode>,
   view: Option<String>,
   regions: Vec<Region>,
+  /// When the regions were reported. A region that is moving is worked out from here.
+  regions_at: Instant,
   /// The watchdog dropped the regions; the page has to send them again.
   regions_lost: bool,
   /// The window catches the mouse (true) or lets it through (false).
@@ -205,6 +207,7 @@ impl Shell {
         mode: None,
         view: None,
         regions: Vec::new(),
+        regions_at: now,
         regions_lost: false,
         catching: false,
         focusable: false,
@@ -337,9 +340,11 @@ impl Shell {
     }
     let regions: Vec<Region> = regions.into_iter().filter(Region::is_valid).collect();
     let mut s = self.lock();
+    let now = Instant::now();
     s.regions = regions;
+    s.regions_at = now;
     s.regions_lost = false;
-    s.last_heartbeat = Instant::now();
+    s.last_heartbeat = now;
     Ok(s.regions.len())
   }
 
@@ -582,7 +587,8 @@ fn tick(shell: &Shell) -> Duration {
       Some((cx, cy)) if s.visible && !s.regions.is_empty() => match win::screen_to_client(s.hwnd, cx, cy) {
         Some((px, py)) => {
           let scale = win::scale_of(s.hwnd);
-          hit::any_contains(&s.regions, f64::from(px) / scale, f64::from(py) / scale)
+          let since = now.saturating_duration_since(s.regions_at).as_secs_f64() * 1000.0;
+          hit::any_contains_at(&s.regions, f64::from(px) / scale, f64::from(py) / scale, since)
         }
         None => false,
       },

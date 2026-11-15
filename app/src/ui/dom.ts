@@ -1,6 +1,8 @@
 // Small DOM helpers for the kit. Nothing clever: the kit is a handful of static templates
 // whose changing bits are painted through `memo`, so an unchanged value never touches the DOM.
 
+import { frames } from '../frames';
+
 export type Attrs = Record<string, string | number | boolean | null | undefined>;
 
 /** Create an element. `class`, `html` and `text` are special; `true` sets an empty attribute. */
@@ -47,10 +49,12 @@ export function nudge(node: Element, reduceMotion: boolean): void {
     [{ translate: '0 0' }, { translate: '-3px 0' }, { translate: '3px 0' }, { translate: '-2px 0' }, { translate: '0 0' }],
     { duration: 260, easing: 'ease-in-out' },
   );
+  frames.wake();
 }
 
 /** A quick "something landed here" pulse. Finite, and skipped with motion reduced. */
 export function pulse(node: Element, reduceMotion: boolean): void {
   if (reduceMotion || typeof node.animate !== 'function') return;
   node.animate([{ scale: '1' }, { scale: '1.22' }, { scale: '.96' }, { scale: '1' }], { duration: 420, easing: 'ease-out' });
+  frames.wake();
 }

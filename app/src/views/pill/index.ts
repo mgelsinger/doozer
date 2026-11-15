@@ -20,6 +20,7 @@
 import './pill.css';
 import type { ViewId } from '../../core/contract';
 import { createDoozer, type Doozer } from '../../character/doozer';
+import { frames } from '../../frames';
 import { realTimers, type Timers } from '../../character/timers';
 import type { View, ViewContext, WindowRequest } from '../../host/view';
 import { regionOf, type Region, type WindowInfo, type WindowMode } from '../../shell';
@@ -220,6 +221,8 @@ export function createPillView(options: PillViewOptions = {}): PillView {
         // At rest the pill plays nothing at all, not even the z's of a sleeping Doozer.
         director?.setActive(lively);
         card?.setLively(lively);
+        // A session's countdown is in seconds for someone, in minutes for nobody.
+        paint();
       },
     });
     scope.add(() => attention.destroy());
@@ -283,7 +286,7 @@ export function createPillView(options: PillViewOptions = {}): PillView {
 
     // ---- painting ------------------------------------------------------------------
     function paint(): void {
-      const f = pillFace(brain.state, brain.limits);
+      const f = pillFace(brain.state, brain.limits, attention.lively || open !== 'none');
       shownFace = f;
       const status = statusOverride ?? f.status;
       const tone = statusOverride === null ? f.statusTone : 'plain';
@@ -489,6 +492,7 @@ export function createPillView(options: PillViewOptions = {}): PillView {
         [{ rotate: '0deg' }, { rotate: `${-degrees}deg` }, { rotate: `${degrees}deg` }, { rotate: `${-degrees * 0.5}deg` }, { rotate: '0deg' }],
         { duration: 520, easing: 'ease-in-out' },
       );
+      frames.wake();
     };
 
     /** Which hatching is the current one, so that a cancelled one cannot end its successor. */

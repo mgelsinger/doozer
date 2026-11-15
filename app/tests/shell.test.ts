@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   HEARTBEAT_MS,
+  REGION_NUDGE_MS,
+  REGION_NUDGE_PX,
+  compareRegions,
   createBrowserShell,
   createNativeShell,
   parseRadius,
@@ -54,7 +57,10 @@ function fakeHost(width = 300, height = 200) {
   const visibleHandlers = new Set<() => void>();
   const intervals: { ms: number; handler: () => void }[] = [];
   const timeouts: (() => void)[] = [];
+  const delays: number[] = [];
+  let time = 0;
   const host: PageHost = {
+    now: () => time,
     viewport: () => ({ ...size }),
     frame: () => Promise.resolve(),
     onResize(handler) {
@@ -70,20 +76,28 @@ function fakeHost(width = 300, height = 200) {
       intervals.push(entry);
       return () => void intervals.splice(intervals.indexOf(entry), 1);
     },
-    after(_ms, handler) {
+    after(ms, handler) {
       timeouts.push(handler);
-      return () => void timeouts.splice(timeouts.indexOf(handler), 1);
+      delays.push(ms);
+      return () => {
+        const i = timeouts.indexOf(handler);
+        if (i >= 0) { timeouts.splice(i, 1); delays.splice(i, 1); }
+      };
     },
   };
   return {
     host,
     intervals,
+    /** Let time pass on the page's clock (nothing fires by itself). */
+    pass(ms: number) { time += ms; },
+    /** The delays of the timeouts that are waiting. */
+    waiting: () => [...delays],
     resize(w: number, h: number) {
       size.width = w;
       size.height = h;
       resizeHandlers.forEach((handler) => handler());
     },
-    fireTimeouts: () => [...timeouts].forEach((handler) => handler()),
+    fireTimeouts: () => { const due = [...timeouts]; timeouts.length = 0; delays.length = 0; due.forEach((handler) => handler()); },
     becomeVisible: () => visibleHandlers.forEach((handler) => handler()),
     pendingResizeHandlers: () => resizeHandlers.size,
   };
@@ -137,6 +151,65 @@ describe('parseRadius', () => {
     expect(parseRadius('0px', 10, 10)).toBe(0);
     expect(parseRadius('', 10, 10)).toBe(0);
     expect(parseRadius('auto', 10, 10)).toBe(0);
+  });
+});
+
+// ---- What is worth telling the native side ----------------------------------------
+
+describe('compareRegions', () => {
+  const doozer: Region = { x: 100, y: 500, w: 78, h: 94, r: 36 };
+
+  it('the same regions are the same', () => {
+    expect(compareRegions([doozer], [{ ...doozer }], 0)).toBe('same');
+    expect(compareRegions([doozer], [{ ...doozer }], 60_000)).toBe('same');
+    expect(compareRegions([], [], 0)).toBe('same');
+  });
+
+  it('nothing sent yet, another number of regions, another shape: different', () => {
+    expect(compareRegions([doozer], null, 0)).toBe('different');
+    expect(compareRegions([doozer, A], [doozer], 0)).toBe('different');
+    expect(compareRegions([], [doozer], 0)).toBe('different');
+    expect(compareRegions([{ ...doozer, r: 0 }], [doozer], 0)).toBe('different');
+    expect(compareRegions([{ ...doozer, w: doozer.w + REGION_NUDGE_PX + 1 }], [doozer], 0)).toBe('different');
+  });
+
+  it('a few pixels off is a nudge; further is different', () => {
+    expect(compareRegions([{ ...doozer, x: doozer.x + 3 }], [doozer], 0)).toBe('nudged');
+    expect(compareRegions([{ ...doozer, y: doozer.y - REGION_NUDGE_PX }], [doozer], 0)).toBe('nudged');
+    expect(compareRegions([{ ...doozer, x: doozer.x + REGION_NUDGE_PX + 0.5 }], [doozer], 0)).toBe('different');
+    expect(compareRegions([{ ...doozer, h: doozer.h - 2 }], [doozer], 0)).toBe('nudged');
+  });
+
+  it('a walk that goes as it was announced needs no further word, to its end and after', () => {
+    // 30 px a second to the right for four seconds.
+    const start: Region = { ...doozer, vx: 30, vy: 0, ms: 4000 };
+    const at = (ms: number): Region => ({ ...doozer, x: doozer.x + (30 * ms) / 1000, vx: 30, vy: 0, ms: 4000 - ms });
+    for (const ms of [0, 33, 1000, 2500, 3990]) expect(compareRegions([at(ms)], [start], ms), `${ms} ms in`).toBe('same');
+    // Arrived: standing where the walk said it would end.
+    const arrived: Region = { ...doozer, x: doozer.x + 120 };
+    expect(compareRegions([arrived], [start], 4000)).toBe('same');
+    expect(compareRegions([arrived], [start], 9000)).toBe('same');
+  });
+
+  it('a walk that is cut short, changes speed, turns round or is late has to be reported', () => {
+    const start: Region = { ...doozer, vx: 30, vy: 0, ms: 4000 };
+    // Stopped half-way: standing still where the native side thinks it is still walking.
+    expect(compareRegions([{ ...doozer, x: doozer.x + 60 }], [start], 2000)).toBe('different');
+    // A different speed, the other way.
+    expect(compareRegions([{ ...doozer, x: doozer.x + 60, vx: 50, vy: 0, ms: 2000 }], [start], 2000)).toBe('different');
+    expect(compareRegions([{ ...doozer, x: doozer.x + 60, vx: -30, vy: 0, ms: 2000 }], [start], 2000)).toBe('different');
+    // Ends at another moment.
+    expect(compareRegions([{ ...doozer, x: doozer.x + 60, vx: 30, vy: 0, ms: 3000 }], [start], 2000)).toBe('different');
+    // The page's clock stalled for half a second: Doozer is 15 px behind where it was announced.
+    expect(compareRegions([{ ...doozer, x: doozer.x + 45, vx: 30, vy: 0, ms: 2500 }], [start], 2000)).toBe('different');
+    // Setting off from rest.
+    expect(compareRegions([start], [doozer], 5000)).toBe('different');
+  });
+
+  it('a clock that is a hair out does not count as a change', () => {
+    const start: Region = { ...doozer, vx: 150, vy: 0, ms: 2000 };
+    // Eight milliseconds late at the fastest speed there is: 1.2 px.
+    expect(compareRegions([{ ...doozer, x: doozer.x + 150 * 0.992, vx: 150, vy: 0, ms: 1008 }], [start], 1000)).toBe('same');
   });
 });
 
@@ -196,6 +269,218 @@ describe('native shell: hit regions', () => {
     b.of('set_hit_regions')[0]?.resolve(1);
     await settle();
     expect(flushed).toBe(true);
+  });
+});
+
+describe('native shell: only what is worth sending is sent', () => {
+  const doozer: Region = { x: 100, y: 500, w: 78, h: 94, r: 36 };
+  const sentRegions = (b: ReturnType<typeof fakeBridge>): unknown[] => b.of('set_hit_regions').map((call) => (call.args as { regions: unknown }).regions);
+  /** Answer every send that is waiting, as the native side does. */
+  const answer = async (b: ReturnType<typeof fakeBridge>): Promise<void> => {
+    await settle();
+    for (const call of b.of('set_hit_regions')) call.resolve(1);
+    await settle();
+  };
+
+  it('the same regions again are not sent again', async () => {
+    const b = fakeBridge();
+    const h = fakeHost();
+    const shell = createNativeShell(b.bridge, h.host);
+    shell.setHitRegions([doozer]);
+    await answer(b);
+    for (let i = 0; i < 50; i++) {
+      h.pass(33);
+      shell.setHitRegions([{ ...doozer }]);
+      await settle();
+    }
+    expect(b.of('set_hit_regions')).toHaveLength(1);
+    expect(h.waiting()).toEqual([]);
+  });
+
+  it('a region standing still is sent exactly as before: no speed, no time', async () => {
+    const b = fakeBridge();
+    const shell = createNativeShell(b.bridge, fakeHost().host);
+    shell.setHitRegions([{ ...doozer, vx: 0, vy: 0, ms: 0 }, { ...A, vx: 30, ms: 0 }, { ...B, ms: 500 }]);
+    await settle();
+    expect(sentRegions(b)[0]).toEqual([doozer, A, { ...B, r: 0 }]);
+  });
+
+  it('a walk is sent once: where it starts, how fast it goes, how long it lasts', async () => {
+    const b = fakeBridge();
+    const h = fakeHost();
+    const shell = createNativeShell(b.bridge, h.host);
+    shell.setHitRegions([doozer]);
+    await answer(b);
+    // The view reports thirty times a second, as it always did.
+    for (let ms = 0; ms < 4000; ms += 33) {
+      shell.setHitRegions([{ ...doozer, x: doozer.x + (30 * ms) / 1000, vx: 30, vy: 0, ms: 4000 - ms }]);
+      await answer(b);
+      h.pass(33);
+    }
+    // Arrived, and standing there for a while.
+    for (let i = 0; i < 30; i++) {
+      shell.setHitRegions([{ ...doozer, x: doozer.x + 120 }]);
+      await answer(b);
+      h.pass(33);
+    }
+    expect(sentRegions(b)).toEqual([[doozer], [{ ...doozer, vx: 30, vy: 0, ms: 4000 }]]);
+    expect(h.waiting()).toEqual([]);
+  });
+
+  it('a walk that is stopped half-way is reported at once', async () => {
+    const b = fakeBridge();
+    const h = fakeHost();
+    const shell = createNativeShell(b.bridge, h.host);
+    shell.setHitRegions([{ ...doozer, vx: 30, vy: 0, ms: 4000 }]);
+    await answer(b);
+    h.pass(1500);
+    // Picked up, or the Card opened: Doozer stands where it had got to.
+    const stopped = { ...doozer, x: doozer.x + 45 };
+    shell.setHitRegions([stopped]);
+    await settle();
+    expect(sentRegions(b)).toHaveLength(2);
+    expect(sentRegions(b)[1]).toEqual([stopped]);
+  });
+
+  it('a small drift waits its turn, and what is sent then is the latest', async () => {
+    const b = fakeBridge();
+    const h = fakeHost();
+    const shell = createNativeShell(b.bridge, h.host);
+    shell.setHitRegions([doozer]);
+    await answer(b);
+    // Floating down: an eased move, reported step by step.
+    h.pass(20);
+    shell.setHitRegions([{ ...doozer, y: doozer.y + 2 }]);
+    await settle();
+    h.pass(20);
+    shell.setHitRegions([{ ...doozer, y: doozer.y + 4 }]);
+    await settle();
+    expect(b.of('set_hit_regions')).toHaveLength(1);
+    // One timer, for what is left of the tenth of a second since the last send.
+    expect(h.waiting()).toEqual([REGION_NUDGE_MS - 20]);
+    h.pass(60);
+    h.fireTimeouts();
+    await settle();
+    expect(sentRegions(b)).toHaveLength(2);
+    expect(sentRegions(b)[1]).toEqual([{ ...doozer, y: doozer.y + 4 }]);
+    expect(h.waiting()).toEqual([]);
+  });
+
+  it('a drift that has waited long enough is sent with the next report, without a timer', async () => {
+    const b = fakeBridge();
+    const h = fakeHost();
+    const shell = createNativeShell(b.bridge, h.host);
+    shell.setHitRegions([doozer]);
+    await answer(b);
+    h.pass(REGION_NUDGE_MS + 1);
+    shell.setHitRegions([{ ...doozer, x: doozer.x + 3 }]);
+    await settle();
+    expect(b.of('set_hit_regions')).toHaveLength(2);
+    expect(h.waiting()).toEqual([]);
+  });
+
+  it('a drift that drifts back needs no word at all', async () => {
+    const b = fakeBridge();
+    const h = fakeHost();
+    const shell = createNativeShell(b.bridge, h.host);
+    shell.setHitRegions([doozer]);
+    await answer(b);
+    h.pass(10);
+    shell.setHitRegions([{ ...doozer, x: doozer.x + 3 }]);
+    await settle();
+    h.pass(10);
+    shell.setHitRegions([doozer]);
+    await settle();
+    h.pass(200);
+    h.fireTimeouts();
+    await settle();
+    expect(b.of('set_hit_regions')).toHaveLength(1);
+  });
+
+  it('anything bigger goes at once, even right after a send: a menu opening must not wait', async () => {
+    const b = fakeBridge();
+    const h = fakeHost();
+    const shell = createNativeShell(b.bridge, h.host);
+    shell.setHitRegions([doozer]);
+    await answer(b);
+    h.pass(1);
+    shell.setHitRegions([doozer, A, B]);
+    await settle();
+    expect(b.of('set_hit_regions')).toHaveLength(2);
+    h.pass(1);
+    shell.setHitRegions([{ ...doozer, x: doozer.x + 200 }]);
+    await answer(b);
+    expect(b.of('set_hit_regions')).toHaveLength(3);
+  });
+
+  it('regionsFlushed sends what was waiting its turn', async () => {
+    const b = fakeBridge();
+    const h = fakeHost();
+    const shell = createNativeShell(b.bridge, h.host);
+    shell.setHitRegions([doozer]);
+    await answer(b);
+    h.pass(10);
+    shell.setHitRegions([{ ...doozer, x: doozer.x + 3 }]);
+    await settle();
+    expect(b.of('set_hit_regions')).toHaveLength(1);
+    let flushed = false;
+    void shell.regionsFlushed().then(() => { flushed = true; });
+    await settle();
+    expect(b.of('set_hit_regions')).toHaveLength(2);
+    expect(flushed).toBe(false);
+    await answer(b);
+    expect(flushed).toBe(true);
+    expect(h.waiting()).toEqual([]);
+  });
+
+  it('after a failed send the same regions are sent again', async () => {
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const b = fakeBridge();
+    const shell = createNativeShell(b.bridge, fakeHost().host);
+    shell.setHitRegions([doozer]);
+    await settle();
+    b.of('set_hit_regions')[0]?.reject(new Error('boom'));
+    await settle();
+    shell.setHitRegions([{ ...doozer }]);
+    await settle();
+    expect(b.of('set_hit_regions')).toHaveLength(2);
+    quiet.mockRestore();
+  });
+
+  it('after the window has changed the next report is sent whatever it is', async () => {
+    const b = fakeBridge();
+    const h = fakeHost(300, 200);
+    const shell = createNativeShell(b.bridge, h.host);
+    shell.setHitRegions([doozer]);
+    await answer(b);
+    const changing = shell.setWindowMode({ kind: 'floating', width: 300, height: 200 }, 'room');
+    await settle();
+    b.of('set_window_mode')[0]?.resolve(info(300, 200));
+    await changing;
+    // The native side dropped its regions with the old window. These are the same numbers, and must go.
+    shell.setHitRegions([{ ...doozer }]);
+    await settle();
+    expect(b.of('set_hit_regions')).toHaveLength(2);
+  });
+
+  it('a drift waiting its turn is dropped when the window changes', async () => {
+    const b = fakeBridge();
+    const h = fakeHost(300, 200);
+    const shell = createNativeShell(b.bridge, h.host);
+    shell.setHitRegions([doozer]);
+    await answer(b);
+    h.pass(10);
+    shell.setHitRegions([{ ...doozer, x: doozer.x + 3 }]);
+    await settle();
+    expect(h.waiting()).toHaveLength(1);
+    const changing = shell.setWindowMode({ kind: 'floating', width: 300, height: 200 }, 'room');
+    await settle();
+    b.of('set_window_mode')[0]?.resolve(info(300, 200));
+    await changing;
+    h.fireTimeouts();
+    await settle();
+    // Nothing of the old layout arrives after the window has changed.
+    expect(b.of('set_hit_regions')).toHaveLength(1);
   });
 });
 
