@@ -103,6 +103,11 @@ interface Extra {
   sleep: number;
 }
 
+/** One chew (and one "no"), in seconds: a third of a second, a whole number of pictures at 24 and at 60 a second. */
+export const CHEW_S = 1 / 3;
+/** One swing of a shake: a sixth of a second, as in the 2D rig. */
+export const SHAKE_S = 1 / 6;
+
 const NO_EXTRA: Readonly<Extra> = { y: 0, stretch: 0, roll: 0, scale: 0, armL: 0, armR: 0, armLForward: 0, earL: 0, earR: 0, shake: 0, wave: 0, sleep: 0 };
 const EXTRA_KEYS = Object.keys(NO_EXTRA) as (keyof Extra)[];
 
@@ -279,7 +284,8 @@ export class BodyMotion {
     // While held the body is still, but time has to keep passing for the press to let go by itself.
     if (this.air || this.running !== null || this.pressed) return true;
     if (this.blinkLeft > 0 || this.blinkK > 0) return true;
-    if (ACTIVE_POSES.has(this.poseName)) return true;
+    // A pose that loops needs its frames; with motion reduced it is a still form and needs none.
+    if (!this.reduce && ACTIVE_POSES.has(this.poseName)) return true;
     if (Math.abs(this.sq - this.springTarget()) > 0.0015 || Math.abs(this.sqV) > 0.012) return true;
     if (Math.abs(this.tuft - this.tuftTarget) > 0.004 || Math.abs(this.tuftV) > 0.03) return true;
     for (const key of EXTRA_KEYS) if (this.extra[key] !== 0) return true;
@@ -506,7 +512,12 @@ export class BodyMotion {
 
     // Breathing: quick and shallow awake, slow and deep asleep.
     const breathe = (0.018 * Math.sin(t * 2.3) * awake + 0.04 * Math.sin(t * 1.25) * this.sleepK) * live;
-    const chewing = this.eatK * 0.03 * Math.sin(t * TAU / 0.3);
+    // The loops of the poses (chewing, batting, waving, shaking, saying no). Their lengths
+    // are the 2D rig's, whole pictures at 24 a second (rig.css, "Timing"). With motion
+    // reduced there are none: a pose keeps its still form (paws up to play, a paw up to
+    // wave, the mouth open to eat) and the face says the rest.
+    const loops = this.reduce ? 0 : 1;
+    const chewing = loops * this.eatK * 0.03 * Math.sin(t * TAU / CHEW_S);
     const drowse = this.drowsyK * live * smooth(0.5, 0.68, (t / 4.2) % 1) * (1 - smooth(0.74, 0.86, (t / 4.2) % 1));
     const flight = this.air ? clamp(this.vy * 0.02, -0.05, 0.08) : 0;
     const lying = 1 - 0.18 * this.sleepK;
@@ -516,23 +527,23 @@ export class BodyMotion {
     p.y = this.y + e.y;
     p.scale = clamp(1 + e.scale, 0.02, 1.3);
 
-    const shake = Math.sin(t * 40) * 0.32 * this.shakeK;
-    const no = Math.sin(t * TAU / 0.3) * 0.2 * this.noK;
+    const shake = loops * Math.sin(t * TAU / SHAKE_S) * 0.32 * this.shakeK;
+    const no = loops * Math.sin(t * TAU / CHEW_S) * 0.2 * this.noK;
     p.yaw = this.yaw + shake + no;
     p.pitch = -this.lookY * 0.1 * awake + 0.05 * this.sleepK + 0.12 * drowse + 0.03 * this.slumpK;
     p.roll = e.roll + this.slumpK * live * Math.sin(t * TAU / 4) * 1.5 * DEG;
 
     const droop = (11 * this.slumpK + 8 * this.sleepK * (1 - this.slumpK)) * DEG;
     const wiggle = this.wagK * live * Math.sin(t * 9) * 0.05;
-    const flap = this.shakeK * Math.sin(t * 40) * 0.2;
+    const flap = loops * this.shakeK * Math.sin(t * TAU / SHAKE_S) * 0.2;
     p.earL = this.earL + droop + wiggle + flap + e.earL;
     p.earR = this.earR + droop + wiggle - flap + e.earR;
 
     p.tuft = this.tuft;
     p.tuftSway = Math.sin(t * 1.7) * 0.06 * live;
 
-    const bat = Math.sin(t * TAU / 1.04);
-    const wave = Math.sin(t * TAU / 0.4);
+    const bat = loops * Math.sin(t * TAU / 1);
+    const wave = loops * Math.sin(t * TAU / (5 / 12));
     const raise = 0.1 * this.slumpK * -1 + this.armK * 1.5;
     p.armL = Math.max(raise, this.playK * (1.33 + 0.49 * bat)) + e.armL;
     p.armR = Math.max(raise, this.playK * (1.33 - 0.49 * bat), this.waveK * (2.5 + 0.35 * wave)) + e.armR;
@@ -543,7 +554,7 @@ export class BodyMotion {
     p.blink = this.eyesHeld ? 1 : this.blinkK;
     p.lookX = this.lookX;
     p.lookY = this.lookY;
-    p.chew = this.eatK > 0 ? 0.5 + 0.5 * Math.sin(t * TAU / 0.3) : 0;
+    p.chew = this.eatK > 0 && loops ? 0.5 + 0.5 * Math.sin(t * TAU / CHEW_S) : 0;
   }
 
   /** For the view's idle blink: when the next one is due, in seconds. */

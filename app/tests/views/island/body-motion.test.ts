@@ -389,6 +389,33 @@ describe('settling and reduced motion', () => {
     expect(body.pose.stretch).toBeCloseTo(0.82, 2);   // asleep still looks asleep
   });
 
+  it('with motion reduced no pose loops: each is held in its still form and asks for no frames', () => {
+    for (const pose of ['eat', 'play', 'no', 'shake', 'wave'] as const) {
+      const body = still();
+      body.setLive(true);
+      body.setReduceMotion(true);
+      body.setLook(look(pose === 'eat' ? 'eat' : 'content', pose));
+      body.update(FRAME);
+      const first = JSON.stringify(body.pose);
+      for (let i = 0; i < 40; i++) {
+        body.update(FRAME);
+        expect(JSON.stringify(body.pose), `${pose}, frame ${i}`).toBe(first);
+      }
+      expect(body.moving, pose).toBe(false);
+      // The form is still the pose's: paws up to play, a paw up to wave.
+      if (pose === 'play') { expect(body.pose.armL).toBeGreaterThan(1); expect(body.pose.armR).toBeGreaterThan(1); }
+      if (pose === 'wave') expect(body.pose.armR).toBeGreaterThan(2);
+      if (pose === 'eat') expect(body.pose.chew).toBe(0);
+    }
+    // And with motion not reduced the same poses do loop.
+    const body = still();
+    body.setLook(look('eat', 'eat'));
+    const seen = new Set<string>();
+    for (let i = 0; i < 40; i++) { body.update(FRAME); seen.add(body.pose.stretch.toFixed(4)); }
+    expect(seen.size).toBeGreaterThan(5);
+    expect(body.moving).toBe(true);
+  });
+
   it('survives a frame that never came, a negative one and one that is not a number', () => {
     const body = still();
     body.squish(1);
