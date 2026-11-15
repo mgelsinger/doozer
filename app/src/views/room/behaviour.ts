@@ -107,18 +107,21 @@ export interface Behaviour {
   destroy(): void;
 }
 
-// How long before Doozer does something by itself. A second of animation costs about a
-// third of a processor core in this window, so an outing (a stroll, a look out of the
-// window) costs one to three core-seconds, and the room has to stay cheap to leave open
-// all day (docs/room-checks.md section 6). So, left alone, most of what Doozer does is a
-// still glance about, which is two redraws and costs nothing; only now and then does it
-// really go somewhere. With somebody watching, everything it does is a proper outing.
+// How long before Doozer does something by itself. The room has to stay cheap to leave
+// open all day, and what costs is Doozer moving. As first built, at the screen's 120
+// frames a second, a second of animation cost about a third of a processor core, and
+// Doozer alone was held to one real outing in six minutes (docs/room-checks.md section 6).
+// Drawn 24 times a second (src/frames.ts) the same second costs about a fifth of that,
+// and Phase 10 gave most of the saving back to Doozer (docs/polish-checks.md section 5):
+// left alone it now really goes somewhere about every two and three-quarter minutes, and
+// in between it glances about, which is two redraws and costs nothing. With somebody
+// watching, everything it does is a proper outing.
 export const ALONE_MS: readonly [number, number] = [60_000, 140_000];
 /** Left alone, the share of the things it does that are real outings rather than a glance. */
-export const ALONE_OUTING_SHARE = 0.28;
+export const ALONE_OUTING_SHARE = 0.6;
 export const ATTENDED_MS: readonly [number, number] = [5_000, 11_000];
 /** While reading: how often it stirs to turn a page, and for how long. */
-export const PAGE_MS: readonly [number, number] = [150_000, 330_000];
+export const PAGE_MS: readonly [number, number] = [70_000, 150_000];
 const PAGE_TURN_MS = 2600;
 
 /** Pixels a second. */

@@ -828,8 +828,9 @@ describe('render on demand', () => {
     expect(r.snap().timers).toEqual(['wink']);
     const ambient = r.parts().world.ambient;
     const seen = await watch(r, 60);
-    expect(seen.frames).toBeGreaterThanOrEqual(13);
-    expect(seen.frames).toBeLessThanOrEqual(17);
+    // One every three seconds.
+    expect(seen.frames).toBeGreaterThanOrEqual(18);
+    expect(seen.frames).toBeLessThanOrEqual(22);
     expect(seen.running).toBeLessThan(0.05);
     expect(r.parts().world.ambient).toBeGreaterThan(ambient);          // they did move
     expect(r.parts().root.querySelector('.dzk-emote')).toBeNull();     // and no z's rise unwatched
@@ -881,7 +882,7 @@ describe('render on demand', () => {
     let frames = r.snap().frames;
     let stirred = false;
     let waited = 0;
-    while (!stirred && waited < 175_000) {
+    while (!stirred && waited < 115_000) {
       await tick(500);
       waited += 500;
       stirred = r.snap().frames - frames > 6;
@@ -889,7 +890,7 @@ describe('render on demand', () => {
       expect(r.snap().lively).toBe(false);
     }
     expect(stirred).toBe(true);
-    expect(waited).toBeGreaterThan(60_000);
+    expect(waited).toBeGreaterThan(45_000);
     const before = r.snap().frames;
     let lively = false;
     let settling = 0;

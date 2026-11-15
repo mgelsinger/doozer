@@ -479,12 +479,13 @@ describe('an hour in the Room with a full bowl', () => {
     // It kept itself busy: mostly glancing about, and now and then really going somewhere.
     const glances = log.scenes.get('glance') ?? 0;
     const outings = ['wander', 'look-out', 'nudge-ball', 'fidget'].reduce((sum, name) => sum + (log.scenes.get(name) ?? 0), 0);
-    expect(glances).toBeGreaterThanOrEqual(15);
-    expect(glances).toBeLessThanOrEqual(45);
+    // (About thirty-six things in the hour; six in ten of them real outings.)
+    expect(glances).toBeGreaterThanOrEqual(6);
+    expect(glances).toBeLessThanOrEqual(26);
     expect(log.scenes.get('wander') ?? 0).toBeGreaterThanOrEqual(2);
     expect(log.scenes.get('look-out') ?? 0).toBeGreaterThanOrEqual(1);
-    expect(outings).toBeGreaterThanOrEqual(5);
-    expect(outings).toBeLessThanOrEqual(18);
+    expect(outings).toBeGreaterThanOrEqual(12);
+    expect(outings).toBeLessThanOrEqual(32);
     // Never "in the middle of something" for longer than one scene may last.
     expect(log.longest, log.worstUnsettled).toBeLessThanOrEqual(SCENE_LIMIT_MS);
     // And at the end of the hour it is at rest, still awake, with only its usual timers.
@@ -492,9 +493,10 @@ describe('an hour in the Room with a full bowl', () => {
     expect(r.snap()).toMatchObject({ station: 'free', lamp: true, open: 'none' });
     await pass(r, 5000);
     expect(r.snap().timers.sort()).toEqual(['blink', 'doozer:act', 'minute']);
-    // Left alone, the room is still nearly all of the time: animating costs about a third
-    // of a processor core while it lasts (docs/room-checks.md section 6).
-    expect(log.livelyTicks / log.ticks).toBeLessThan(0.02);
+    // Left alone, the room is still nearly all of the time. Animating costs about 7 % of a
+    // processor core while it lasts (24 frames a second; docs/polish-checks.md section 2),
+    // so 5 % of the hour is a third of a percent on the average.
+    expect(log.livelyTicks / log.ticks).toBeLessThan(0.05);
   }, 60_000);
 
   it('a tired Doozer puts itself to bed during the hour, and stays there', async () => {

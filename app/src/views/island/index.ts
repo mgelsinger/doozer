@@ -139,12 +139,18 @@ const GONE_LIMIT_MS = 1500;
 const DRAG_LIMIT_MS = 30_000;
 /** Hit regions follow Doozer and the ball at most this often while they move. */
 const REGIONS_MS = 90;
-/** With nobody there: a blink this often, a firefly's wink this often asleep, and a small stir this often. */
-const BLINK_MIN_MS = 5000;
-const BLINK_SPREAD_MS = 6000;
-const WINK_MS = 4000;
-const STIR_MIN_MS = 70_000;
-const STIR_SPREAD_MS = 100_000;
+/**
+ * With nobody there: a blink this often, a firefly's wink this often asleep, and a small
+ * stir this often. Phase 8 slowed all three to fit the budget; with every frame the page
+ * draws now cheaper and fewer (src/frames.ts), Phase 10 put the blink and the stir back
+ * to what they were first built as and the fireflies most of the way
+ * (docs/polish-checks.md section 5).
+ */
+const BLINK_MIN_MS = 4000;
+const BLINK_SPREAD_MS = 5000;
+const WINK_MS = 3000;
+const STIR_MIN_MS = 50_000;
+const STIR_SPREAD_MS = 60_000;
 /** With someone there: Doozer does something of its own this often. */
 const WANDER_MIN_MS = 2200;
 const WANDER_SPREAD_MS = 2600;
@@ -956,6 +962,8 @@ export function createIslandView(options: IslandViewOptions = {}): IslandView {
 
   return {
     id: 'island',
+    // A 3D engine, a model and a graphics context: the host has the browser give back what it can afterwards.
+    heavy: true,
     windowSettings: ['size'],
     window: (request: WindowRequest): WindowMode => islandWindow((request.settings.size.island ?? 'medium') as SizeId, request.position),
     async mount(host, context) {

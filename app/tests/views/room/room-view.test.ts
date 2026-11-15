@@ -449,7 +449,7 @@ describe('what Doozer does on its own', () => {
     expect(await settle(r)).toBe('');
   });
 
-  it('left alone, most of what it does is a glance about, which animates nothing', async () => {
+  it('left alone, between its outings it glances about, and a glance animates nothing', async () => {
     const r = mount({ seed: 6 });
     await pass(r, 5000);
     const seen = { glances: 0, outings: 0, livelyDuringGlance: 0, looked: false };
@@ -466,9 +466,10 @@ describe('what Doozer does on its own', () => {
       if (s.scene && s.scene !== last) { if (s.scene === 'glance') seen.glances++; else seen.outings++; }
       last = s.scene;
     }
-    expect(seen.glances).toBeGreaterThan(10);
-    expect(seen.outings).toBeGreaterThan(1);
-    expect(seen.glances).toBeGreaterThan(seen.outings);
+    // Three quarters of an hour: about twenty-seven things, six in ten of them real outings.
+    expect(seen.glances).toBeGreaterThanOrEqual(4);
+    expect(seen.outings).toBeGreaterThanOrEqual(8);
+    expect(seen.outings).toBeGreaterThan(seen.glances);
     expect(seen.livelyDuringGlance).toBe(0);
     expect(seen.looked).toBe(true);
     expect(await settle(r)).toBe('');
