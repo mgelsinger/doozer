@@ -340,6 +340,62 @@ mod tests {
     assert_eq!(APP_ID, "com.doozer.desktop");
   }
 
+  /// One version, written in three places (the installer and "Installed apps" read
+  /// tauri.conf.json, the executable's properties Cargo.toml, the page package.json).
+  #[test]
+  fn the_version_is_the_same_everywhere() {
+    let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+    let page: serde_json::Value = serde_json::from_str(include_str!("../../package.json")).unwrap();
+    assert_eq!(config["version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(page["version"], env!("CARGO_PKG_VERSION"));
+  }
+
+  /// Tauri's uninstaller removes the value named after the product from the user's Run key
+  /// (`DeleteRegValue HKCU "...\Run" "${PRODUCTNAME}"` in its installer script). That is
+  /// what takes "Start with Windows" away on uninstall, so the name the app writes and the
+  /// product's name must stay the same.
+  #[test]
+  fn the_uninstaller_clears_the_start_up_entry_the_app_writes() {
+    let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+    assert_eq!(config["productName"], autostart::VALUE_NAME);
+    assert_eq!(autostart::RUN_KEY, r"Software\Microsoft\Windows\CurrentVersion\Run");
+  }
+
+  /// Doozer's own addition to the uninstaller clears the browser's folder, named by the
+  /// identifier, and never names the save's.
+  #[test]
+  fn the_uninstall_hook_never_touches_the_save() {
+    let hooks: String =
+      include_str!("../installer/hooks.nsh").lines().filter(|line| !line.trim_start().starts_with(';')).collect::<Vec<_>>().join("\n");
+    assert!(hooks.contains(r#"RMDir /r "$LOCALAPPDATA\${BUNDLEID}""#));
+    assert!(!hooks.contains("$APPDATA"));
+    assert_eq!(hooks.matches("RMDir").count(), 1);
+    assert!(!hooks.contains("Delete"));
+  }
+
+  /// The installer's wording is Doozer's own where Tauri's would say "kill" of a pet that
+  /// never dies, or leave the user guessing what "application data" is.
+  #[test]
+  fn the_installer_speaks_of_the_save_and_never_of_killing() {
+    let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+    assert_eq!(config["bundle"]["windows"]["nsis"]["customLanguageFiles"]["English"], "installer/English.nsh");
+    // Each line is `LangString <name> ${LANG_ENGLISH} "<what is shown>"`. Tauri's names
+    // for the strings say "Kill" and cannot be changed; what is shown must not.
+    let shown: Vec<(&str, &str)> = include_str!("../installer/English.nsh")
+      .lines()
+      .filter_map(|line| {
+        let mut parts = line.trim_start_matches('\u{feff}').splitn(4, ' ');
+        (parts.next() == Some("LangString")).then(|| (parts.next().unwrap_or(""), parts.nth(1).unwrap_or("")))
+      })
+      .collect();
+    assert!(shown.len() > 20, "the file should carry every string of Tauri's own");
+    for (name, text) in &shown {
+      assert!(!text.to_lowercase().contains("kill"), "{name} says: {text}");
+    }
+    let tick_box = shown.iter().find(|(name, _)| *name == "deleteAppData").expect("the tick box has a label").1;
+    assert!(tick_box.contains("save"));
+  }
+
   #[test]
   fn the_interface_size_is_kept_within_reason() {
     assert_eq!(win::clamp_ui_zoom(1.0), 1.0);

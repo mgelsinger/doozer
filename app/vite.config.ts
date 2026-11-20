@@ -1,4 +1,11 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vitest/config';
+
+// The version, written into the page's <html> tag as it is built. Nothing in the app reads
+// it: it is there so that a built or installed copy can be asked which page it carries
+// (scripts/ask-page.mjs, `document.documentElement.dataset.version`), because the shell
+// embeds the page when it is compiled and a stale one is otherwise invisible.
+const version = (JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
 // `tauri dev` sets TAURI_ENV_PLATFORM for the dev command it launches. Only then
 // is port 1420 mandatory (tauri.conf.json points at it). A plain `npm run dev`
@@ -7,6 +14,12 @@ const underTauri = !!process.env.TAURI_ENV_PLATFORM;
 
 export default defineConfig({
   clearScreen: false,
+  plugins: [
+    {
+      name: 'doozer-version',
+      transformIndexHtml: (html: string) => html.replace('<html lang="en">', `<html lang="en" data-version="${version}">`),
+    },
+  ],
   server: {
     port: 1420,
     strictPort: underTauri,

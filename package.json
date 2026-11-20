@@ -1,8 +1,8 @@
 {
   "name": "doozer",
   "private": true,
-  "version": "0.1.0",
-  "description": "Doozer - a cute desktop virtual pet. Currently in the mockup phase (see WORK_PLAN.md).",
+  "version": "1.0.0",
+  "description": "Doozer - a cute desktop virtual pet. The app is in app/; this package only runs the Phase 1 mockups (see README.md).",
   "type": "module",
   "scripts": {
     "mockups": "node tools/serve.mjs --open",

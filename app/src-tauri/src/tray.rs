@@ -102,7 +102,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<TrayMenu> {
   }
   menu.append_items(&[&line_1, &card, &settings, &line_2, &quit])?;
 
-  let mut tray = TrayIconBuilder::with_id("doozer").tooltip("Doozer").menu(&menu).show_menu_on_left_click(true);
+  let mut tray = TrayIconBuilder::with_id("doozer").tooltip(format!("Doozer {}", app.package_info().version)).menu(&menu).show_menu_on_left_click(true);
   if let Some(icon) = app.default_window_icon() {
     tray = tray.icon(icon.clone());
   }
