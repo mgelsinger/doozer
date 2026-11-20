@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="11 13 178 178" width="1024" height="1024">
+  <!--
+    Doozer's icon at 16, 24 and 32 pixels (the tray, the title of a file listing, a small
+    taskbar): the same creature as doozer.svg with what turns to noise at that size left
+    out (arms, feet, tail, the second eye highlight) and what carries the likeness made
+    heavier (the outline, the eyes, the cheeks, the tuft).
+
+    scripts/make-icons.mjs draws the three small layers of icons/icon.ico and icons/32x32.png
+    from this file and everything else from doozer.svg.
+  -->
+  <defs>
+    <radialGradient id="g" cx="36%" cy="28%" r="85%">
+      <stop offset="0" stop-color="#FFE0C8"/>
+      <stop offset=".5" stop-color="#FFC7A1"/>
+      <stop offset="1" stop-color="#F3A27A"/>
+    </radialGradient>
+  </defs>
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <!-- ears -->
+    <circle cx="58" cy="60" r="21" fill="#FFC7A1" stroke="#6B4636" stroke-width="10"/>
+    <circle cx="58" cy="61" r="10" fill="#FFA9A0"/>
+    <circle cx="142" cy="60" r="21" fill="#FFC7A1" stroke="#6B4636" stroke-width="10"/>
+    <circle cx="142" cy="61" r="10" fill="#FFA9A0"/>
+    <!-- body, belly -->
+    <path d="M100 44 C144 44 168 82 168 122 C168 162 142 184 100 184 C58 184 32 162 32 122 C32 82 56 44 100 44 Z" fill="url(#g)" stroke="#6B4636" stroke-width="10"/>
+    <ellipse cx="100" cy="152" rx="38" ry="23" fill="#FFF3E6" opacity=".92"/>
+    <!-- tuft -->
+    <path d="M100 52 C95 36 104 22 115 27 C123 31 119 43 111 39" fill="none" stroke="#6B4636" stroke-width="21"/>
+    <path d="M100 52 C95 36 104 22 115 27 C123 31 119 43 111 39" fill="none" stroke="#F3A27A" stroke-width="7"/>
+    <!-- cheeks -->
+    <ellipse cx="56" cy="128" rx="14" ry="9.5" fill="#FF8C8C" opacity=".85"/>
+    <ellipse cx="144" cy="128" rx="14" ry="9.5" fill="#FF8C8C" opacity=".85"/>
+    <!-- eyes -->
+    <ellipse cx="72" cy="106" rx="13" ry="16" fill="#3A2A26"/>
+    <circle cx="76.500" cy="99.500" r="5" fill="#fff"/>
+    <ellipse cx="128" cy="106" rx="13" ry="16" fill="#3A2A26"/>
+    <circle cx="132.500" cy="99.500" r="5" fill="#fff"/>
+    <!-- mouth: the resting "w" -->
+    <path d="M88 123 Q94 133 100 123 Q106 133 112 123" fill="none" stroke="#3A2A26" stroke-width="7"/>
+  </g>
+</svg>

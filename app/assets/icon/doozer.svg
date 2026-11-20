@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="5 8 190 190" width="1024" height="1024">
+  <!--
+    Doozer's icon: the app, the installer, the tray.
+
+    The shapes are the 2D rig's (app/src/character/rig-markup.ts), Peach palette, bold outline,
+    the "content" face, drawn the way the rig draws itself small (data-lod="small": a heavier
+    line and slightly bigger eyes), and a little heavier still so that it holds at 16 pixels.
+    No shadow and no background: the icon sits on whatever the taskbar or the Start menu is.
+
+    Every file in app/src-tauri/icons/ is made from this one. After changing it:
+      npx tauri icon assets/icon/doozer.svg        (in app/; then delete icons/android and icons/ios)
+  -->
+  <defs>
+    <radialGradient id="g" cx="36%" cy="28%" r="85%">
+      <stop offset="0" stop-color="#FFE0C8"/>
+      <stop offset=".5" stop-color="#FFC7A1"/>
+      <stop offset="1" stop-color="#F3A27A"/>
+    </radialGradient>
+  </defs>
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <!-- feet, tail -->
+    <ellipse cx="75" cy="180" rx="18" ry="9.5" fill="#F3A27A" stroke="#6B4636" stroke-width="7"/>
+    <ellipse cx="125" cy="180" rx="18" ry="9.5" fill="#F3A27A" stroke="#6B4636" stroke-width="7"/>
+    <circle cx="158" cy="154" r="10" fill="#F3A27A" stroke="#6B4636" stroke-width="7"/>
+    <!-- ears -->
+    <circle cx="60" cy="60" r="19" fill="#FFC7A1" stroke="#6B4636" stroke-width="7"/>
+    <circle cx="60" cy="61" r="9.5" fill="#FFA9A0"/>
+    <circle cx="140" cy="60" r="19" fill="#FFC7A1" stroke="#6B4636" stroke-width="7"/>
+    <circle cx="140" cy="61" r="9.5" fill="#FFA9A0"/>
+    <!-- body, belly -->
+    <path d="M100 44 C142 44 164 82 164 122 C164 162 140 184 100 184 C60 184 36 162 36 122 C36 82 58 44 100 44 Z" fill="url(#g)" stroke="#6B4636" stroke-width="7"/>
+    <ellipse cx="100" cy="148" rx="37" ry="27" fill="#FFF3E6" opacity=".92"/>
+    <!-- tuft -->
+    <path d="M100 52 C95 36 104 22 115 27 C123 31 119 43 111 39" fill="none" stroke="#6B4636" stroke-width="17.5"/>
+    <path d="M100 52 C95 36 104 22 115 27 C123 31 119 43 111 39" fill="none" stroke="#F3A27A" stroke-width="6.5"/>
+    <!-- cheeks -->
+    <ellipse cx="60" cy="124" rx="11.5" ry="7.5" fill="#FF8C8C" opacity=".75"/>
+    <ellipse cx="140" cy="124" rx="11.5" ry="7.5" fill="#FF8C8C" opacity=".75"/>
+    <!-- eyes -->
+    <g transform="translate(74 106) scale(1.22) translate(-74 -106)">
+      <ellipse cx="74" cy="106" rx="8.6" ry="10.8" fill="#3A2A26"/>
+      <circle cx="77" cy="101.4" r="3.3" fill="#fff"/>
+    </g>
+    <g transform="translate(126 106) scale(1.22) translate(-126 -106)">
+      <ellipse cx="126" cy="106" rx="8.6" ry="10.8" fill="#3A2A26"/>
+      <circle cx="129" cy="101.4" r="3.3" fill="#fff"/>
+    </g>
+    <!-- mouth: the resting "w" -->
+    <path d="M89 121 Q94.5 129.5 100 121 Q105.500 129.500 111 121" fill="none" stroke="#3A2A26" stroke-width="5.5"/>
+    <!-- arms -->
+    <ellipse cx="41" cy="134" rx="10.5" ry="15" transform="rotate(18 41 134)" fill="#FFC7A1" stroke="#6B4636" stroke-width="7"/>
+    <ellipse cx="159" cy="134" rx="10.5" ry="15" transform="rotate(-18 159 134)" fill="#FFC7A1" stroke="#6B4636" stroke-width="7"/>
+  </g>
+</svg>

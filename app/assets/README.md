@@ -4,6 +4,7 @@ Static assets bundled with the app.
 
 | Folder | What |
 |---|---|
+| `icon/` | The two drawings every icon file is made from: `doozer.svg` (the whole creature, used from 48 pixels up) and `doozer-small.svg` (a simplified face, for the tray and other small sizes). `node scripts/make-icons.mjs` builds `src-tauri/icons/` from them. See [docs/release.md](../../docs/release.md). |
 | `doozer/` | The 3D Doozer for the Island view: `doozer.glb` (glTF, about 630 KB) and `build_doozer.py`, the Blender script that builds it. Never edit the model by hand: change the script and run it. |
 
 ## The model
