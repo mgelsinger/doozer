@@ -139,12 +139,28 @@ mod tests {
   use std::process::{Command, Stdio};
   use std::time::{Duration, Instant};
 
-  /// A fresh, empty directory under the system temp folder.
-  fn scratch(name: &str) -> PathBuf {
+  /// A fresh, empty directory under the system temp folder, removed again when the test
+  /// is over (passed or failed), so that a run leaves nothing behind.
+  struct Scratch(PathBuf);
+
+  impl std::ops::Deref for Scratch {
+    type Target = Path;
+    fn deref(&self) -> &Path {
+      &self.0
+    }
+  }
+
+  impl Drop for Scratch {
+    fn drop(&mut self) {
+      let _ = fs::remove_dir_all(&self.0);
+    }
+  }
+
+  fn scratch(name: &str) -> Scratch {
     let dir = std::env::temp_dir().join(format!("doozer-save-test-{}-{name}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).unwrap();
-    dir
+    Scratch(dir)
   }
 
   #[test]
@@ -155,7 +171,8 @@ mod tests {
 
   #[test]
   fn a_missing_folder_is_created_on_save_and_tolerated_on_load() {
-    let dir = scratch("nested").join("a").join("b");
+    let root = scratch("nested");
+    let dir = root.join("a").join("b");
     assert_eq!(load(&dir).source, "none");
     save(&dir, r#"{"v":1}"#).unwrap();
     assert_eq!(load(&dir).data.as_deref(), Some(r#"{"v":1}"#));
@@ -467,7 +484,6 @@ mod tests {
     assert!(during_write > 0, "no kill landed while a file was being written; the test proved nothing");
     sweep_temp_files(&dir);
     assert_eq!(temp_files(&dir), 0);
-    let _ = fs::remove_dir_all(&dir);
   }
 
   #[test]

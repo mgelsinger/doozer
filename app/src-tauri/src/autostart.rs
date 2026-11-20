@@ -63,17 +63,17 @@ mod tests {
     fn new() -> Self {
       static NEXT: AtomicU32 = AtomicU32::new(0);
       let n = NEXT.fetch_add(1, Ordering::SeqCst);
-      Scratch(format!(r"Software\DoozerTests\autostart-{}-{n}", std::process::id()))
+      // Each test's key stands by itself under Software. They used to share a parent key
+      // that the last test to finish removed, and now and then one test removed it at the
+      // moment another was creating its own key inside it ("a registry key that has been
+      // marked for deletion").
+      Scratch(format!(r"Software\DoozerTests-autostart-{}-{n}", std::process::id()))
     }
   }
 
   impl Drop for Scratch {
     fn drop(&mut self) {
-      let root = RegKey::predef(HKEY_CURRENT_USER);
-      let _ = root.delete_subkey_all(&self.0);
-      // The parent goes too once the last test's key has gone. While another
-      // test's key is still there this fails, which is what should happen.
-      let _ = root.delete_subkey(r"Software\DoozerTests");
+      let _ = RegKey::predef(HKEY_CURRENT_USER).delete_subkey_all(&self.0);
     }
   }
 
