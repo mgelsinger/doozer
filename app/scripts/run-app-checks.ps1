@@ -19,7 +19,8 @@ param(
   [string[]] $Only = @(),
   # Where to keep the reports. Default: a scratch folder that is removed at the end.
   [string] $Out = '',
-  # How far ahead "the next morning" is.
+  # How far ahead "the next morning" is, at the least. It is always made far enough to be
+  # the next day by the calendar (see Get-Night).
   [double] $NightHours = 14,
   [switch] $Show
 )
@@ -75,9 +76,26 @@ function Invoke-Scenario([string] $name, [hashtable] $arguments = @{}, [int] $li
   $result
 }
 
+# How far ahead the second day's clock is set, in ms: $NightHours after now, if that is
+# tomorrow by the calendar; otherwise eight o'clock tomorrow morning. A streak counts days,
+# not hours. With fourteen hours and nothing else, this check failed whenever it was run
+# between midnight and ten in the morning, when fourteen hours on is still today (found at
+# two minutes past midnight, the first time it was ever run at that hour). Either way the
+# night is longer than the twelve hours of it the pet lives through, so Doozer wakes the same.
+# "Tomorrow" is the day after the one the first day ended on ($firstDayEndedAt, from its
+# report), in case midnight fell between the two runs.
+function Get-Night([object] $firstDayEndedAt) {
+  $now = Get-Date
+  $firstDay = if ($firstDayEndedAt) { [DateTimeOffset]::FromUnixTimeMilliseconds([long]$firstDayEndedAt).LocalDateTime.Date } else { $now.Date }
+  $then = $now.AddHours($NightHours)
+  if ($then.Date -ne $firstDay.AddDays(1)) { $then = $firstDay.AddDays(1).AddHours(8) }
+  if ($then -le $now) { $then = $now.AddMinutes(1) }
+  return [long]($then - $now).TotalMilliseconds
+}
+
 $plan = @(
   @{ name = 'app-day1'; args = @{} },
-  @{ name = 'app-day2'; args = @{ clockOffsetMs = [long]($NightHours * 3600 * 1000) } },
+  @{ name = 'app-day2'; args = @{} },
   @{ name = 'app-stuck'; args = @{} },
   @{ name = 'app-window'; args = @{} }
 )
@@ -87,6 +105,11 @@ $results = @()
 try {
   foreach ($step in $plan) {
     "running $($step.name) ..."
+    # Worked out now, not when the list was made: the first day may have run over midnight.
+    if ($step.name -eq 'app-day2') {
+      $first = @($results | Where-Object { $_.name -eq 'app-day1' })[0]
+      $step.args.clockOffsetMs = Get-Night $first.report.scenarios.'app-day1'.savedAt
+    }
     $results += Invoke-Scenario $step.name $step.args
   }
 }
