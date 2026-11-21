@@ -29,19 +29,20 @@
 // covered window) is replaced by a timer after `FALLBACK_MS`, so nothing here ever waits
 // on a frame for good.
 //
-// Whole refreshes. A frame passed over is a frame asked for and thrown away, and on a
-// screen whose refresh the rate does not divide (24 a second at 60 or 90 Hz, 60 a second at
-// 75, 144 or 165 Hz) that was one for every picture. But a frame passed over and the one
-// taken after it are two refreshes in a row, so the gap between their stamps is the
-// screen's refresh interval, measured for nothing. Once a few of those agree the clock
-// knows the screen (`refresh`), and from then on aims each tick a whole number of
-// refreshes after the last (`whole`): the fewest that do not go over the rate asked for,
-// which is the very refresh the passing-over was arriving at. The pictures come exactly
-// when they did, and no frame is wasted on the way. On a screen the rate already divides
-// nothing is ever passed over, so nothing is measured and nothing changes. On a screen
-// that does not keep one interval (a variable or unsteady refresh) the measurements do not
-// agree, none is believed, and the clock goes on as before; and a believed interval that
-// stops fitting (the window carried to another monitor) is forgotten and measured again.
+// The frame passed over is the price of the even rhythm, and it stays. Version 1.0.1 tried
+// to do without it on screens the rate does not divide: measure the screen's refresh from
+// two frames in a row, then aim each tick at a whole number of refreshes and ask for the
+// frame just after. It worked on every pretend screen and not in the real window. Asked
+// directly, on a screen refreshing every 18 ms and with the page really drawing every third
+// refresh, the browser hands over the refresh just gone only some of the time: asked for
+// after the refresh aimed for, the picture came a refresh late three or four times in ten;
+// asked for well before it, the page was handed the refresh before first and was then on
+// time every time. So the rule stays as it was: on such a screen the moment a tick aims
+// for falls between two refreshes, and a frame asked for there is the one before (passed
+// over) or the one after (taken), never one later. The rate asked for is in effect a
+// ceiling: a picture is held for the fewest whole refreshes that do not go over it (every
+// third at 60 Hz, every fourth at 90). docs/polish-checks.md section 18.1 has the
+// measurements.
 //
 // The rate. `AMBIENT_FPS` when nobody is there: 24, the rate of film and of drawn
 // animation. `ATTENDED_FPS` (60) while the pointer is on something of Doozer's or was a
@@ -87,20 +88,6 @@ const AFTER_MS = 1;
 const EARLY_MS = 2;
 /** The longest single timer a tick waits on; see `waitUntil`. */
 const HOP_MS = 24;
-/** How many measurements of the screen's refresh interval, one after another, must agree before it is believed. */
-const REFRESH_SAMPLES = 3;
-/** After being wrong about a screen, the clock asks for more agreement the next time: up to this many. */
-const REFRESH_SAMPLES_MOST = 24;
-/** Two measurements agree if they are within this share of each other (and a tenth of a millisecond for the stamps' own coarseness). */
-const REFRESH_AGREES = 0.04;
-/** A refresh interval outside these is not a screen's (20 to 500 Hz). */
-const REFRESH_RANGE = [2, 50] as const;
-/** A picture stamped within this of the moment aimed for was on the refresh aimed for. */
-const ON_AIM_MS = 1;
-/** This many pictures off their aim, without a good run between, and the refresh interval is no longer believed. */
-const MISSES_MOST = 4;
-/** A run of pictures on their aim this long clears the slate. */
-const CLEAN_RUN = 48;
 /** Every CSS animation inside an element matching this is held still. */
 const HOLD = '[data-live="0"]';
 
@@ -125,15 +112,14 @@ export interface FrameStats {
   /** Frames passed over because they belonged to an earlier refresh than the one aimed for, and pictures that came a refresh late. */
   passedOver: number;
   late: number;
-  /** The screen's refresh interval in ms, once it has been measured and believed; and how many of them a picture is now held for (0: the rate as asked). */
-  refresh: number | null;
-  wholes: number;
   /** Animations taken over, finished by the clock, and handed back after an error. */
   adopted: number;
   finished: number;
   released: number;
   /** Animations moved forward on the last tick. */
   moving: number;
+  /** The moment the last picture is counted from: the stamp of the refresh it belonged to, where the browser gave one. */
+  stamp: number;
   pacing: boolean;
   running: boolean;
   fps: number;
@@ -187,18 +173,6 @@ export class FrameClock {
   private idle: boolean | null = null;
   /** This tick's frame is being asked for just after the moment aimed for, not just before. */
   private after = false;
-  /** The screen's refresh interval, measured from frames that came one after another. Null: not known, or never needed. */
-  private refresh: number | null = null;
-  /** How many refreshes the interval in force is, when it was worked out from `refresh`; 0 when it is the rate as asked. */
-  private wholes = 0;
-  /** Measurements of the refresh interval that agree so far, and how many it takes. */
-  private samples: number[] = [];
-  private samplesNeeded = REFRESH_SAMPLES;
-  /** The stamp of a frame just passed over: the next one is the next refresh. */
-  private passedAt: number | null = null;
-  /** Pictures off their aim since the refresh was believed, and pictures on it in a row. */
-  private misses = 0;
-  private clean = 0;
   private waiting: unknown = null;
   private frame: unknown = null;
   private fallback: unknown = null;
@@ -328,7 +302,7 @@ export class FrameClock {
   get pacing(): boolean { return this.pacing_; }
 
   get stats(): FrameStats {
-    return { ...this.stats_, refresh: this.refresh, wholes: this.wholes, pacing: this.pacing_, running: this.running_, fps: this.fps };
+    return { ...this.stats_, stamp: this.last, pacing: this.pacing_, running: this.running_, fps: this.fps };
   }
 
   /** Stop everything. For tests and hot reload. */
@@ -351,11 +325,8 @@ export class FrameClock {
   private schedule(): void {
     // Wait out most of the interval, then take the next frame the screen offers. After a
     // rest the wait is over already, and whatever woke the clock is answered at once.
-    const interval = this.whole(1000 / Math.min(240, Math.max(1, this.fps)));
-    // (A different rate, that is: the measured refresh is corrected by hairs all the time,
-    // and that is no reason to forget how the page behaves at this one.)
-    if (Math.abs(interval - this.interval) > 0.5) this.idle = null;
-    this.interval = interval;
+    const interval = 1000 / Math.min(240, Math.max(1, this.fps));
+    if (interval !== this.interval) { this.interval = interval; this.idle = null; }
     this.aim = this.last + interval;
     // At a quick rate the page is still being offered every refresh, and a frame asked for
     // a little before the one aimed for is that one. At a slow rate the page has gone idle
@@ -366,65 +337,6 @@ export class FrameClock {
     this.after = this.requestFrame !== null && (this.idle ?? interval >= IDLE_MS);
     const lead = !this.requestFrame ? 0 : this.after ? -AFTER_MS : LEAD_MS;
     this.waitUntil(this.aim - lead);
-  }
-
-  /**
-   * The interval to space the ticks at, for a rate that asks for `asked` ms: `asked` itself
-   * until the screen's refresh interval is known, and then a whole number of refreshes.
-   *
-   * The rate asked for is a ceiling, not a target: the fewest refreshes that do not go
-   * over it (give or take `EARLY_MS`, as `askFrame` does). That is the refresh the clock
-   * was arriving at anyway, by passing over the one before it, so knowing the screen
-   * changes how many frames are asked for and not when the pictures come: 24 a second is
-   * every third refresh at 60 Hz, every fourth at 90, every seventh at 165; 60 a second is
-   * every second refresh at 75 Hz and every third at 144 and 165.
-   */
-  private whole(asked: number): number {
-    const refresh = this.refresh;
-    if (refresh === null) { this.wholes = 0; return asked; }
-    const wholes = Math.max(1, Math.ceil((asked - EARLY_MS) / refresh));
-    this.wholes = wholes;
-    const interval = wholes * refresh;
-    // The rate as asked is already a whole number of this screen's refreshes (24 a second
-    // at 120 or 144 Hz): leave it exactly as asked, measurement and all.
-    return Math.abs(interval - asked) < 0.02 * asked ? asked : interval;
-  }
-
-  /** One more measurement of the screen's refresh interval: two frames, one straight after the other. */
-  private measure(gap: number): void {
-    if (!(gap >= REFRESH_RANGE[0] && gap <= REFRESH_RANGE[1])) return;
-    const first = this.samples[0];
-    if (first !== undefined && Math.abs(gap - first) > REFRESH_AGREES * first + 0.1) this.samples = [];
-    this.samples.push(gap);
-    if (this.samples.length < this.samplesNeeded) return;
-    this.refresh = this.samples.reduce((sum, sample) => sum + sample, 0) / this.samples.length;
-    this.samples = [];
-    this.misses = 0;
-    this.clean = 0;
-  }
-
-  /** A picture came on the refresh it was aimed at, `gap` ms after the last one. */
-  private onAim(gap: number): void {
-    if (this.refresh === null) return;
-    // The stamps are only so fine: let the gaps between pictures keep correcting the figure.
-    if (this.wholes > 0 && Number.isFinite(gap) && gap > 0) {
-      const seen = gap / this.wholes;
-      if (Math.abs(seen - this.refresh) < REFRESH_AGREES * this.refresh) this.refresh += (seen - this.refresh) * 0.1;
-    }
-    if (++this.clean >= CLEAN_RUN) {
-      this.misses = 0;
-      if (this.clean >= CLEAN_RUN * 5) this.samplesNeeded = REFRESH_SAMPLES;
-    }
-  }
-
-  /** A picture did not come on the refresh it was aimed at. Too many of those and the screen is not what was measured. */
-  private offAim(): void {
-    this.clean = 0;
-    if (this.refresh === null || ++this.misses < MISSES_MOST) return;
-    this.refresh = null;
-    this.samples = [];
-    this.misses = 0;
-    this.samplesNeeded = Math.min(REFRESH_SAMPLES_MOST, this.samplesNeeded * 2);
   }
 
   /**
@@ -463,17 +375,11 @@ export class FrameClock {
       const stamped = typeof frameTime === 'number' && frameTime <= now + 1 && now - frameTime < 100;
       // (Only a frame near the moment aimed for says anything: after a rest there was no aim.)
       const near = stamped && Math.abs(frameTime - this.aim) < 40;
-      // The frame after one passed over is the very next refresh: the gap is the screen's interval.
-      const passedAt = this.passedAt;
-      this.passedAt = null;
-      if (!mayPassOver && stamped && passedAt !== null) this.measure(frameTime - passedAt);
       if (near && frameTime < this.aim - EARLY_MS) {
         // The refresh before the one aimed for: the page had gone idle and was handed it at once.
         this.idle = true;
         if (mayPassOver) {
           this.stats_.passedOver++;
-          this.offAim();
-          this.passedAt = frameTime;
           this.askFrame(false);
           return;
         }
@@ -482,10 +388,6 @@ export class FrameClock {
         // idle after all. This picture is a refresh late; the next is asked for beforehand.
         this.idle = false;
         this.stats_.late++;
-        this.offAim();
-      } else if (near && mayPassOver) {
-        if (Math.abs(frameTime - this.aim) <= ON_AIM_MS) this.onAim(frameTime - this.last);
-        else if (this.wholes > 0) this.offAim();
       }
       this.tick(true, stamped ? frameTime : now);
     });
