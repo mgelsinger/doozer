@@ -44,7 +44,7 @@ interface Status {
   userNotificationState: number;
   userIdleMs: number;
   msSinceHeartbeat: number;
-  stats: { ticks: number; flips: number; styleRepairs: number; watchdogTrips: number; displayChanges: number; modeSwitches: number };
+  stats: { ticks: number; flips: number; styleRepairs: number; styleCatchUps: number; watchdogTrips: number; displayChanges: number; modeSwitches: number };
 }
 
 interface ProbeReading {

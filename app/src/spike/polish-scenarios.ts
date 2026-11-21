@@ -13,7 +13,7 @@ import { frames } from '../frames';
 import { UI_SCALE } from '../host/host';
 import type { Region } from '../shell';
 import type { App } from '../main';
-import { scenarioNames, type TestRun } from './config';
+import { addPolicyFailures, scenarioNames, type TestRun } from './config';
 
 type Point = { x: number; y: number };
 type Result = { failures: string[] } & Record<string, unknown>;
@@ -571,6 +571,7 @@ export async function runPolishScenarios(app: App, run: TestRun): Promise<void> 
   }
   whole.finishedAt = new Date().toISOString();
   await invoke('spike_inject', { cursor: null });
+  whole.policyViolations = addPolicyFailures(results);
   await report(`${String(args.tag ?? names.join('+'))}.json`, whole);
   if (args.exit === false) return;
   // Quit the way a person would, through the tray menu: the page is told, saves, and answers.

@@ -17,7 +17,7 @@ import type { NeedKey, Settings } from '../../core/contract';
 import { parseSave } from '../../host/store';
 import type { App } from '../../main';
 import { shell, type Region } from '../../shell';
-import { scenarioNames, type TestRun } from '../../spike/config';
+import { addPolicyFailures, scenarioNames, type TestRun } from '../../spike/config';
 import type { DesktopParts, DesktopSnapshot, Sabotage } from './index';
 import { hitRegion, readSpots } from './stage';
 
@@ -35,7 +35,7 @@ interface Status {
   holding: boolean;
   isForeground: boolean;
   fullscreenInFront: boolean;
-  stats: { flips: number; styleRepairs: number; watchdogTrips: number; modeSwitches: number };
+  stats: { flips: number; styleRepairs: number; styleCatchUps: number; lastRepairFrom: number; lastRepairTo: number; watchdogTrips: number; modeSwitches: number };
 }
 
 type Point = { x: number; y: number };
@@ -998,6 +998,7 @@ interface SoakReport {
   worstTimerLatenessMs: number;
   /** Times the shell found the page silent and dropped its hit regions. */
   nativeWatchdogTrips: number;
+  nativeStyle?: { flips: number; catchUps: number; repairs: number; lastRepair: string | null; modeSwitches: number };
   memory: { atMinute: number; heapMB: number | null; nodes: number }[];
   /** The last things done before each rescue, to explain it by. */
   beforeRescue: unknown[];
@@ -1027,6 +1028,7 @@ const soak: Scenario = async (app, args) => {
   const recent: string[] = [];
   let knownRescues = 0;
   let held: Carry | null = null;
+  const nativeAtStart = (await status()).stats;
 
   // How late does the page's own clock run? (A window nobody can see may be slowed down.)
   let lateness = 0;
@@ -1176,7 +1178,19 @@ const soak: Scenario = async (app, args) => {
     result.scenes = s.scenes;
     result.drops = s.drops;
     result.worstTimerLatenessMs = Math.round(lateness);
-    result.nativeWatchdogTrips = (await status()).stats.watchdogTrips;
+    const native = (await status()).stats;
+    result.nativeWatchdogTrips = native.watchdogTrips;
+    // What the shell's cursor tracker wrote to the window's style over the soak: flips are
+    // its own decisions, catch-ups are changes the shell asked for elsewhere and left to the
+    // tracker (the window hidden while it was catching, a drag begun), and a repair is a
+    // style that somebody else had rewritten. Only the last should never happen here.
+    result.nativeStyle = {
+      flips: native.flips - nativeAtStart.flips,
+      catchUps: native.styleCatchUps - nativeAtStart.styleCatchUps,
+      repairs: native.styleRepairs - nativeAtStart.styleRepairs,
+      lastRepair: native.styleRepairs > nativeAtStart.styleRepairs ? `0x${native.lastRepairFrom.toString(16)} -> 0x${native.lastRepairTo.toString(16)}` : null,
+      modeSwitches: native.modeSwitches - nativeAtStart.modeSwitches,
+    };
   };
 
   /** Stop acting, let go of anything held, and wait for Doozer to come to rest of its own accord. */
@@ -1276,6 +1290,7 @@ const soak: Scenario = async (app, args) => {
     'soak: the watchdog had nothing to rescue': (result.rescues as unknown[]).length === 0,
     'soak: no scene had to be ended by its time limit': (result.overruns as unknown[]).length === 0,
     'soak: the shell never found the page silent': result.nativeWatchdogTrips === 0,
+    'soak: nobody else rewrote the style of the window': result.nativeStyle?.repairs === 0,
   });
   result.verdict = failures.length === 0 ? 'idle on the taskbar line, with nothing rescued' : failures.join('; ');
   await report(String(args.tag ?? 'app-desktop-soak') + '.progress.json', result);
@@ -1349,6 +1364,7 @@ export async function runDesktopChecks(app: App, run: TestRun): Promise<void> {
   whole.endStatus = await status();
   whole.endSnapshot = app.desktop.snapshot();
   await invoke('spike_inject', { cursor: null });
+  whole.policyViolations = addPolicyFailures(results);
   await report(`${String(args.tag ?? names.join('+'))}.json`, whole);
   if (args.exit === false) return;
   // Quit the way a person would, through the tray menu: the page is told, saves, and answers.

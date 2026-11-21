@@ -71,8 +71,16 @@ pub struct Stats {
   pub ticks: u64,
   /// Times the window changed between catching the mouse and letting it through.
   pub flips: u64,
-  /// Times the tracker found the window style different from what it should be and fixed it.
+  /// Times the tracker found the window style different from what it should be, with
+  /// nothing of the shell's own to explain it, and fixed it: something else (Tao, another
+  /// program) had rewritten it.
   pub style_repairs: u64,
+  /// Times the tracker wrote a style that the shell itself had asked for a moment before
+  /// (`Inner::style_due`). Not a repair: the ordinary way those changes reach the window.
+  pub style_catch_ups: u64,
+  /// The style the last repair found, and the one it put back.
+  pub last_repair_from: u32,
+  pub last_repair_to: u32,
   /// Times the page went silent and its hit regions were dropped.
   pub watchdog_trips: u64,
   /// Times the monitor layout changed under the window and it was put back in place.
@@ -94,6 +102,12 @@ struct Inner {
   catching: bool,
   /// Clicking the window may give it keyboard focus.
   focusable: bool,
+  /// `catching` or `focusable` was changed by something that left writing the style to the
+  /// tracker's next tick (hiding the window, the start of a drag, the keyboard given back
+  /// by the tracker itself). That write is the shell catching up with itself, and must not
+  /// be counted as repairing somebody else's damage: until Phase 11's second look it was,
+  /// which is all the "style repairs" of the Desktop soaks ever were.
+  style_due: bool,
   visible: bool,
   topmost: bool,
   drag: Option<Drag>,
@@ -219,6 +233,7 @@ impl Shell {
         regions_lost: false,
         catching: false,
         focusable: false,
+        style_due: false,
         visible: true,
         topmost: true,
         drag: None,
@@ -267,7 +282,7 @@ impl Shell {
       let s = self.lock();
       (s.hwnd, s.catching, s.focusable, s.layered_always)
     };
-    apply_style(hwnd, catching, focusable, layered_always);
+    let _ = apply_style(hwnd, catching, focusable, layered_always);
   }
 
   /// First-time setup, on the UI thread, right after the window exists.
@@ -390,6 +405,7 @@ impl Shell {
       grab_x: (client_x - rect.x) + (x * scale).round() as i32,
       grab_y: (client_y - rect.y) + (y * scale).round() as i32,
     });
+    s.style_due |= !s.catching;
     s.catching = true;
     true
   }
@@ -442,6 +458,9 @@ impl Shell {
       let mut s = self.lock();
       s.visible = visible;
       if !visible {
+        // A hidden window catches nothing whatever its style says; the tracker writes
+        // the click-through style on its next tick.
+        s.style_due |= s.catching;
         s.catching = false;
         s.drag = None;
       }
@@ -549,18 +568,40 @@ fn give_keyboard_back(ours: Hwnd, from: isize) {
   }
 }
 
-/// Write the wanted style if the window does not already have it. Returns true if it changed.
-fn apply_style(hwnd: Hwnd, catching: bool, focusable: bool, layered_always: bool) -> bool {
+/// Write the wanted style if the window does not already have it. Returns the style it
+/// found and the one it wrote, if it had to write.
+fn apply_style(hwnd: Hwnd, catching: bool, focusable: bool, layered_always: bool) -> Option<(u32, u32)> {
   let actual = win::ex_style(hwnd);
   let wanted = desired_ex_style(actual, catching, focusable, layered_always);
   if actual == wanted {
-    return false;
+    return None;
   }
   win::set_ex_style(hwnd, wanted);
   if layered_always && actual & win::EX_LAYERED == 0 {
     win::set_layered_opaque(hwnd);
   }
-  true
+  Some((actual, wanted))
+}
+
+/// What a style write by the tracker was: the window following a decision the tracker
+/// made on this very tick (`Flip`), the shell catching up with a change it had asked for
+/// itself (`CatchUp`), or neither, which leaves only somebody else having rewritten the
+/// style (`Repair`).
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum StyleWrite {
+  Flip,
+  CatchUp,
+  Repair,
+}
+
+pub fn classify_style_write(flipped: bool, due: bool) -> StyleWrite {
+  if flipped {
+    StyleWrite::Flip
+  } else if due {
+    StyleWrite::CatchUp
+  } else {
+    StyleWrite::Repair
+  }
 }
 
 // ---- The cursor tracker ---------------------------------------------------------
@@ -588,6 +629,7 @@ pub fn spawn_tracker(shell: Arc<Shell>) {
             let mut s = shell.lock();
             s.regions.clear();
             s.regions_lost = true;
+            s.style_due |= s.catching;
             s.catching = false;
             s.drag = None;
           }
@@ -613,7 +655,7 @@ fn tick(shell: &Shell) -> Duration {
   let mut slow_checks_due = false;
   let mut released: Option<Option<ReleasedAt>> = None;
 
-  let (hwnd, catching, focusable, layered_always, pause, keyboard_back) = {
+  let (hwnd, catching, focusable, layered_always, pause, keyboard_back, style_due) = {
     let mut s = shell.lock();
     s.stats.ticks += 1;
     let (cursor, button_down) = match s.injected {
@@ -645,6 +687,7 @@ fn tick(shell: &Shell) -> Duration {
       && now.duration_since(since) > KEYBOARD_GRACE
     {
       s.keyboard_pending = None;
+      s.style_due |= s.focusable;
       s.focusable = false;
       keyboard_back = s.keyboard_from.take().map(|from| (s.hwnd, from));
     }
@@ -710,7 +753,9 @@ fn tick(shell: &Shell) -> Duration {
     } else {
       TICK_RESTING
     };
-    (s.hwnd, s.catching, s.focusable, s.layered_always, pause, keyboard_back)
+    // Whatever was left for this tick to write is written below: the note is spent.
+    let style_due = std::mem::take(&mut s.style_due);
+    (s.hwnd, s.catching, s.focusable, s.layered_always, pause, keyboard_back, style_due)
   };
   if let Some((ours, from)) = keyboard_back {
     give_keyboard_back(ours, from);
@@ -722,9 +767,17 @@ fn tick(shell: &Shell) -> Duration {
   }
   // Every tick, not only on a flip: this is also what repairs the style if
   // something else (Tao, another program) has changed it behind our back.
-  let changed = apply_style(hwnd, catching, focusable, layered_always);
-  if changed && !flipped {
-    shell.lock().stats.style_repairs += 1;
+  if let Some((from, to)) = apply_style(hwnd, catching, focusable, layered_always) {
+    let mut s = shell.lock();
+    match classify_style_write(flipped, style_due) {
+      StyleWrite::Flip => {}
+      StyleWrite::CatchUp => s.stats.style_catch_ups += 1,
+      StyleWrite::Repair => {
+        s.stats.style_repairs += 1;
+        s.stats.last_repair_from = from;
+        s.stats.last_repair_to = to;
+      }
+    }
   }
 
   if drag_ended && let Some(rect) = win::window_rect(hwnd) {
@@ -798,6 +851,15 @@ mod tests {
   use crate::win::{EX_APPWINDOW, EX_LAYERED, EX_NOACTIVATE, EX_TOOLWINDOW, EX_TRANSPARENT};
 
   const OTHER: u32 = 0x0000_0008 | 0x0000_0100; // WS_EX_TOPMOST | WS_EX_WINDOWEDGE: not ours to touch
+
+  /// The counter that read 19 after a three-hour soak counted the middle case as the last.
+  #[test]
+  fn a_style_write_the_shell_asked_for_is_not_a_repair() {
+    assert_eq!(classify_style_write(true, false), StyleWrite::Flip);
+    assert_eq!(classify_style_write(true, true), StyleWrite::Flip);
+    assert_eq!(classify_style_write(false, true), StyleWrite::CatchUp);
+    assert_eq!(classify_style_write(false, false), StyleWrite::Repair);
+  }
 
   #[test]
   fn letting_clicks_through_sets_layered_and_transparent() {

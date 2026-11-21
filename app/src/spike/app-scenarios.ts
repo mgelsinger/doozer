@@ -17,7 +17,7 @@ import type { App } from '../main';
 import { parseSave } from '../host/store';
 import { shell } from '../shell';
 import type { PillSnapshot } from '../views/pill';
-import { scenarioNames, type TestRun } from './config';
+import { addPolicyFailures, scenarioNames, type TestRun } from './config';
 import { ROOM_SCENARIOS } from './room-scenarios';
 
 interface Status {
@@ -657,6 +657,7 @@ export async function runAppScenarios(app: App, run: TestRun): Promise<void> {
   report.finishedAt = new Date().toISOString();
   report.endStatus = await status();
   report.endSnapshot = app.pill.snapshot() ?? app.room.snapshot();
+  report.policyViolations = addPolicyFailures(results);
   await invoke('spike_inject', { cursor: null });
   await invoke('spike_report', { name: `${String(args.tag ?? names.join('+'))}.json`, json: JSON.stringify(report, null, 1) });
   if (args.exit === false) return;

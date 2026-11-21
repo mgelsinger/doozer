@@ -15,7 +15,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { App } from '../../main';
 import { shell } from '../../shell';
-import { scenarioNames, type TestRun } from '../../spike/config';
+import { addPolicyFailures, scenarioNames, type TestRun } from '../../spike/config';
 import type { IslandSnapshot, IslandView } from './index';
 import { CONTEXT_LIMIT_MS } from './index';
 import { islandLayout } from './layout';
@@ -1003,6 +1003,7 @@ export async function runIslandChecks(app: App, run: TestRun): Promise<void> {
   whole.endSnapshot = app.island.snapshot();
   whole.trail = trail;
   await invoke('spike_inject', { cursor: null });
+  whole.policyViolations = addPolicyFailures(results);
   await report(`${String(args.tag ?? names.join('+'))}.json`, whole);
   if (args.exit === false) return;
   // Quit the way a person would, through the tray menu: the page is told, saves, and answers.
