@@ -44,6 +44,9 @@ $cacheDir = Join-Path $env:LOCALAPPDATA $identifier
 $startMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Doozer.lnk'
 $desktop = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Doozer.lnk'
 $uninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Doozer'
+# Where the installer notes the folder it installed into, and that key's parent.
+$pathKey = 'HKCU:\Software\Doozer\Doozer'
+$makerKey = 'HKCU:\Software\Doozer'
 $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 $scratch = Join-Path ([IO.Path]::GetTempPath()) "doozer-install-checks-$PID"
 
@@ -103,6 +106,19 @@ function Stop-Installed {
   if (-not (Wait-Until { (Get-Doozers).Count -eq 0 } 10)) { Get-Doozers | Stop-Process -Force -ErrorAction SilentlyContinue }
 }
 
+# The uninstaller copies itself into the temp folder (~nsu1.tmp\Un.exe and so on) and runs
+# from there, and Windows only removes the copy at the next restart. The ones that are
+# Doozer's, and not running, are removed here so that a check leaves nothing in Temp.
+function Remove-UninstallerCopies {
+  foreach ($folder in @(Get-ChildItem ([IO.Path]::GetTempPath()) -Directory -Filter '~nsu*.tmp' -ErrorAction SilentlyContinue)) {
+    $copy = Join-Path $folder.FullName 'Un.exe'
+    if (-not (Test-Path $copy)) { continue }
+    if ((Get-Item $copy).VersionInfo.ProductName -ne 'Doozer') { continue }
+    if (@(Get-Process | Where-Object { $_.Path -eq $copy }).Count) { continue }
+    Remove-Item -LiteralPath $folder.FullName -Recurse -Force -ErrorAction SilentlyContinue
+  }
+}
+
 function Invoke-Uninstall {
   if (-not (Test-Path $uninstaller)) { return }
   # The uninstaller copies itself to the temp folder and carries on from there, so its
@@ -118,6 +134,7 @@ $inTheWay = @()
 if ((Get-Doozers).Count) { $inTheWay += 'a Doozer is running' }
 if (Test-Path $installDir) { $inTheWay += "Doozer is installed ($installDir)" }
 if (Test-Path $uninstallKey) { $inTheWay += 'Doozer is listed under Installed apps' }
+if (Test-Path $makerKey) { $inTheWay += "the installer's own key is there ($makerKey): an install, or what version 1.0.0 left behind when it was uninstalled" }
 if (Test-Path $saveDir) { $inTheWay += "there is a save ($saveDir): somebody's pet lives on this machine" }
 if (Get-RunValue) { $inTheWay += 'Doozer is registered to start with Windows' }
 if ($inTheWay.Count) {
@@ -158,6 +175,7 @@ try {
     $size = [math]::Round(((Get-ChildItem $installDir -Recurse -File | Measure-Object Length -Sum).Sum) / 1MB, 1)
     Note "installed size: $size MB; the installer is $([math]::Round((Get-Item $setupPath).Length / 1MB, 1)) MB"
   }
+  Check ((Get-ItemProperty $pathKey -ErrorAction SilentlyContinue).'(default)' -eq $installDir) "the installer has noted its folder ($pathKey)"
   Check (-not (Get-RunValue)) 'installing does not register it to start with Windows'
   Check (-not (Test-Path $saveDir)) 'installing writes no save'
   Check ((Get-Doozers).Count -eq 0) 'a silent install does not start it'
@@ -225,6 +243,7 @@ try {
   Check (Test-Path $exe) 'the program is still there'
   Check ((Test-Path (Join-Path $saveDir 'save.json')) -and ((Get-Content (Join-Path $saveDir 'save.json') -Raw) -eq $saveBefore)) 'the save is untouched'
   Check ((Get-RunValue) -eq "`"$exe`"") 'Start with Windows is still registered'
+  Check ((Get-ItemProperty $pathKey -ErrorAction SilentlyContinue).'(default)' -eq $installDir) 'the note of its folder is still there'
   if (Test-FullscreenInFront) { throw 'a fullscreen app came to the front; stopping before Doozer shows over it' }
   Check (Start-Installed) 'it starts again'
   $again = Ask-Page 'window.__TAURI_INTERNALS__.invoke("load_save").then((s) => s.source + ":" + JSON.parse(s.data).brain.pet.bowl)'
@@ -241,6 +260,8 @@ try {
   Check (-not (Test-Path $startMenu)) 'the Start menu shortcut is gone'
   Check (-not (Test-Path $desktop)) 'the desktop shortcut is gone'
   Check (-not (Test-Path $uninstallKey)) 'it is no longer listed under Installed apps'
+  Check (-not (Test-Path $pathKey)) "the installer's note of its folder is gone ($pathKey)"
+  Check (-not (Test-Path $makerKey)) "and so is that key's parent, which had nothing else in it ($makerKey)"
   Check (-not (Get-RunValue)) 'it is no longer registered to start with Windows'
   Check (-not (Test-Path $cacheDir)) "the browser's cache is gone ($cacheDir)"
   Check ((Test-Path (Join-Path $saveDir 'save.json')) -and ((Get-Content (Join-Path $saveDir 'save.json') -Raw) -eq $saveBefore)) "the save is still there, unchanged ($saveDir)"
@@ -282,6 +303,7 @@ finally {
   if (Test-Path $installDir) { $left += $installDir }
   if (Test-Path $saveDir) { $left += $saveDir }
   if (Test-Path $uninstallKey) { $left += 'the Installed apps entry' }
+  if (Test-Path $makerKey) { $left += $makerKey }
   if (Get-RunValue) { $left += 'the Run key value' }
   if (Test-Path $startMenu) { $left += $startMenu }
   if (Test-Path $desktop) { $left += $desktop }
@@ -293,6 +315,8 @@ finally {
       ConvertTo-Json -Depth 4 | Set-Content -Path (Join-Path $Out 'install-checks.json') -Encoding utf8NoBOM
   }
   Remove-Item -Recurse -Force $scratch -ErrorAction SilentlyContinue
+  Start-Sleep -Seconds 1
+  Remove-UninstallerCopies
 }
 
 ''

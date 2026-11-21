@@ -340,6 +340,56 @@ mod tests {
     assert_eq!(APP_ID, "com.doozer.desktop");
   }
 
+  /// The content security policy of the page (tauri.conf.json, `app.security.csp`; why each
+  /// line is there is in docs/release.md). This fails if the policy is taken out, or if
+  /// anything is allowed that is not in the table below. Making it stricter passes.
+  ///
+  /// `style-src-attr 'unsafe-inline'` is the one concession: the rig and the Radial write
+  /// their pivots as `style="--px:..."` in markup. It allows a style *attribute* and nothing
+  /// else: no inline script, no inline style sheet, no script from a string.
+  #[test]
+  fn the_content_security_policy_is_there_and_has_not_been_loosened() {
+    let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+    let security = &config["app"]["security"];
+    let csp = security["csp"].as_object().expect("app.security.csp must be set, as a table of directives");
+    assert!(security.get("dangerousDisableAssetCspModification").is_none_or(|v| v == false));
+
+    // Everything a directive may contain. A directive that is not here may not be there at all.
+    let allowed: &[(&str, &[&str])] = &[
+      ("default-src", &["'none'"]),
+      ("script-src", &["'self'"]),
+      ("style-src", &["'self'"]),
+      ("style-src-attr", &["'unsafe-inline'"]),
+      ("img-src", &["'self'"]),
+      ("font-src", &["'self'"]),
+      ("connect-src", &["'self'", "ipc:", "http://ipc.localhost"]),
+      ("frame-src", &["'self'"]),
+      ("frame-ancestors", &["'self'"]),
+      ("base-uri", &["'none'"]),
+      ("form-action", &["'none'"]),
+    ];
+    for (directive, value) in csp {
+      let Some((_, may)) = allowed.iter().find(|(name, _)| name == directive) else {
+        panic!("{directive} is not a directive this policy is known to need");
+      };
+      let sources = value.as_str().map(str::to_owned).unwrap_or_else(|| {
+        value.as_array().expect("a directive is a string or a list").iter().map(|v| v.as_str().unwrap()).collect::<Vec<_>>().join(" ")
+      });
+      for source in sources.split_whitespace() {
+        assert!(source == "'none'" || may.contains(&source), "{directive} allows {source}");
+      }
+    }
+    // What is not said falls back to this, so this is what makes the rest a whitelist.
+    assert_eq!(csp["default-src"], "'none'");
+    // And the three things a policy is for, said outright: no script but the app's own
+    // files, nothing fetched from anywhere but the app and its own shell.
+    let all = serde_json::to_string(csp).unwrap();
+    for never in ["unsafe-eval", "wasm-unsafe-eval", "*", "https:", "data:", "blob:"] {
+      assert!(!all.contains(never), "the policy mentions {never}");
+    }
+    assert!(!csp.get("script-src").and_then(|v| v.as_str()).unwrap_or("").contains("unsafe-inline"));
+  }
+
   /// One version, written in three places (the installer and "Installed apps" read
   /// tauri.conf.json, the executable's properties Cargo.toml, the page package.json).
   #[test]
@@ -370,7 +420,37 @@ mod tests {
     assert!(hooks.contains(r#"RMDir /r "$LOCALAPPDATA\${BUNDLEID}""#));
     assert!(!hooks.contains("$APPDATA"));
     assert_eq!(hooks.matches("RMDir").count(), 1);
-    assert!(!hooks.contains("Delete"));
+    // Nothing is deleted from disk but that folder, and no registry *value* at all.
+    assert!(!hooks.contains("Delete ") && !hooks.contains("DeleteRegValue"));
+  }
+
+  /// The hook also removes the key where the installer notes its folder
+  /// (`HKCU\Software\Doozer\Doozer`), which Tauri keeps unless the save is deleted and which
+  /// 1.0.0 therefore left behind on every ordinary uninstall; and its parent, only if empty.
+  /// Everything the hook does is inside one "not on the way to an update" test.
+  #[test]
+  fn the_uninstall_hook_removes_the_install_path_key_and_never_during_an_update() {
+    let hooks: String =
+      include_str!("../installer/hooks.nsh").lines().filter(|line| !line.trim_start().starts_with(';')).collect::<Vec<_>>().join("\n");
+    let key = r#"DeleteRegKey SHCTX "${MANUPRODUCTKEY}""#;
+    let parent = r#"DeleteRegKey /ifempty SHCTX "${MANUKEY}""#;
+    assert!(hooks.contains(key) && hooks.contains(parent));
+    // The parent is only ever removed empty: other things may live under the manufacturer's name.
+    for line in hooks.lines().filter(|line| line.contains("${MANUKEY}\"")) {
+      assert!(line.contains("/ifempty"), "{line}");
+    }
+    // One guard, and every removal between its two ends.
+    assert_eq!(hooks.matches("${If} $UpdateMode <> 1").count(), 1);
+    assert_eq!(hooks.matches("${EndIf}").count(), 1);
+    let (from, to) = (hooks.find("${If} $UpdateMode <> 1").unwrap(), hooks.find("${EndIf}").unwrap());
+    for (at, _) in hooks.match_indices("DeleteRegKey").chain(hooks.match_indices("RMDir")) {
+      assert!(from < at && at < to, "something is removed outside the guard");
+    }
+    // The names are the installer's own (its script defines them from these), so the key
+    // is the one named in the hook's comment and in docs/release.md.
+    let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+    assert_eq!(config["bundle"]["publisher"], "Doozer");
+    assert_eq!(config["productName"], "Doozer");
   }
 
   /// The installer's wording is Doozer's own where Tauri's would say "kill" of a pet that
