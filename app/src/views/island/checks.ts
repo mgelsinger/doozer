@@ -184,9 +184,19 @@ async function press(app: App, at: Point, holdMs = 40): Promise<void> {
 
 /** How much of the drawing is not empty, from a copy of it. A dead canvas has none. */
 async function painted(app: App): Promise<number> {
+  // The copy comes as a data: address. It is decoded here, not handed to an <img>: the
+  // page's policy loads images from the app's own files only (and refused this one, which
+  // is how the policy's watch earned its keep on its first run).
   const url = pieces(app).stage.capture();
-  const image = new Image();
-  await new Promise<void>((resolve) => { image.onload = () => resolve(); image.onerror = () => resolve(); image.src = url; });
+  const comma = url.indexOf(',');
+  if (!url.startsWith('data:') || comma < 0) return 0;
+  let image: ImageBitmap;
+  try {
+    const bytes = Uint8Array.from(atob(url.slice(comma + 1)), (c) => c.charCodeAt(0));
+    image = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+  } catch {
+    return 0;
+  }
   if (!image.width) return 0;
   const canvas = document.createElement('canvas');
   canvas.width = 95; canvas.height = 112;
