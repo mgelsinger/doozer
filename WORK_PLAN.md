@@ -22,11 +22,43 @@ This file says **how and in what order** Doozer gets built. [DESIGN_SPEC.md](DES
 | 8 | 3D Doozer and the Island view | M3 | **Done — Milestone 3 is built.** `app/assets/doozer/` (the model and the Blender script that builds it), `app/src/character/doozer3d.ts`, `app/src/views/island/`; 222 new page tests and 2 native ones; checks and measurements in [docs/island-checks.md](docs/island-checks.md). Idle cost is inside the budget. Leaving the Island leaks nothing that grows, but does not hand back all of its memory (section 4 there). Checked with scripted input in the real window and judged from still pictures, not yet by a person at the mouse (its section 10 lists what to try; whether it beats the mockup for charm is the owner's call) | **xhigh** |
 | 9 | Desktop view (the calm roamer) | M4 | **Built and checked — Milestone 4, with two things waiting for the owner.** `app/src/views/desktop/`; 176 page tests; checks and measurements in [docs/desktop-checks.md](docs/desktop-checks.md). Checked with scripted input in the real window, a three-hour soak included; not yet by a person at the mouse. **Not done, and only the owner can:** trying Calm and Lively to choose the default, and agreeing that Doozer no longer gets stuck (section 9 of that document says what to try) | **xhigh** |
 | 10 | Sound, polish, accessibility, performance | M5 | **Done, with things waiting for the owner's eyes and ears.** `app/src/frames.ts` (everything that moves is drawn 24 times a second alone, 60 with the pointer on Doozer), `app/src/host/sound.ts`, and changes in the shell, the host and every view; 110 new page tests and 5 native ones; measurements and checks in [docs/polish-checks.md](docs/polish-checks.md). A second of walking costs a quarter of what it did (31.6 % → 8.4 % of one core) and Lively a third (25.8 % → 8.6 %); every view at rest, a focus session in three views and the Room's ten minutes are under 1 %; a focus session in the Pill is at the line (0.9 to 1.2 %); **the Desktop view's Calm twelve-minute average is not under: 1.4 % and 2.7 % in two runs, from 2.8 and 2.9**. Checked with scripted input in the real window, an hour's soak included. **Not done, and only the owner can:** judging by eye whether 24 pictures a second reads as smooth, and by ear how the sounds sound (its section 16 says what to try) | **xhigh** (was high: the performance work reached into the shared rig) |
-| 11 | Packaging and release | M5 | Not started | high |
+| 11 | Packaging and release | M5 | **Done: version 1.0.0, with the installer's own windows waiting for the owner's hand.** One installer for the current user (`Doozer_1.0.0_x64-setup.exe`, 1.7 MB; `pwsh app/scripts/build-release.ps1`), Doozer's own icon, an uninstall that asks whether the pet's save goes too (it stays unless the box is ticked), third-party notices, a user guide ([docs/user-guide.md](docs/user-guide.md)); not signed and no automatic updates, both waiting on spec section 12, item 2. 4 new native tests. Install, run, update over a running copy and uninstall were checked by script in the real places (44 of 44), and every view's scripted checks were run again on the 1.0.0 build; all in [docs/release.md](docs/release.md). **Not done, and only the owner can:** the installer clicked through by hand, the tick box ticked, the icon looked at in the real tray, another PC (its section 7) | high |
 
 **How the effort column was chosen.** `high` is for phases that are well specified and mostly construction. `xhigh` ("extra") is for phases where the platform is fiddly and under-documented (transparent click-through windows, DPI, multi-monitor) or where the result is judged by taste (does it feel alive, is it cute, is the movement calm enough). Running everything on `xhigh` is fine; it only costs more.
 
+**Every phase is built (2026-11-20). What is left is the owner's:** the things each phase could not judge without eyes, ears or a hand on the mouse. They are gathered just below, with where each is described.
+
 **If you are a fresh session:** read the spec, then this file's section 4, then go to the first phase above that is not done. Before starting a phase, check the spec's section 12 for questions the owner has answered since.
+
+### What is left, and whose it is
+
+Every phase is built, and each was checked as far as a session can check it: with tests, with scripted input in the real window, with measurements. What follows could not be settled that way. Nothing here blocks using Doozer.
+
+**For the owner, at the machine** (each document says exactly what to try):
+
+| What | Where it is described |
+|---|---|
+| Install it by hand; the uninstaller's tick box, ticked and unticked; the icon in the real tray | [docs/release.md](docs/release.md), section 7 |
+| Does 24 pictures a second read as smooth? How do the sounds sound, and do the two that go past spec 4.6 stay? Ctrl+Alt+D while really typing. How lively Doozer should be alone | [docs/polish-checks.md](docs/polish-checks.md), section 16 |
+| Calm or Lively as the Desktop view's default; does Doozer still ever get stuck? | [docs/desktop-checks.md](docs/desktop-checks.md), section 9 |
+| Is the 3D Doozer as charming as the mockup? | [docs/island-checks.md](docs/island-checks.md), section 10 |
+| The Room, the Pill and the shell with a real hand on the mouse | [docs/room-checks.md](docs/room-checks.md) section 7, [docs/pill-checks.md](docs/pill-checks.md) section 5, [docs/shell-spike.md](docs/shell-spike.md) section 6 |
+
+**For the owner, to decide:**
+
+- **Just for you, or to share?** (spec section 12, item 2). Sharing brings code signing, perhaps updates, and a licence for the source; [docs/release.md](docs/release.md), section 5.
+- **Is Doozer based on something real?** (spec section 12, item 1; assumed no.)
+- **The one performance target that was not met:** the Desktop view at Calm averages 1.4 to 2.7 % of a core over twelve minutes, where the target is under 1 %, because a second of walking costs 8 %. Only strolling less would close it, and the pace is a matter of taste.
+
+**Known and left, none of them blocking** (from Phase 10's list; [docs/polish-checks.md](docs/polish-checks.md)):
+
+- A focus session in the Pill sits at the 1 % line, not under it.
+- On a screen whose refresh rate 24 does not divide (60 Hz), the frame clock works but passes one frame over per picture. Not tried on a real 60 Hz screen: there was none.
+- Ctrl+Alt+D is fixed, not a setting. If another program has it, the tray menu's *Open Doozer's card* does the same.
+- The shell's style-repair counter read 19 after Phase 9's three-hour soak and has not been looked into. It is the safety net working; why it was needed that often is not known.
+- The Island does not hand back all of its memory when it is left (it stays under the budget).
+
+**Not in v1** is the fence in the spec: outfits, decoration, minigames and the rest wait there.
 
 ---
 
@@ -388,9 +420,19 @@ One finding matters for the next phase: an animation that never stops costs 13�
 
 ---
 
-## 14. Phase 11 — Packaging and release  ·  effort: high  ·  M5
+## 14. Phase 11 — Packaging and release  ·  effort: high  ·  M5  ·  done
 
-Installer through the shell's bundler; app icon; decisions on code signing and auto-update (depends on whether this is shared — spec section 12, item 5); clean uninstall with a choice about keeping the save; a short user-facing README; version 1.0 tag.
+Installer through the shell's bundler; app icon; decisions on code signing and auto-update (depends on whether this is shared — spec section 12, item 2); clean uninstall with a choice about keeping the save; a short user-facing README; version 1.0 tag.
+
+**Result (2026-11-20).** Everything is in [docs/release.md](docs/release.md); what a user needs is in [docs/user-guide.md](docs/user-guide.md).
+
+- **The installer:** `Doozer_1.0.0_x64-setup.exe`, 1.7 MB, 4.1 MB installed, built by `pwsh app/scripts/build-release.ps1` into `app/src-tauri/target/release/bundle/nsis/`. For the current user, no administrator prompt, English. WebView2 is fetched only on a PC that lacks it.
+- **The icon** is Doozer, drawn from the 2D rig's shapes: the whole creature from 48 pixels up and a simplified face at tray sizes (`app/assets/icon/`, `app/scripts/make-icons.mjs`). It was Tauri's stock logo until this phase.
+- **Uninstall:** the program, its shortcuts, its *Start with Windows* entry and the browser's cache go; one tick box, worded for a pet, decides whether the save goes too, and it stays unless ticked. Nothing the installer says speaks of killing a running copy.
+- **Decided, and why:** not code-signed and no automatic updates, because both depend on whether Doozer is shared, which is still open; each can be switched on later without touching the app (its section 5).
+- **Third-party notices** for everything inside the program are installed beside it, written by `app/scripts/make-notices.mjs`.
+- **Checked by script:** install, run, a second copy, a save, *Start with Windows* from Settings, an update over a running copy, uninstall: 44 of 44, in the real places, silently, the machine left as found (`app/scripts/run-install-checks.ps1`). Every view's scripted checks were run again on a build of this version with the test hooks (the Pill 4 of 4, the Room 6 of 6, the Island 5 of 5, the Desktop 2 of 2, the polish set 6 of 6) and the Desktop soak for fifteen minutes.
+- **Still open, and the owner's:** the installer's own pages by hand, the tick box ticked, the icon in the real tray, another PC. Section 7 of the write-up.
 
 ---
 
@@ -539,3 +581,20 @@ Installer through the shell's bundler; app icon; decisions on code signing and a
   9. **Doozer alone got back about half of what Phases 7 and 8 took**, not all: the budget is tight, and how lively it should be alone is a matter of taste (the knobs are named in the write-up).
 
   Found on the way and worth knowing: (a) **An average frame rate says nothing about rhythm.** The first capped build drew 24 pictures a second and showed them for four refreshes or six as it fell, because the browser lets a timer longer than about 32 ms slip to the system's 15.6 ms beat, and hands an idle page the frame of the refresh it has just missed. Only asking the browser when each picture reached the screen showed it. (b) The frame clock's own tests found a jump after a rest, an animation re-adopted for ever after it broke, and 381 style recalculations a second from reading and writing in one pass. (c) The reduce-motion check found the Island still throwing crumbs and the 3D Doozer still bobbing. (d) The save test's failure was the test's own reader. (e) A measurement is only worth what is known about what the app was doing: the measuring scripts now record how much of the time Doozer was walking. (f) On a machine in use the same state reads anywhere from 0.2 to 2 % of a core from one half-minute to the next; only two builds measured at the same moment can be compared. (g) For Phase 11: the shortcut is not yet a setting; the app's plain release build (`target/polish/final/doozer-plain.exe`) was built but all measuring was done on the build with test hooks; the shell's style-repair counter of Phase 9 is still not looked into. And two savings nobody has tried for, both named in the write-up: on a screen whose refresh rate 24 does not divide (60 Hz), the frame clock finds its refresh by passing one frame over per picture, where measuring the screen's refresh interval once would cost nothing (its section 6); and during a focus session the page spends about 0.3 % of a core on the brain's tick and each view's bookkeeping four times a second with nothing drawn, which is what holds the Pill's session at the line (its section 4).
+- **2026-11-20** — Phase 11 done: **packaging and release, version 1.0.0**. The owner asked for the work to be carried through to a complete product without waiting for a review; this phase was therefore started without the owner having tried Phases 9 and 10, and what those left open is still open (section 0, "What is left"). Everything is in [docs/release.md](docs/release.md). In short:
+
+  - **One installer**, `Doozer_1.0.0_x64-setup.exe` (1.7 MB; 4.1 MB installed), from `pwsh app/scripts/build-release.ps1`: NSIS through Tauri's bundler, for the current user, no administrator prompt.
+  - **Doozer's own icon** in place of Tauri's stock logo, from two drawings made of the rig's shapes: the whole creature, and a simplified face for 16 to 40 pixels.
+  - **A clean uninstall with the pet as the user's choice.** The save stays unless the uninstaller's one box is ticked.
+  - **A user guide**, [docs/user-guide.md](docs/user-guide.md), and the licences of everything inside the program installed beside it.
+  - **Checked without a hand on the mouse:** the installer in the real places, 44 of 44. Every view's scripted checks were run again on a build of this version with the test hooks (the Pill 4 of 4, the Room 6 of 6, the Island 5 of 5, the Desktop 2 of 2, the polish set 6 of 6) and the Desktop soak for fifteen minutes. 1,139 page tests and 60 native tests, three rounds in a row, one of them with both suites running at once.
+
+  Decisions made in this phase, each with its reasoning in the write-up:
+  1. **Not code-signed, no automatic updates.** Both wait on spec section 12, item 2 (just for you, or to share). A certificate is the owner's to buy; an updater needs somewhere to publish and a key to keep. The app makes no network request of its own, and that was kept.
+  2. **For the current user only**, so no prompt from Windows, and each user their own Doozer, as the save already is.
+  3. **The installer's wording is Doozer's own in four places.** Tauri's says "Delete the application data" and "Click OK to kill it"; Doozer's names the save and closes the running copy. A native test keeps it so.
+  4. **The browser's cache is removed on uninstall even when the save is kept** (Tauri removes it only with the box ticked). It holds nothing of the pet.
+  5. **The app itself was changed as little as could be**, so that what ships is what Phase 10 measured: the version in the tray icon's tooltip and on the page's `<html>` tag, and nothing else.
+  6. **Left for later, on purpose:** the leftovers Phase 10 named (the shortcut as a setting, the frame clock on a 60 Hz screen, the Pill's focus session at the line, the style-repair counter). None blocks a release, each would have meant changing a build that had been measured and checked, and one of them (60 Hz) cannot be tried on this machine. They are listed in section 0, "What is left".
+
+  Found on the way and worth knowing: (a) **Tauri's uninstaller already removes "Start with Windows"**, because it deletes the Run key value named after the product and that happens to be the name the app writes. A hook written to do it was redundant and was taken out; a test now keeps the two names the same, since nothing else does. (b) **The app keeps the registry in line with its setting at every start.** The install check first switched "Start with Windows" on by asking the shell directly, and the app took the entry out again at its next start, because the save said off. The check now flips the switch in Settings. (c) **A custom language file for the installer must not carry a byte-order mark**: Tauri adds one when it copies the file, and makensis stops on the second. (d) **Two more fragile checks, both the checks' own.** The *Start with Windows* native tests shared a scratch registry key that the last one to finish removed, sometimes while another was creating its own key inside it. And the Room's ball check asked for two things the ball game only does by luck, because its three kicks go 90 to 150 px by chance: Doozer already trotting a twentieth of a second after the click (when the first toss lands 30 px beyond Doozer the first leg is no distance at all and it waits without a step, about one game in fifteen), and Doozer getting more than 40 px from where it started (it read 35 in one run). Each failed once on the 1.0.0 build with the game played correctly. The check now watches from the click to the end of the scene and asks for what the game guarantees: a trot, the ball somewhere new, and at least 60 px of floor covered. (e) A silent install always makes a desktop shortcut (Tauri's rule; `/NS` turns it off), and a silent uninstall can never tick the box, so it always keeps the save. (f) The first installer build on a machine downloads NSIS from Tauri's releases; it did here.

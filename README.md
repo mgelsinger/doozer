@@ -2,6 +2,10 @@
 
 A small creature that lives on your desktop: one pet with four homes (Pill, Room, Island, Desktop) and a focus timer in every one of them.
 
+**Version 1.0.0.** All eleven phases of the plan are built; what is left is for the owner's eyes, ears and hand on the mouse.
+
+- **Using Doozer** (installing, looking after it, the four homes, removing it): [docs/user-guide.md](docs/user-guide.md)
+- **The installer, and how the release was checked:** [docs/release.md](docs/release.md)
 - **What gets built:** [DESIGN_SPEC.md](DESIGN_SPEC.md)
 - **How and in what order, and where it stands:** [WORK_PLAN.md](WORK_PLAN.md)
 
@@ -17,12 +21,18 @@ A TypeScript/Vite page inside a Tauri 2 shell. **Milestone 1 is built:** Doozer 
 
 **The polish pass (Phase 10) is done**, across all four views. Everything that moves is now drawn 24 times a second when nobody is there and 60 times with the pointer on Doozer, where it was drawn at the display's 120: a second of Doozer walking costs about a quarter of what it did, and Doozer alone in the Room and on the Island is livelier again for it. The time left in a focus session is shown to the minute while nobody is looking. **Ctrl+Alt+D** (or the tray menu) opens the Card with the keyboard, and Escape gives the keyboard back. *Interface size* in Settings makes everything larger. *Reduce motion* is honoured in every view. With Sound switched on there is a small family of soft sounds, all made in the app. What was measured, what could not be met, and what needs the owner's eyes and ears (whether 24 pictures a second reads as smooth, and how the sounds sound): [docs/polish-checks.md](docs/polish-checks.md).
 
+**Packaging (Phase 11) is done: version 1.0.0.** One installer, `Doozer_1.0.0_x64-setup.exe`, for the current user, with no administrator prompt. The app's icon is Doozer. Uninstalling removes the program, its shortcuts, its *Start with Windows* entry and the browser's cache, and asks whether the pet's save goes too (it stays unless the box is ticked). It is not signed and does not update itself; why, and how to change either, is in [docs/release.md](docs/release.md), with what was checked by script and what still needs a person.
+
 Run everything from the `app` folder; first time only: `npm install`.
 
 | Do this | Command |
 |---|---|
 | Run the app with live reload | `npm run tauri dev` |
+| Build the installer (runs the tests first) | `pwsh scripts/build-release.ps1` → `src-tauri/target/release/bundle/nsis/Doozer_1.0.0_x64-setup.exe` |
+| Check the installer: install, run, update, uninstall (only on a machine with no Doozer on it) | `pwsh scripts/run-install-checks.ps1` |
 | Build the app (no installer) | `npm run tauri build -- --no-bundle` → `src-tauri/target/release/doozer.exe` |
+| Rebuild the icons from the two drawings in `assets/icon/` | `node scripts/make-icons.mjs` |
+| Rebuild the third-party notices after a dependency changed | `node scripts/make-notices.mjs` |
 | Page-side tests | `npm test` |
 | Native-side tests (window maths, hit regions, save file, start with Windows) | `cargo test` in `app/src-tauri` |
 | Type-check | `npm run typecheck` |
@@ -40,6 +50,7 @@ Using it:
 
 - **Quit** from the tray icon, from a right-click on the pill, or from the bottom of Settings. All three save first.
 - **Ctrl+Alt+D** opens the Card with the keyboard in any view (Tab and the arrow keys move, Enter presses, Escape closes and hands the keyboard back). It is also in the tray menu.
+- **Installed**, the program is in `%LOCALAPPDATA%\Doozer` and is removed from *Settings → Apps*; the uninstaller's tick box decides whether the save goes too.
 - **The save** is `%APPDATA%\com.doozer.desktop\save.json` (with `save.bak.json` beside it). That folder name is the app's identifier and is fixed for good. A development build (`tauri dev`) keeps a separate pet in the `dev` subfolder, and "Start with Windows" only works in a release build.
 - Only one copy runs at a time; starting a second one does nothing.
 
@@ -57,9 +68,10 @@ Where things are, each with its own `README.md`:
 | `app/src/views/room/` | The Room view. |
 | `app/src/views/island/` | The Island view. |
 | `app/src/views/desktop/` | The Desktop view. |
-| `app/src-tauri/` | The native shell: one transparent window, click-through by region, tray, save file. |
+| `app/src-tauri/` | The native shell: one transparent window, click-through by region, tray, save file. `installer/` holds what the installer adds to Tauri's own: the uninstall hook and the third-party notices. |
+| `app/assets/icon/` | The two drawings every icon file is made from. |
 
-What was measured and what still needs a hand on the mouse: [docs/pill-checks.md](docs/pill-checks.md) for the app and the Pill, [docs/room-checks.md](docs/room-checks.md) for the Room, [docs/island-checks.md](docs/island-checks.md) for the 3D Doozer and the Island, [docs/desktop-checks.md](docs/desktop-checks.md) for the Desktop, [docs/polish-checks.md](docs/polish-checks.md) for the polish pass over all four (cost before and after, accessibility, sound), [docs/shell-spike.md](docs/shell-spike.md) for the shell.
+What was measured and what still needs a hand on the mouse: [docs/pill-checks.md](docs/pill-checks.md) for the app and the Pill, [docs/room-checks.md](docs/room-checks.md) for the Room, [docs/island-checks.md](docs/island-checks.md) for the 3D Doozer and the Island, [docs/desktop-checks.md](docs/desktop-checks.md) for the Desktop, [docs/polish-checks.md](docs/polish-checks.md) for the polish pass over all four (cost before and after, accessibility, sound), [docs/shell-spike.md](docs/shell-spike.md) for the shell, [docs/release.md](docs/release.md) for the installer.
 
 ## The mockups (Phase 1, reference only)
 
