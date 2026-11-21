@@ -249,15 +249,25 @@ const furnitureRun: RoomScenario = async (app) => {
   const ballBefore = snap().ballX;
   const x0 = snap().x;
   await press(furniture.ball);
-  // The first look, a twentieth of a second after the click, as this check has always
-  // taken it; kept in the report. What the check asks is watched over the whole chase,
-  // though: that the scene is "play", that Doozer trots in it, and that the ball is drawn
-  // somewhere new. One look that soon can fall before the first picture of the toss
-  // (pictures are 42 ms apart with nobody there, and later on a busy machine), and did,
-  // once, on the 1.0.0 build, with the whole game played correctly after it.
+  // The game is three kicks (behaviour.ts, playBall). Each sends the ball 90 to 150 px
+  // toward the roomier side, by chance, and Doozer trots to 30 px short of where it lands.
+  // So two things this check used to ask were a matter of luck, and each failed once on the
+  // 1.0.0 build with the whole game played correctly:
+  //   - one look, a twentieth of a second after the click, for Doozer already trotting.
+  //     When the first toss lands 30 px beyond where Doozer stands, the first leg is no
+  //     distance at all and Doozer waits for the ball without a step (about one game in
+  //     fifteen);
+  //   - Doozer getting more than 40 px away from where it started (it read 35 when the
+  //     tosses fell close).
+  // What the game guarantees is asked instead, watched from the click until the scene ends:
+  // the scene is "play", Doozer trots in it, the ball is somewhere new, and Doozer covers
+  // at least 60 px of floor. The second and third legs are each the length of a kick less
+  // 30 px at each end, so never under 30 px, whatever the dice say.
   const firstLook = snap();
   const chasing = { scene: firstLook.scene === 'play', trot: false, ballMoved: false };
   let ran = 0;
+  let travelled = 0;
+  let lastX = x0;
   await waitFor(() => {
     const s = snap();
     if (s.scene === 'play') {
@@ -266,6 +276,8 @@ const furnitureRun: RoomScenario = async (app) => {
       chasing.ballMoved ||= s.ballX !== ballBefore;
     }
     ran = Math.max(ran, Math.abs(s.x - x0));
+    travelled += Math.abs(s.x - lastX);
+    lastX = s.x;
     // Over when the scene that was seen to start has ended; if none starts, the check fails.
     return chasing.scene && s.scene === null;
   }, 20_000, 25);
@@ -276,12 +288,13 @@ const furnitureRun: RoomScenario = async (app) => {
   const tired = { scene: snap().scene, fun: brain.state.needs.fun };
   brain.debug?.setNeeds({ energy: 70 });
   rows.ball = {
-    funBefore, funAfter: tiredFun, ballBefore, ballAfter: snap().ballX, ran, tired, chasing,
+    funBefore, funAfter: tiredFun, ballBefore, ballAfter: snap().ballX, ran, travelled, tired, chasing,
     firstLook: { scene: firstLook.scene, pose: firstLook.pose, ballX: firstLook.ballX },
   };
   check(failures, {
     'ball: a click tosses it and Doozer chases': chasing.scene && chasing.trot && chasing.ballMoved && tiredFun === Math.min(100, funBefore + 28),
-    'ball: it really ran about, and came to rest': ran > 40 && playWrong === '',
+    // 58, not 60: Doozer's place is read in whole pixels at each end of a leg.
+    'ball: it really ran about, and came to rest': travelled >= 58 && playWrong === '',
     'ball: too tired, it is refused': tired.scene === null && tired.fun === tiredFun,
   });
   await settle(app);
