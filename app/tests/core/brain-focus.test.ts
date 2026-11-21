@@ -509,3 +509,36 @@ describe('focus: debug', () => {
     expect(r.events).toHaveLength(0);
   });
 });
+
+describe('focus: the time left, to the millisecond', () => {
+  it('is 0 unless a session is running', () => {
+    const r = rig();
+    expect(r.brain.focusEndsInMs()).toBe(0);
+    r.brain.startFocus();
+    r.brain.pauseFocus();
+    expect(r.brain.focusEndsInMs()).toBe(0);
+    r.brain.resumeFocus();
+    expect(r.brain.focusEndsInMs()).toBe(25 * MIN);
+    r.brain.stopFocus();
+    expect(r.brain.focusEndsInMs()).toBe(0);
+  });
+
+  it('follows the clock without a tick, where the state moves in whole seconds', () => {
+    const r = rig();
+    r.brain.startFocus();
+    r.clock.advance(1234);
+    // Nobody has ticked: the state is as it was, and reading the time left has not changed it.
+    expect(r.brain.focusEndsInMs()).toBe(25 * MIN - 1234);
+    expect(r.brain.state.focus.remainingMs).toBe(25 * MIN);
+    r.brain.tick();
+    expect(r.brain.state.focus.remainingMs).toBe(25 * MIN - 1000);
+    expect(r.brain.focusEndsInMs()).toBe(25 * MIN - 1234);
+  });
+
+  it('is 0, not less, once the end has passed and nobody has ticked yet', () => {
+    const r = rig();
+    r.brain.startFocus();
+    r.clock.advance(25 * MIN + 5000);
+    expect(r.brain.focusEndsInMs()).toBe(0);
+  });
+});

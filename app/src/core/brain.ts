@@ -509,6 +509,14 @@ export function createBrain(options: BrainOptions = {}): Brain {
       finish(catchUp());
     },
 
+    focusEndsInMs(): number {
+      const f = pet.focus;
+      if (f.status !== 'running') return 0;
+      const now = readClock();
+      // A clock that cannot be read says nothing; a session that is over is over.
+      return now === null ? 0 : Math.max(0, f.endsAt - now);
+    },
+
     on<E extends keyof BrainEvents>(type: E, handler: (detail: BrainEvents[E]) => void): () => void {
       let set = handlers.get(type);
       if (!set) handlers.set(type, (set = new Set()));

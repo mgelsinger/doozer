@@ -200,12 +200,20 @@ export interface Brain {
 
   // time
   /**
-   * Advance to "now". The host calls this about four times a second while the app is
-   * running, and once immediately after the machine wakes from sleep. The brain works
-   * out the elapsed time itself from its clock; calling more or less often must not
-   * change the outcome.
+   * Advance to "now". The host calls this about four times a second while somebody is at
+   * the window and once a second while nobody is, and once immediately after the machine
+   * wakes from sleep. The brain works out the elapsed time itself from its clock; calling
+   * more or less often must not change the outcome.
    */
   tick(): void;
+  /**
+   * Exactly how long a running focus session has left, in milliseconds, as of this moment
+   * on the brain's clock; 0 when none is running. `state.focus.remainingMs` is rounded up
+   * to whole seconds, so that the state changes once a second and not on every tick; this
+   * is for whoever has to time something to the countdown itself (the host times its slow
+   * ticks to land on each whole second and on the end). Reading it changes nothing.
+   */
+  focusEndsInMs(): number;
 
   // events
   on<E extends keyof BrainEvents>(type: E, handler: (detail: BrainEvents[E]) => void): () => void;

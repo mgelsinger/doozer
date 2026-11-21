@@ -365,6 +365,10 @@ export function createFakeBrain(options: FakeBrainOptions = {}): Brain {
       commit();
     },
 
+    focusEndsInMs() {
+      return focusStatus === 'running' ? Math.max(0, focusMinutes * 60_000 - focusElapsedMs) : 0;
+    },
+
     on(type, handler) {
       handlers[type].add(handler);
       return () => { handlers[type].delete(handler); };
