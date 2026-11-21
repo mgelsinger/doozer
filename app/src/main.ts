@@ -12,7 +12,7 @@ import { createHost, type Host } from './host/host';
 import { createSound } from './host/sound';
 import { parseSave } from './host/store';
 import { shell } from './shell';
-import { isAppRun, readTestRun, scenarioNames, type TestRun } from './spike/config';
+import { isAppRun, readTestRun, scenarioNames, watchPolicy, type TestRun } from './spike/config';
 import { createDesktopView, type DesktopView } from './views/desktop';
 import { createIslandView, type IslandView } from './views/island';
 import { createPillView, type PillView } from './views/pill';
@@ -71,6 +71,10 @@ async function startApp(root: HTMLElement, run: TestRun): Promise<App> {
     sound: createSound(() => brain.settings.sound),
     // If the save could not even be read, do not write over it with a new pet.
     persist: readable,
+    // With nobody at the window the pet's clock ticks once a second, not four times. The
+    // frame clock keeps the account of who is there (when it is not attached, a run that
+    // measures without it, somebody is always taken to be there).
+    presence: frames.pacing ? { there: () => frames.attendedNow, onArrive: (listener) => frames.onArrive(listener) } : undefined,
   });
   await host.start();
   return { host, brain, pill, room, island, desktop };
@@ -80,6 +84,9 @@ const root = document.getElementById('host');
 if (!root) throw new Error('missing #host');
 
 const run = await readTestRun();
+// A scripted run notes everything the content security policy refuses, from here on,
+// and fails if it refused anything (spike/config.ts).
+if (run.enabled) watchPolicy();
 // Everything that moves in this page is drawn at a capped rate (src/frames.ts). A scripted
 // run may ask for the browser's own rate instead, to measure what the cap saves.
 if (!(run.enabled && run.args?.pacing === false)) frames.attach(document);

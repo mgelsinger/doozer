@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBrain, type Brain, type Settings, type ViewId } from '../../src/core';
-import { ENTER_LIMIT_MS, HIDE_FRAMES, LEAVE_LIMIT_MS, RELEASE_AFTER_MS, RELEASE_FOR_MS, UI_SCALE, createHost, type Host } from '../../src/host/host';
+import { ENTER_LIMIT_MS, HIDE_FRAMES, LEAVE_LIMIT_MS, RELEASE_AFTER_MS, RELEASE_FOR_MS, TICK_AFTER_MS, UI_SCALE, createHost, type Host, type Presence } from '../../src/host/host';
 import { freshHostData, parseSave, type HostData } from '../../src/host/store';
 import type { View, ViewContext, WindowRequest } from '../../src/host/view';
 import type { Region, Shell, ShellEvents, WindowInfo, WindowMode } from '../../src/shell';
@@ -156,6 +156,10 @@ function rig(options: {
   lowMemory?: boolean;
   /** The shell can draw the interface larger (the real one can). */
   uiScale?: boolean;
+  /** Who is at the window (omit: somebody always is, as the host takes it). */
+  presence?: Presence;
+  /** The pet's clock runs with the timers, as the real one does, instead of standing until moved by hand. */
+  timeRuns?: boolean;
 } = {}): Rig {
   const log: Log = [];
   const shell = fakeShell(log);
@@ -163,7 +167,9 @@ function rig(options: {
   if (options.uiScale) shell.shell.setUiScale = async (factor) => { log.push(`scale:${factor}`); return factor; };
   options.setup?.(shell);
   const clock = fakeClock(START);
-  const brain = createBrain({ save: options.save, now: clock.now, random: seeded(7), debug: true });
+  const timersStartedAt = Date.now();
+  const now = options.timeRuns ? () => clock.now() + (Date.now() - timersStartedAt) : clock.now;
+  const brain = createBrain({ save: options.save, now, random: seeded(7), debug: true });
   const pill = fakeView('pill', log, options.pill);
   const room = fakeView('room', log, options.room);
   const hostData = options.hostData ?? freshHostData();
@@ -182,6 +188,7 @@ function rig(options: {
       return options.frameHangs ? new Promise(() => undefined) : Promise.resolve();
     },
     persist: options.persist,
+    presence: options.presence,
     log: (message) => void errors.push(message),
   });
   return { log, host, brain, shell, pill, room, hostData, chimes, sounds, errors, clock };
@@ -921,6 +928,151 @@ describe('the clock', () => {
     const ticks = vi.spyOn(r.brain, 'tick');
     await settle(1000);
     expect(ticks).toHaveBeenCalledTimes(4);
+  });
+});
+
+describe('the clock with nobody there', () => {
+  /** Somebody who can leave and come back. */
+  function somebody(there = true) {
+    const listeners = new Set<() => void>();
+    const presence: Presence = {
+      there: () => there,
+      onArrive: (listener) => { listeners.add(listener); return () => void listeners.delete(listener); },
+    };
+    return {
+      presence,
+      leave(): void { there = false; },
+      arrive(): void {
+        const was = there;
+        there = true;
+        if (!was) for (const listener of [...listeners]) listener();
+      },
+      listening: () => listeners.size,
+    };
+  }
+
+  it('four times a second while somebody is there, once a second when they have gone', async () => {
+    const who = somebody();
+    const r = await started(rig({ presence: who.presence }));
+    const ticks = vi.spyOn(r.brain, 'tick');
+    await settle(2000);
+    expect(ticks).toHaveBeenCalledTimes(8);
+    who.leave();
+    // (The tick already waited for still comes on the quick beat.)
+    await settle(250);
+    ticks.mockClear();
+    await settle(10_000);
+    expect(ticks).toHaveBeenCalledTimes(10);
+  });
+
+  it('at once when somebody arrives, and four times a second from then on', async () => {
+    const who = somebody(false);
+    const r = await started(rig({ presence: who.presence }));
+    await settle(1000);
+    const ticks = vi.spyOn(r.brain, 'tick');
+    await settle(300);
+    expect(ticks).not.toHaveBeenCalled();
+    who.arrive();
+    expect(ticks).toHaveBeenCalledTimes(1);
+    await settle(1000);
+    expect(ticks).toHaveBeenCalledTimes(5);
+  });
+
+  it('what the slow clock had not shown yet is shown the moment somebody arrives', async () => {
+    const who = somebody(false);
+    const r = await started(rig({ presence: who.presence }));
+    await settle(1000);
+    r.brain.debug?.setNeeds({ tummy: 50 });
+    const seen: number[] = [];
+    r.brain.on('change', () => void seen.push(r.brain.state.needs.tummy));
+    // Hours pass on the pet's clock between two ticks.
+    r.clock.advance(HOUR);
+    expect(seen).toEqual([]);
+    who.arrive();
+    expect(seen.length).toBe(1);
+    expect(seen[0]).toBeLessThan(50);
+  });
+
+  it('a running session: each tick lands just after a whole second of the countdown, so a countdown in seconds shows every one', async () => {
+    const who = somebody();
+    const r = await started(rig({ presence: who.presence, timeRuns: true }));
+    await settle(137);
+    expect(r.brain.startFocus().ok).toBe(true);
+    await settle(389);
+    who.leave();
+    await settle(250);
+    const shown: number[] = [];
+    const lands: number[] = [];
+    const tick = r.brain.tick.bind(r.brain);
+    vi.spyOn(r.brain, 'tick').mockImplementation(() => {
+      tick();
+      // How far past a whole second of the countdown this tick came, and the second it shows.
+      lands.push(1000 - (r.brain.focusEndsInMs() % 1000));
+      shown.push(r.brain.state.focus.remainingMs / 1000);
+    });
+    await settle(60_000);
+    // One tick a second, each a few milliseconds past the second it shows.
+    expect(shown.length).toBeGreaterThanOrEqual(59);
+    expect(shown.length).toBeLessThanOrEqual(61);
+    expect(Math.max(...lands.slice(1))).toBeLessThanOrEqual(TICK_AFTER_MS + 1);
+    expect(Math.min(...lands.slice(1))).toBeGreaterThan(0);
+    // Every second of the countdown was shown once: none skipped, none twice.
+    const steps = shown.slice(2).map((value, i) => (shown[i + 1] ?? value) - value);
+    expect(new Set(steps)).toEqual(new Set([1]));
+  });
+
+  it('a session ends on time with nobody there: within a few milliseconds of its end, not up to a second after', async () => {
+    const who = somebody(false);
+    const r = await started(rig({ presence: who.presence, timeRuns: true }));
+    await settle(613);
+    const startedAt = Date.now();
+    expect(r.brain.startFocus().ok).toBe(true);
+    const length = r.brain.state.focus.remainingMs;
+    let endedAt = 0;
+    r.brain.on('focus', (event) => { if (event.type === 'complete') endedAt = Date.now(); });
+    await settle(length - 2000);
+    expect(endedAt).toBe(0);
+    await settle(3000);
+    expect(endedAt).toBeGreaterThanOrEqual(startedAt + length);
+    expect(endedAt - (startedAt + length)).toBeLessThanOrEqual(TICK_AFTER_MS + 2);
+    expect(r.brain.state.focus.status).toBe('idle');
+  });
+
+  it('with somebody there a session ends as it always did, on the next quick tick', async () => {
+    const who = somebody(true);
+    const r = await started(rig({ presence: who.presence, timeRuns: true }));
+    const startedAt = Date.now();
+    expect(r.brain.startFocus().ok).toBe(true);
+    const length = r.brain.state.focus.remainingMs;
+    let endedAt = 0;
+    r.brain.on('focus', (event) => { if (event.type === 'complete') endedAt = Date.now(); });
+    await settle(length + 500);
+    expect(endedAt - (startedAt + length)).toBeGreaterThanOrEqual(0);
+    expect(endedAt - (startedAt + length)).toBeLessThanOrEqual(250);
+  });
+
+  it('tucked away is once a second whoever is there, and an arrival does not wake the page then', async () => {
+    const who = somebody(false);
+    const r = await started(rig({ presence: who.presence }));
+    r.shell.emit('fullscreen-changed', true);
+    await settle(1000);
+    const ticks = vi.spyOn(r.brain, 'tick');
+    who.arrive();
+    expect(ticks).not.toHaveBeenCalled();
+    await settle(3000);
+    expect(ticks).toHaveBeenCalledTimes(3);
+  });
+
+  it('stops listening for arrivals when it is stopped', async () => {
+    const who = somebody(false);
+    const r = await started(rig({ presence: who.presence }));
+    expect(who.listening()).toBe(1);
+    r.host.stop();
+    expect(who.listening()).toBe(0);
+    const ticks = vi.spyOn(r.brain, 'tick');
+    who.arrive();
+    await settle(3000);
+    expect(ticks).not.toHaveBeenCalled();
   });
 });
 

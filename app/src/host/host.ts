@@ -5,7 +5,9 @@
 //   - which view is on screen, and the three-step switch between views
 //     (docs/shell-spike.md 4.2: hide and wait three frames, change the window, mount
 //     and show and report hit regions), with Doozer's pop-out before and pop-in after;
-//   - the clock: `brain.tick()` four times a second, slower while tucked away;
+//   - the clock: `brain.tick()` four times a second while somebody is there, once a second
+//     while nobody is (landing on the whole seconds of a running countdown, and on its
+//     end), and once a second while tucked away;
 //   - the save: the brain's document plus the window positions, written shortly after
 //     anything happens and when quitting;
 //   - what the settings do to the window: always on top, start with Windows, tuck away
@@ -45,6 +47,21 @@ export const RELEASE_FOR_MS = 4000;
 /** The "Interface size" setting as how many times larger than usual everything is drawn. */
 export const UI_SCALE: Readonly<Record<Settings['uiScale'], number>> = { normal: 1, large: 1.15, larger: 1.3 };
 
+/**
+ * Is somebody there? In this window that has a plain meaning: it lets the mouse through
+ * everywhere but on Doozer and its things, so a pointer or key event in the page is
+ * somebody at it (frames.ts keeps the same account, for the same reason).
+ */
+export interface Presence {
+  /** Somebody is there now, or was a moment ago. */
+  there(): boolean;
+  /** Call `listener` when somebody arrives after nobody was there. Returns the function that stops it. */
+  onArrive(listener: () => void): () => void;
+}
+
+/** How long after a whole second of a countdown the tick that shows it lands. */
+export const TICK_AFTER_MS = 8;
+
 export interface HostOptions {
   /** The element views are mounted in. */
   root: HTMLElement;
@@ -62,6 +79,19 @@ export interface HostOptions {
   /** How often the brain is ticked while on screen, and while tucked away. */
   tickMs?: number;
   restingTickMs?: number;
+  /**
+   * Whether somebody is there. With nobody there the brain is ticked every `idleTickMs`
+   * instead of every `tickMs`: nothing a tick does can be seen any sooner than that (the
+   * needs move a point in minutes, a countdown nobody is looking at is shown in minutes),
+   * and each tick wakes the page, which is most of what a focus session costs while
+   * nothing is drawn (docs/polish-checks.md, "The Pill's focus session"). A running
+   * session's ticks land just after each whole second of its countdown, so that a
+   * countdown in seconds (its last minute) still shows every second, and the last one
+   * lands on its end: the session ends on time to within a few milliseconds.
+   * Omit, and somebody is always taken to be there.
+   */
+  presence?: Presence;
+  idleTickMs?: number;
   /** False runs without writing the save (the save could not be read at start-up). */
   persist?: boolean;
   log?(message: string, error?: unknown): void;
@@ -103,6 +133,8 @@ export function createHost(options: HostOptions): Host {
   const nextFrame = options.frame ?? defaultFrame;
   const tickMs = options.tickMs ?? 250;
   const restingTickMs = options.restingTickMs ?? 1000;
+  const idleTickMs = options.idleTickMs ?? 1000;
+  const presence = options.presence ?? null;
   const log = options.log ?? ((message: string, error?: unknown) => console.error(`[host] ${message}`, error ?? ''));
   const sound = options.sound ?? { chime: () => undefined };
 
@@ -411,6 +443,18 @@ export function createHost(options: HostOptions): Host {
     safely('brain.tick', () => brain.tick());
   }
 
+  /** How long until the next tick. */
+  function tickWait(): number {
+    if (!awake) return restingTickMs;
+    if (!presence || presence.there()) return tickMs;
+    // (The state's own figure is rounded up to whole seconds; this one is to the millisecond.)
+    const left = brain.focusEndsInMs();
+    if (!(left > 0)) return idleTickMs;
+    // Just after the countdown's next whole second; at the latest, just after its end.
+    const toNextSecond = left % 1000 || 1000;
+    return Math.min(idleTickMs, toNextSecond) + TICK_AFTER_MS;
+  }
+
   function armTick(): void {
     if (tickTimer !== null) timers.clear(tickTimer);
     tickTimer = null;
@@ -419,8 +463,16 @@ export function createHost(options: HostOptions): Host {
       tickTimer = null;
       tick();
       armTick();
-    }, awake ? tickMs : restingTickMs);
+    }, tickWait());
   }
+
+  /** Somebody has arrived: whatever the slow clock has not shown yet is shown now. */
+  function arrived(): void {
+    if (!started || stopped || !awake) return;
+    tick();
+    armTick();
+  }
+  const stopListeningForArrivals = presence?.onArrive(arrived) ?? null;
 
   // ---- tuck away -----------------------------------------------------------------
 
@@ -606,6 +658,7 @@ export function createHost(options: HostOptions): Host {
     stopped = true;
     if (tickTimer !== null) timers.clear(tickTimer);
     tickTimer = null;
+    stopListeningForArrivals?.();
     if (chimeTimer !== null) timers.clear(chimeTimer);
     chimeTimer = null;
     cancelRelease();
