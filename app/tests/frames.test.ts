@@ -8,8 +8,13 @@ import { AMBIENT_FPS, ATTENDED_FPS, ATTEND_MS, FALLBACK_MS, FrameClock } from '.
  * to. A page that has had a frame lately is offered the next refresh. A page that has been
  * idle for a few refreshes (`idleRefreshes`; Infinity: never) is handed the refresh it has
  * just missed, at once.
+ *
+ * `beat` makes the screen uneven: the lengths of successive refreshes, as multiples of
+ * the even one, round and round ([0.8, 1.2]: a short one, a long one, and so on).
+ * `stampStep` rounds the stamps the page is given, as a browser does (a tenth of a
+ * millisecond). `setRate` is the window carried to another monitor.
  */
-function pretendScreen(hz = 120, idleRefreshes = 3.5) {
+function pretendScreen(hz = 120, idleRefreshes = 3.5, beat: readonly number[] = [1], stampStep = 0) {
   let time = 0;
   let nextTimer = 1;
   const timers = new Map<number, { at: number; fn: () => void }>();
@@ -18,8 +23,12 @@ function pretendScreen(hz = 120, idleRefreshes = 3.5) {
   const handedAtOnce = new Map<FrameCallback, number>();
   let framesOffered = 0;
   let framesComing = true;
-  const period = 1000 / hz;
-  let nextRefresh = period;
+  let period = 1000 / hz;
+  const stampOf = (moment: number): number => (stampStep > 0 ? Math.round(moment / stampStep) * stampStep : moment);
+  let refreshes = 0;
+  const lengthOfNext = (): number => period * (beat[refreshes++ % beat.length] ?? 1);
+  let lastRefresh = 0;
+  let nextRefresh = lengthOfNext();
   let lastFrameAt = -Infinity;
   let longestTimer = 0;
   const stamps: number[] = [];
@@ -49,7 +58,7 @@ function pretendScreen(hz = 120, idleRefreshes = 3.5) {
     requestFrame: (callback: FrameCallback) => {
       if (framesComing && time - lastFrameAt > idleRefreshes * period) {
         // Idle: the refresh just missed, at once.
-        const stamp = nextRefresh - period;
+        const stamp = stampOf(lastRefresh);
         const id = nextTimer++;
         timers.set(id, { at: time, fn: () => { handedAtOnce.delete(callback); lastFrameAt = time; framesOffered++; stamps.push(stamp); callback(stamp); } });
         handedAtOnce.set(callback, id);
@@ -69,14 +78,15 @@ function pretendScreen(hz = 120, idleRefreshes = 3.5) {
       while (nextRefresh <= end) {
         runTimersUpTo(nextRefresh);
         time = nextRefresh;
-        nextRefresh += period;
+        lastRefresh = time;
+        nextRefresh += lengthOfNext();
         if (framesComing && frameCallbacks.length) {
           framesOffered++;
           lastFrameAt = time;
           const due = frameCallbacks;
           frameCallbacks = [];
           stamps.push(time);
-          for (const callback of due) callback(time);
+          for (const callback of due) callback(stampOf(time));
         }
       }
       runTimersUpTo(end);
@@ -91,7 +101,8 @@ function pretendScreen(hz = 120, idleRefreshes = 3.5) {
     longestTimer: () => longestTimer,
     /** The refresh each frame handed out belonged to. */
     stamps: () => stamps,
-    period,
+    get period(): number { return period; },
+    setRate(newHz: number): void { period = 1000 / newHz; },
   };
 }
 
@@ -268,6 +279,208 @@ describe('each picture on the refresh it was aimed at', () => {
     expect(clock.stats.ticks).toBeGreaterThanOrEqual(40);
     expect(clock.stats.ticks).toBeLessThanOrEqual(50);
     expect(walk.currentTime).toBeGreaterThan(1900);
+  });
+});
+
+// ---- Whole refreshes -----------------------------------------------------------------------------
+
+describe('a screen whose refresh the rate does not divide', () => {
+  /** A clock on a pretend screen, with one animation running for ever. */
+  function running(screen: ReturnType<typeof pretendScreen>, attended: boolean) {
+    const page = pretendDocument();
+    const clock = new FrameClock({ timers: screen.timers, now: screen.now, requestFrame: screen.requestFrame, cancelFrame: screen.cancelFrame });
+    clock.attach(page.doc);
+    const walk = page.add({ css: true });
+    page.emit('animationstart');
+    if (attended) clock.attend(3_600_000);
+    return { clock, walk };
+  }
+
+  /** What happened between two looks at the clock. */
+  function over(screen: ReturnType<typeof pretendScreen>, clock: FrameClock, ms: number) {
+    const before = clock.stats;
+    const offered = screen.framesOffered();
+    const from = screen.stamps().length;
+    screen.advance(ms);
+    const after = clock.stats;
+    const stamps = screen.stamps().slice(from);
+    return {
+      pictures: after.ticks - before.ticks,
+      framesAsked: screen.framesOffered() - offered,
+      passedOver: after.passedOver - before.passedOver,
+      late: after.late - before.late,
+      fallbacks: after.fallbacks - before.fallbacks,
+      /** How many refreshes each picture was held for. */
+      held: new Set(stamps.slice(1).map((stamp, i) => Math.round((stamp - (stamps[i] ?? stamp)) / screen.period))),
+    };
+  }
+
+  // The rate asked for is a ceiling: the fewest whole refreshes that do not go over it.
+  //   alone, 24 a second (41.7 ms)        with somebody there, 60 a second (16.7 ms)
+  const SCREENS: ReadonlyArray<[hz: number, alone: number, attended: number]> = [
+    [60, 3, 1],   // 20 a second          60
+    [75, 3, 2],   // 25 (a hair over, within the 2 ms allowed)   37.5
+    [90, 4, 2],   // 22.5                 45
+    [120, 5, 2],  // 24                   60
+    [144, 6, 3],  // 24                   48
+    [165, 7, 3],  // 23.6                 55
+  ];
+  // Two browsers: one that calls a page idle (and hands it a missed frame) after three and
+  // a half refreshes without a frame, and one that does after one and a half. Which a real
+  // browser is at each of these rates has only been measured at 120 Hz.
+  const BROWSERS = [3.5, 1.5] as const;
+
+  for (const idleAfter of BROWSERS) {
+    for (const [hz, alone, attended] of SCREENS) {
+      for (const [who, wholes] of [['alone', alone], ['with somebody there', attended]] as const) {
+        it(`${hz} Hz, ${who}, a page idle after ${idleAfter} refreshes: every picture is held for ${wholes}, and no frame is asked for and thrown away`, () => {
+          const screen = pretendScreen(hz, idleAfter);
+          const { clock, walk } = running(screen, who !== 'alone');
+          // Two seconds to find out about the screen and the page.
+          const learning = over(screen, clock, 2000);
+          const steady = over(screen, clock, 10_000);
+          expect(steady.held).toEqual(new Set([wholes]));
+          expect(steady.passedOver).toBe(0);
+          expect(steady.late).toBe(0);
+          expect(steady.fallbacks).toBe(0);
+          expect(steady.framesAsked).toBe(steady.pictures);
+          // Finding out is cheap: a handful of frames, once.
+          expect(learning.passedOver).toBeLessThanOrEqual(6);
+          expect(learning.late).toBeLessThanOrEqual(2);
+          // And the motion is the same motion: the animation has been moved on by the time that passed.
+          expect(walk.currentTime).toBeGreaterThan(11_900);
+          expect(walk.currentTime).toBeLessThanOrEqual(12_000);
+        });
+      }
+    }
+  }
+
+  it('120 Hz is left exactly as it was: nothing is passed over, so nothing is measured and nothing is worked out', () => {
+    for (const idleAfter of BROWSERS) {
+      for (const attended of [false, true]) {
+        const screen = pretendScreen(120, idleAfter);
+        const { clock } = running(screen, attended);
+        screen.advance(30_000);
+        expect(clock.stats.refresh).toBeNull();
+        expect(clock.stats.wholes).toBe(0);
+        expect(clock.stats.passedOver).toBe(0);
+      }
+    }
+  });
+
+  it('the screen is measured from the frames passed over, to within a hair, and the figure does not wander', () => {
+    // A browser's stamps are only good to a tenth of a millisecond.
+    const screen = pretendScreen(60, 1.5, [1], 0.1);
+    const { clock } = running(screen, false);
+    screen.advance(2000);
+    expect(clock.stats.refresh).not.toBeNull();
+    expect(Math.abs((clock.stats.refresh ?? 0) - 1000 / 60)).toBeLessThan(0.1);
+    expect(clock.stats.wholes).toBe(3);
+    const minute = over(screen, clock, 60_000);
+    expect(minute.held).toEqual(new Set([3]));
+    expect(minute.passedOver).toBe(0);
+    expect(minute.late).toBe(0);
+    expect(Math.abs((clock.stats.refresh ?? 0) - 1000 / 60)).toBeLessThan(0.05);
+  });
+
+  it('coarse stamps on a quick screen: still whole refreshes for a minute, 165 Hz with somebody there', () => {
+    const screen = pretendScreen(165, 1.5, [1], 0.1);
+    const { clock } = running(screen, true);
+    screen.advance(2000);
+    const minute = over(screen, clock, 60_000);
+    expect(minute.held).toEqual(new Set([3]));
+    expect(minute.passedOver).toBe(0);
+    expect(minute.framesAsked).toBe(minute.pictures);
+  });
+
+  it('an uneven screen: the measurements do not agree, none is believed, and the clock goes on as it always did', () => {
+    // About 100 Hz, a short refresh and a long one by turns (8 ms, 12 ms), as this machine's
+    // own screen was found doing one night (docs/polish-checks.md section 6).
+    const screen = pretendScreen(100, 1.5, [0.8, 1.2]);
+    const { clock, walk } = running(screen, false);
+    screen.advance(30_000);
+    expect(clock.stats.refresh).toBeNull();
+    expect(clock.stats.wholes).toBe(0);
+    // It still draws, at about the rate asked for, and never has to fall back on a timer.
+    // (Never above it by more than the 2 ms a frame may be early: here two long-and-short
+    // pairs are 40 ms, so 25 a second, as on a 75 Hz screen.)
+    const pictures = clock.stats.ticks / 30;
+    expect(pictures).toBeGreaterThan(18);
+    expect(pictures).toBeLessThanOrEqual(1000 / (1000 / AMBIENT_FPS - 2));
+    expect(clock.stats.fallbacks).toBe(0);
+    expect(walk.currentTime).toBeGreaterThan(29_900);
+  });
+
+  it('a screen that drifts (a variable refresh settling somewhere odd) is followed', () => {
+    // 9.6 ms a refresh, steadily: about 104 Hz.
+    const screen = pretendScreen(1000 / 9.6, 1.5);
+    const { clock } = running(screen, false);
+    screen.advance(2000);
+    // 41.7 ms is 4.3 of those: five, the fewest that do not go over the rate.
+    expect(clock.stats.wholes).toBe(5);
+    const steady = over(screen, clock, 10_000);
+    expect(steady.held).toEqual(new Set([5]));
+    expect(steady.passedOver).toBe(0);
+  });
+
+  it('the window carried to another monitor: the old screen is forgotten and the new one found', () => {
+    const screen = pretendScreen(60, 1.5);
+    const { clock } = running(screen, false);
+    screen.advance(3000);
+    expect(clock.stats.wholes).toBe(3);
+
+    // To a 90 Hz screen: three of the old refreshes (50 ms) are four and a half of the new.
+    screen.setRate(90);
+    const moving = over(screen, clock, 3000);
+    const settled = over(screen, clock, 10_000);
+    expect(Math.abs((clock.stats.refresh ?? 0) - 1000 / 90)).toBeLessThan(0.1);
+    expect(settled.held).toEqual(new Set([4]));
+    expect(settled.passedOver).toBe(0);
+    expect(settled.late).toBe(0);
+    // Finding out cost a few frames, not a frame a picture for ever.
+    expect(moving.passedOver + moving.late).toBeLessThanOrEqual(16);
+
+    // And on to a 120 Hz one, where the rate fits and nothing more is needed.
+    screen.setRate(120);
+    over(screen, clock, 3000);
+    const home = over(screen, clock, 10_000);
+    expect(home.held).toEqual(new Set([5]));
+    expect(home.passedOver).toBe(0);
+    expect(home.late).toBe(0);
+    expect(home.framesAsked).toBe(home.pictures);
+  });
+
+  it('a screen it has been wrong about twice has to agree for longer before it is believed again', () => {
+    // Even for a while, then uneven, then even again: twice believed, twice let down.
+    const screen = pretendScreen(60, 1.5);
+    const { clock } = running(screen, false);
+    screen.advance(2000);
+    expect(clock.stats.refresh).not.toBeNull();
+    const before = clock.stats.passedOver;
+    screen.setRate(75);
+    screen.advance(100);
+    screen.setRate(52);
+    screen.advance(100);
+    screen.setRate(60);
+    screen.advance(5000);
+    // It gets there again, having passed over more frames to be sure than the first time.
+    expect(clock.stats.wholes).toBe(3);
+    expect(clock.stats.passedOver - before).toBeGreaterThan(3);
+    const steady = over(screen, clock, 10_000);
+    expect(steady.held).toEqual(new Set([3]));
+    expect(steady.passedOver).toBe(0);
+  });
+
+  it('never stuck: frames that stop coming are replaced by a timer, whatever has been learnt about the screen', () => {
+    const screen = pretendScreen(60, 1.5);
+    const { clock, walk } = running(screen, false);
+    screen.advance(2000);
+    expect(clock.stats.wholes).toBe(3);
+    screen.stopFrames();
+    const at = walk.currentTime;
+    screen.advance(3000);
+    expect(clock.stats.fallbacks).toBeGreaterThan(5);
+    expect(walk.currentTime).toBeGreaterThan(at + 2500);
   });
 });
 
@@ -664,5 +877,53 @@ describe('detaching', () => {
     detach();
     screen.advance(20);
     expect(callback).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---- Who is there ---------------------------------------------------------------------------------
+
+describe('somebody arriving', () => {
+  it('is told once to whoever asked, when a sign of somebody follows none', () => {
+    const { screen, clock } = setUp();
+    const arrived = vi.fn();
+    const stop = clock.onArrive(arrived);
+    expect(clock.attendedNow).toBe(false);
+    clock.attend();
+    expect(arrived).toHaveBeenCalledTimes(1);
+    expect(clock.attendedNow).toBe(true);
+    // More signs while they are there are not arrivals.
+    screen.advance(1000);
+    clock.attend();
+    clock.attend();
+    expect(arrived).toHaveBeenCalledTimes(1);
+    // Gone (no sign for the whole of ATTEND_MS), then back.
+    screen.advance(ATTEND_MS + 1);
+    expect(clock.attendedNow).toBe(false);
+    clock.attend();
+    expect(arrived).toHaveBeenCalledTimes(2);
+    stop();
+    screen.advance(ATTEND_MS + 1);
+    clock.attend();
+    expect(arrived).toHaveBeenCalledTimes(2);
+  });
+
+  it('a listener that throws does not stop the others, or the clock', () => {
+    const { clock } = setUp();
+    const second = vi.fn();
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    clock.onArrive(() => { throw new Error('a host bug'); });
+    clock.onArrive(second);
+    clock.attend();
+    expect(second).toHaveBeenCalledTimes(1);
+    expect(clock.fps).toBe(ATTENDED_FPS);
+    quiet.mockRestore();
+  });
+
+  it('an attendance of no length is not an arrival', () => {
+    const { clock } = setUp();
+    const arrived = vi.fn();
+    clock.onArrive(arrived);
+    clock.attend(0);
+    expect(arrived).not.toHaveBeenCalled();
   });
 });
