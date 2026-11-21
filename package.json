@@ -1,7 +1,7 @@
 {
   "name": "doozer",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Doozer - a cute desktop virtual pet. The app is in app/; this package only runs the Phase 1 mockups (see README.md).",
   "type": "module",
   "scripts": {
