@@ -247,20 +247,40 @@ const furnitureRun: RoomScenario = async (app) => {
   // Ball: toss it; Doozer chases it if it has the energy.
   const funBefore = brain.state.needs.fun;
   const ballBefore = snap().ballX;
-  await press(furniture.ball);
-  const chasing = snap();
-  let ran = 0;
   const x0 = snap().x;
-  await waitFor(() => { ran = Math.max(ran, Math.abs(snap().x - x0)); return snap().scene === null; }, 20_000, 50);
+  await press(furniture.ball);
+  // The first look, a twentieth of a second after the click, as this check has always
+  // taken it; kept in the report. What the check asks is watched over the whole chase,
+  // though: that the scene is "play", that Doozer trots in it, and that the ball is drawn
+  // somewhere new. One look that soon can fall before the first picture of the toss
+  // (pictures are 42 ms apart with nobody there, and later on a busy machine), and did,
+  // once, on the 1.0.0 build, with the whole game played correctly after it.
+  const firstLook = snap();
+  const chasing = { scene: firstLook.scene === 'play', trot: false, ballMoved: false };
+  let ran = 0;
+  await waitFor(() => {
+    const s = snap();
+    if (s.scene === 'play') {
+      chasing.scene = true;
+      chasing.trot ||= s.pose === 'trot';
+      chasing.ballMoved ||= s.ballX !== ballBefore;
+    }
+    ran = Math.max(ran, Math.abs(s.x - x0));
+    // Over when the scene that was seen to start has ended; if none starts, the check fails.
+    return chasing.scene && s.scene === null;
+  }, 20_000, 25);
   const playWrong = await settle(app);
   brain.debug?.setNeeds({ energy: 6 });
   const tiredFun = brain.state.needs.fun;
   await press(furniture.ball);
   const tired = { scene: snap().scene, fun: brain.state.needs.fun };
   brain.debug?.setNeeds({ energy: 70 });
-  rows.ball = { funBefore, funAfter: tiredFun, ballBefore, ballAfter: snap().ballX, ran, tired };
+  rows.ball = {
+    funBefore, funAfter: tiredFun, ballBefore, ballAfter: snap().ballX, ran, tired, chasing,
+    firstLook: { scene: firstLook.scene, pose: firstLook.pose, ballX: firstLook.ballX },
+  };
   check(failures, {
-    'ball: a click tosses it and Doozer chases': chasing.scene === 'play' && chasing.pose === 'trot' && chasing.ballX !== ballBefore && tiredFun === Math.min(100, funBefore + 28),
+    'ball: a click tosses it and Doozer chases': chasing.scene && chasing.trot && chasing.ballMoved && tiredFun === Math.min(100, funBefore + 28),
     'ball: it really ran about, and came to rest': ran > 40 && playWrong === '',
     'ball: too tired, it is refused': tired.scene === null && tired.fun === tiredFun,
   });
