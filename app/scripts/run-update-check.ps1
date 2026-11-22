@@ -153,7 +153,8 @@ try {
   Check ($after.bornAt -eq $before.bornAt -and $after.name -eq $before.name) "the same pet: born at the same moment, the same name"
   Check ($after.bowl -eq $before.bowl -and $after.treats -eq $before.treats -and $after.sessions -eq $before.sessions) "its bowl, treats and sessions as they were ($($after.bowl), $($after.treats), $($after.sessions))"
   Check ($after.palette -eq 'mint' -and $after.sound -eq $true -and $after.desktopActivity -eq 'still') "the same settings: $($after.palette), sound $($after.sound), $($after.desktopActivity)"
-  Check (@(Ask-Page 'getComputedStyle(document.querySelector(".dz") ?? document.body).getPropertyValue("--dz-body").trim().toLowerCase()') -eq '#a9e8cf') "Doozer is drawn in Mint"
+  $colour = Ask-Page 'getComputedStyle(document.querySelector(".dz") ?? document.body).getPropertyValue("--dz-body").trim().toLowerCase()'
+  Check ($colour -eq '#a9e8cf') "Doozer is drawn in Mint (its body colour is $colour)"
   Stop-Installed
 
   '3. uninstall'
