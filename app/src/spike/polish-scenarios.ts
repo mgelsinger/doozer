@@ -239,6 +239,8 @@ interface Status {
   focusable: boolean;
   isForeground: boolean;
   foreground: number;
+  /** Windows' own QUERY_USER_NOTIFICATION_STATE: 1 is nobody present (a locked screen or a screen saver). */
+  userNotificationState: number;
   styleNoActivate: boolean;
   userIdleMs: number;
   visible: boolean;
@@ -422,10 +424,18 @@ const keyboard: Scenario = async (app, args) => {
 
   // From the shortcut.
   const idleNeeded = typeof args.idleMs === 'number' ? args.idleMs : 60_000;
-  const idle = (await status()).userIdleMs;
+  const now = await status();
+  const idle = now.userIdleMs;
   const result: Record<string, unknown> = { view, idleMs: idle, menu, foregroundBefore: before.foreground };
   if (idle < idleNeeded) {
     result.shortcut = `skipped: the machine was in use (${Math.round(idle / 1000)} s since the last key or mouse movement, ${Math.round(idleNeeded / 1000)} s needed)`;
+    return { failures, ...result };
+  }
+  // A locked screen (Windows says nobody is present, and no window is in front): no program
+  // may take the keyboard then, Doozer included, so there is nothing to check. Found when
+  // this ran in the small hours with the owner's screen locked: all four views "failed".
+  if (now.userNotificationState === 1 || now.foreground === 0) {
+    result.shortcut = 'skipped: the screen is locked (no window is in front, and none may take the keyboard)';
     return { failures, ...result };
   }
   const had = (await status()).foreground;
