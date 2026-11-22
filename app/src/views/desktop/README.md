@@ -41,7 +41,7 @@ One table, `PACES` in `pace.ts`. The owner chooses the default by trying them (s
 
 | | Still | Calm (default) | Lively |
 |---|---|---|---|
-| Strolls | never | every 45–120 s it may (3 times in 4) walk 60–300 px at 30 px/s, the `walk` gait, never more than 300 px from its spot | 1–4.5 s after arriving it is off again (about 6 times in 10), anywhere along the line, at 56 px/s, the `trot` gait |
+| Strolls | never | about every 3.7 minutes (it rests 140–280 s, then strolls 19 times in 20; every 45–120 s, 3 times in 4, until 1.0.1) it walks 60–300 px at 30 px/s, the `walk` gait, never more than 300 px from its spot | 1–4.5 s after arriving it is off again (about 6 times in 10), anywhere along the line, at 56 px/s, the `trot` gait |
 | Peekaboo | never | every 7–13 minutes, walking to the edge at 50 px/s and back to its spot | every 50–110 s, at 70 px/s, settling a little way in from the edge |
 | A meal or a treat | lands in reach, eaten on the spot | the same | lands 80–110 px away; Doozer trots over at 95 px/s |
 | Play | bats the ball where it stands, about 4 s | the same | the mockup's: chases the ball at 150 px/s and kicks it, six kicks or 16 s |

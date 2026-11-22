@@ -116,9 +116,10 @@ describe('the pace levels', () => {
       last = s.x;
     }
     const strolls = r.snap().scenes.stroll;
-    // Every 45-120 s it *may* stroll: between a handful and forty in half an hour.
-    expect(strolls?.finished ?? 0).toBeGreaterThanOrEqual(6);
-    expect(strolls?.finished ?? 0).toBeLessThanOrEqual(40);
+    // About every four minutes (rests 140-280 s, then strolls 19 times in 20): about eight
+    // in half an hour, and no fewer than five nor more than twelve.
+    expect(strolls?.finished ?? 0).toBeGreaterThanOrEqual(5);
+    expect(strolls?.finished ?? 0).toBeLessThanOrEqual(12);
     expect(farthest).toBeLessThanOrEqual(PACES.calm.roamPx! + 1);
     // About 30 px a second. (The position is read between steps, so allow a step's worth.)
     expect(fastest).toBeLessThanOrEqual(30 * 1.1);

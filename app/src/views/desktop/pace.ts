@@ -3,9 +3,14 @@
 // is a change to this table and nothing else.
 //
 //   Still  - never moves from its spot. It still blinks and glances about.
-//   Calm   - the spec's default: mostly stays put; every 45-120 s it may take a short slow
-//            stroll (at most ~300 px, ~30 px/s) and settle again; peekaboo roughly every
-//            ten minutes; plays with the ball where it stands.
+//   Calm   - the default: mostly stays put; a short slow stroll (at most ~300 px, ~30 px/s)
+//            about every four minutes, and settles again; peekaboo roughly every ten
+//            minutes; plays with the ball where it stands. (Version 1.0.1: it was a stroll
+//            every 45-120 s, three times in four, about every two minutes. A minute with a
+//            stroll in it costs two to three times a minute without, and at that rate Calm
+//            averaged 1.4 to 2.7 % of a core against a budget of 1 %. Strolling half as
+//            often was the owner's delegated decision, and four minutes the floor set for
+//            it: docs/polish-checks.md section 18.4.)
 //   Lively - close to the Desk Buddy mockup (mockups/v3-buddy): a second or three after
 //            arriving it is off again, anywhere along the taskbar, at about the mockup's
 //            speeds; it runs to its food and chases the ball.
@@ -61,7 +66,10 @@ export const PACES: Readonly<Record<PaceId, Pace>> = {
     runsToFood: false, foodSpeed: 0, chasesBall: false, chaseSpeed: 0,
   },
   calm: {
-    strolls: true, rest: [45_000, 120_000], strollChance: 0.75, strollPx: [60, 300], roamPx: 300,
+    // Rests 140-280 s and then strolls nineteen times in twenty: one stroll every 3.7
+    // minutes on average, and not more than about five minutes apart unless the dice say
+    // no twice running.
+    strolls: true, rest: [140_000, 280_000], strollChance: 0.95, strollPx: [60, 300], roamPx: 300,
     strollSpeed: 30, strollGait: 'walk',
     // "Roughly once every ten minutes." The walk to the edge is brisker than a stroll: at
     // 30 px/s the trip across half a wide screen would take the best part of a minute.

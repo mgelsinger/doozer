@@ -9,10 +9,14 @@ import { seeded } from '../../core/helpers';
 const STAGE: Stage = { w: 2560, h: 1392, size: 112, ground: 1386, minX: 62, maxX: 2498, taskbar: 'bottom', monitor: 'test' };
 
 describe('the pace levels, as numbers', () => {
-  it('Calm is the spec\'s: a stroll every 45-120 s, at most 300 px, about 30 px a second, a peek about every ten minutes', () => {
+  it('Calm: a stroll about every four minutes and never rarer on average, at most 300 px, about 30 px a second, a peek about every ten minutes', () => {
     const calm = PACES.calm;
     expect(calm.strolls).toBe(true);
-    expect(calm.rest).toEqual([45_000, 120_000]);
+    expect(calm.rest).toEqual([140_000, 280_000]);
+    // The floor decided for 1.0.1: on average no rarer than one stroll every four minutes.
+    const meanGapMs = (calm.rest[0] + calm.rest[1]) / 2 / calm.strollChance;
+    expect(meanGapMs).toBeLessThanOrEqual(4 * 60_000);
+    expect(meanGapMs).toBeGreaterThan(3 * 60_000);
     expect(calm.strollPx[1]).toBe(300);
     expect(calm.roamPx).toBe(300);
     expect(calm.strollSpeed).toBe(30);
