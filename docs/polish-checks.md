@@ -6,6 +6,8 @@ Phase 10 is the pass over all four views at once: performance first, then the tw
 
 Everything in the real window was done with scripted input in a cloaked window. The machine was never quiet (its owner at it for the first hours, and throughout half a dozen long-running jobs of other programs, which with this phase's own runs held it at between a quarter and two thirds of all its cores), so every before-and-after number below was taken with the old build and the new one **running side by side at the same moment**: whatever else the machine was doing weighed on both alike.
 
+**Version 1.0.1 took up three things this document left open, and one decision**: the frame the clock passes over on a screen 24 does not divide (tried, and it cannot be removed: it stays), the Pill's focus session (lower, and under the line), and the shell's style-repair counter (explained: it never counted a repair); and Calm now strolls half as often (section 18.4, with the 1.0.1 budget table). They are in section 18, at the end; the sections they came from point there.
+
 ## In short
 
 | Asked for | Result | How it is known |
@@ -131,7 +133,7 @@ Smaller things: the Desktop view's walk is stepped by the clock's frames and by 
 **Against the targets.**
 
 - **Every view at rest under 1 % and 150 MB: met by the median, with nothing to spare in a noisy hour.** At rest nothing moves, so this phase had nothing to save there, and the two builds differ by less than two windows of the same build do. The Pill read 0.31 % at half past eleven and 0.78 % (mean 1.01) an hour later, with the old build beside it at 0.41 and 0.93: the hour, not the app.
-- **A focus session under 1 % in every view: met in three, at the line in the Pill.** The Island's came down from 0.88 to 0.41 %: that is the countdown no longer repainting every second. In the Pill the three samples read 0.88, 1.17 and 0.93 %, the old build 0.98, 1.55 and 2.07. So the change is real there too, but a session in the Pill sits at the line, not under it. Where its time goes: with nothing drawn at all, the page still spends about 0.3 % on the brain's tick and the view's bookkeeping four times a second (0.1 % at rest), and the browser's own process another 0.2 to 0.5 %. The first is a saving nobody has yet tried for.
+- **A focus session under 1 % in every view: met in three, at the line in the Pill** (looked at again for version 1.0.1, where it measured under the line in both builds and for a different reason than is guessed here: section 18.2)**.** The Island's came down from 0.88 to 0.41 %: that is the countdown no longer repainting every second. In the Pill the three samples read 0.88, 1.17 and 0.93 %, the old build 0.98, 1.55 and 2.07. So the change is real there too, but a session in the Pill sits at the line, not under it. Where its time goes: with nothing drawn at all, the page still spends about 0.3 % on the brain's tick and the view's bookkeeping four times a second (0.1 % at rest), and the browser's own process another 0.2 to 0.5 %. The first is a saving nobody has yet tried for.
 - **The Room's ten-minute average under 1 %: met**, at 0.82 %, with six times the outings of the old build at the same cost (section 5).
 - **The Desktop view's Calm twelve-minute average under 1 %: not met.** 1.40 % in one run and 2.74 % in another, against 2.81 and 2.89 % for the old build beside them. The two runs differ because Calm is random: Doozer walked for 5 % of the first and 10 % of the second (it peeked, which is a walk to the edge of the screen and back). Set against the walking in each, a second of a Calm stroll costs about 40 % of what it did. The average is rest, at 0.3 to 0.9 % depending on the hour, plus walking: and with a second of walking at 8 % of a core or more, **Calm cannot average under 1 % while Doozer walks more than a few seconds in a minute.** Three things would bring it under, and I took none of them. *Strolling less:* but how much Calm moves is the very thing the owner has still to settle (spec section 12, item 3), and it should be settled by eye, not by this budget. *A lower rate for the walk:* 20 pictures a second measured the same as 24 (section 2). *A cheaper picture:* section 14 lists what was tried.
 - **The cost of a second of walking at least halved: met.** 31.6 % to 8.4 % of one core, a little over a quarter of what it was.
@@ -191,7 +193,7 @@ A first fix, which passed over the stale frame and waited for the next, gave the
 
 **A caution about the display itself.** A picture can only be shown on a refresh the screen makes. The table above was taken while the screen was refreshing at a steady 120 a second. Around midnight, with the owner away and other programs drawing, the browser was being offered frames about 9.6 ms apart, not 8.3: about 104 a second, and not evenly. (Why was not established. A display with a variable refresh rate does this when something else is drawing full screen, and the owner's machine is often running a game.) 24 a second then falls on every fourth or fifth of whatever refreshes come, and the clock's own counters say so: in the Calm run of section 4, made at that hour, about half the pictures counted as a refresh late, against 1 to 2 in 100 in a run at a steady 120. Nothing can make a rhythm even on a screen whose own is not.
 
-The same rule covers a screen where 24 does not divide the refresh rate: at 60 Hz it becomes an even 20 a second, every third refresh (held by a test). There the clock at present spends one passed-over frame per picture finding its refresh, where a clock that measured the screen's refresh interval and aimed at whole refreshes would spend none. That is the one improvement to `frames.ts` I can see and did not make; no 60 Hz screen was here to try it on.
+(Version 1.0.1 tried to remove the passed-over frame this paragraph describes, and found on a real screen that it cannot be: section 18.1.) The same rule covers a screen where 24 does not divide the refresh rate: at 60 Hz it becomes an even 20 a second, every third refresh (held by a test). There the clock at present spends one passed-over frame per picture finding its refresh, where a clock that measured the screen's refresh interval and aimed at whole refreshes would spend none. That is the one improvement to `frames.ts` I can see and did not make; no 60 Hz screen was here to try it on.
 
 **What this does not show.** Whether 24 pictures a second *reads* as smooth on a 120 Hz display, next to a mouse pointer and windows that move at 120, is a judgement for an eye, and nobody has looked. If it does not, `AMBIENT_FPS = 30` costs about a third more for everything Doozer does alone and is one number to change; with the pointer on Doozer it is drawn at 60 already. Section 16 says what to look at.
 
@@ -398,7 +400,7 @@ The frame clock is under everything that moves, so every view's scripted checks 
 - **A new browser profile spends its first minute on chores of its own**, which showed as a view "at rest" using 2 to 3 % of a core. Each build under measurement now keeps one profile for all its runs.
 - **A check that had gone stale without anyone noticing.** The Pill's window check has expected the Room to read "coming soon" in the tray menu since Phase 6, which stopped being true when Phase 7 built the Room: that script cannot have passed since. Every view's script was run on the final build here, which is how it came to light (section 13).
 - **The old build's memory while walking.** Phase 9 measured 133 to 143 MB on Lively. Measured here beside the new build, the old one was at 155 to 161 MB on Lively and about 200 MB walking without a pause. The new one is at 133 to 149 MB in both.
-- From Phase 9's list: the shell's style-repair counter, which read 19 after that soak, was not looked into here either. It remains a question for a later look.
+- From Phase 9's list: the shell's style-repair counter, which read 19 after that soak, was not looked into here either. (Looked into for version 1.0.1: it never counted a repair. Section 18.3.)
 
 ## 16. Not verified: needs a person
 
@@ -433,6 +435,7 @@ From `app/`:
 | One state, measured | `pwsh scripts/measure-idle.ps1 -Exe <exe> -Scenario app-polish-hold -ScenarioArgs '{"view":"room","state":"rest"}' -Cloak` |
 | Two builds side by side, a list of states | `pwsh scripts/measure-set.ps1 -Out <folder> -Arms @(@{ tag = 'before'; exe = <exe> }, @{ tag = 'after'; exe = <exe> }) -Runs @(@{ name = 'desktop-walk'; args = '{"view":"desktop","state":"walk"}'; seconds = 20; samples = 6 })` |
 | Where the time goes, thread by thread, and how evenly the pictures arrive | `pwsh scripts/trace-frames.ps1 -Exe <exe> -ScenarioArgs '{"view":"desktop","state":"walk"}'` |
+| Where the page's own main thread spends its time in a state (section 18.2) | start the app with `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9231`, then `node scripts/profile-page.mjs --port 9231 --seconds 60` |
 | What the browser holds, allocator by allocator | `pwsh scripts/start-hold.ps1 …`, then `node scripts/memory-dump.mjs` (the head of each script says how) |
 | Memory before and after the Island | `pwsh scripts/measure-island-leak.ps1 -Exe <exe> -Rounds 12` |
 | Every picture of every animation at a rate; the sounds | `npm run dev`, then `/viewer.html?only=rig&strip=24` and `/viewer.html#sounds` |
@@ -440,3 +443,140 @@ From `app/`:
 The states `app-polish-hold` can sit in (`app/src/spike/polish-scenarios.ts`): `view` pill, room, island or desktop; `state` rest, focus, asleep, watched (the pretend pointer kept on Doozer), walk (Desktop: one stroll after another) or card; `pace` still, calm or lively; `fps` to hold one rate; `pacing: false` to leave every animation to the browser, as before this phase.
 
 Two things that cost time here and need not again: a script started with `pwsh -File x.ps1 -Only a,b` receives `a,b` as one word (the check scripts split it themselves now); and arguments in JSON do not survive a `pwsh -Command` inside another shell, so call the scripts directly.
+
+## 18. Version 1.0.1: three things this document left open
+
+Done on 2026-11-20, after the release of 1.0.0, on the same machine. The numbers that follow were taken as before: two builds side by side at the same moment wherever a whole-app figure is given.
+
+### 18.1 The frame passed over, on a screen the rate does not divide: tried, and it stays
+
+**Not met.** Section 6 ended on a screen where 24 does not divide the refresh rate: the clock gets an even rhythm there by asking for a frame, finding it belongs to the refresh before the one it wants, and passing it over for the next. A frame asked for and thrown away for most pictures. Version 1.0.1 set out to remove it, and it cannot be removed by aiming. The clock ships as it was in 1.0.0. What follows is what was tried and how it is known.
+
+**What was built** (commit `d27aadf`, taken out again in `596f24d`). A frame passed over and the frame taken after it are two refreshes in a row, so the gap between their stamps is the screen's refresh interval. When three of those agreed the clock believed it, aimed each tick a whole number of refreshes after the last (the fewest that do not go over the rate asked for), and asked for its frame just after that refresh, counting on the browser to hand over the refresh just gone, as section 6 found it doing at 120 Hz.
+
+**On pretend screens it worked completely.** The clock's own tests (a fake clock, fake timers, frames stamped with their refresh), at 60, 75, 90, 120, 144 and 165 Hz, for a pretend browser that calls a page idle after three and a half refreshes and one that does after one and a half: wherever 1.0.0 asked for 1.5 or 2 frames a picture (24 a second at 60 and 90 Hz, 60 a second at 75, 144 and 165 Hz), the new clock asked for exactly 1, with the pictures at the same moments.
+
+**Then there was a real screen to try it on, after all.** With the monitor asleep (the owner away for some hours) this machine offers frames about every 18 ms, 55.8 a second: a screen that 24 does not divide. Both builds were traced on it by turns, Doozer walking without a pause:
+
+| On the real screen, about 56 Hz | Pictures a second | Gap between pictures: median | Share within a quarter of the median | 99 in 100 under | Frames asked for per picture |
+|---|---|---|---|---|---|
+| 1.0.0 (two runs) | 18.7, 18.9 | 53.8, 53.7 ms: three refreshes | 100 %, 96.9 % | 55.6, 55.1 ms | 1.58, 1.52 |
+| The attempt as first built (two runs) | 18.6, 18.9 | 53.7, 53.8 ms | 97.8 %, 96.9 % | 69.9, 55.6 ms | 1.53, 1.56 |
+| The attempt with its tolerance corrected (two runs) | 18.3, 18.4 | 53.7, 53.8 ms | 95.9 %, 96.8 % | **71.5, 71.5 ms** | 1.46, 1.48 |
+
+As first built it did nothing: a real screen's refreshes wander (17.5 to 18.4 ms from one to the next here), which over three of them is more than the 1 ms the clock allowed a frame to be off its aim, so it kept deciding it was wrong about the screen and forgetting it. With that allowed for (half a refresh either way) it kept its belief, 18.0 ms, and was worse: **pictures came a refresh late** (71.5 ms where the rhythm is 53.7; more than one in a hundred of them, fewer than one in twenty-five), for a saving of one frame in twenty. In 1.0.0's three runs on this screen no picture was late: its longest gaps were 55.6, 55.7 and 61 ms.
+
+**Why, asked of the browser directly.** A probe in the real window that draws something every third refresh and asks for its next frame at a chosen moment, forty times each (the timers are a millisecond or two late, as they are for the clock; the moments given are when the asking really happened):
+
+| Frame asked for | Handed the refresh aimed for, at once | Handed the one before, passed over, then the one aimed for | **Handed the next one: a refresh late** |
+|---|---|---|---|
+| 5.2 ms before the refresh aimed for | 2 | 38 | **0** |
+| 2.5 ms before | 8 | 24 | 8 |
+| 1.1 ms before | 5 | 27 | 8 |
+| 0.7 ms after | 17 | 15 | 8 |
+| 2.2 ms after | 14 | 8 | 18 |
+| 3.6 ms after | 20 | 8 | 12 |
+| 4.5 ms after | 23 | 5 | 12 |
+| 5.8 ms after | 18 | 4 | 18 |
+| 7.3 ms after | 22 | 1 | 17 |
+| 11.2 ms after | 22 | 0 | 18 |
+
+There is no moment to ask at which this browser reliably hands over the refresh wanted and nothing else. Asked for after it, a page that is really drawing gets it about half the time and the next one, late, three or four times in ten. Asked for well before it, the page is handed the refresh before, at once, and is then on time every time. (The same probe with the page otherwise idle looked better for asking after, 24 in 24, which is how the attempt came to be built on it; with real drawing it is not so. At 120 Hz with the screen awake, section 6 had it at 105 in 120.)
+
+**So the frame passed over is what an even rhythm costs here, and 1.0.0 already pays it rather than show late pictures.** On a screen the rate does not divide, the moment its ticks aim for falls between two refreshes, and a frame asked for there is the one before (passed over) or the one after (taken), never one later. That was left exactly as it was. What the frame costs: section 6 measured a version that passed one over on every tick at 13 to 24 % more processor time per second of movement; on the real screen above it is about one for every two pictures.
+
+**What ships, then:**
+
+- The frame clock of 1.0.0, unchanged in how it paces. (It gained two small things the host's clock needs, section 18.2: it can say whether somebody is there, and tell whoever asks when somebody arrives.)
+- **The rhythm, tested on every kind of screen** (`tests/frames.test.ts`, 32 new): on tidy pretend screens at 60, 75, 90, 120, 144 and 165 Hz, alone and with somebody there, every picture is held for the same whole number of refreshes and never more, with at most one frame passed over for each, and the animation moved on by exactly the time that passed; where the rate fits (120 Hz, and 24 a second at 144 Hz) no frame is ever passed over; an uneven screen; the window carried from 60 Hz to 90 Hz to 120 Hz; frames that stop coming. And on a pretend screen made to behave as the real one did (refreshes that wander, timers a millisecond or two late, a missed frame handed over only sometimes): no picture is ever a refresh late, and more than 97 in 100 are held for exactly three. That last screen is the one the attempt would have failed on, had it existed when the attempt was written.
+
+**What each screen gets** (held by those tests; the rate asked for is in effect a ceiling):
+
+| Screen | Nobody there (24 asked) | Somebody there (60 asked) |
+|---|---|---|
+| 60 Hz | 20 a second, every 3rd refresh | 60, every refresh |
+| 75 Hz | 25, every 3rd | 37.5, every 2nd |
+| 90 Hz | 22.5, every 4th | 45, every 2nd |
+| 120 Hz | 24, every 5th | 60, every 2nd |
+| 144 Hz | 24, every 6th | 48, every 3rd |
+| 165 Hz | 23.6, every 7th | 55, every 3rd |
+
+**The final build on that real screen**, traced again beside 1.0.0: 18.7 pictures a second in both; median gap 54.1 and 54.0 ms; 98.7 % of the gaps within a quarter of the median in both; longest gap 55.7 and 55.9 ms; 1.60 and 1.56 frames asked for per picture. The same clock, as intended.
+
+**Not verified:** a real monitor that is awake at 60 Hz. The screen above is this machine's with its monitor asleep, which may not hand frames out the way an awake 60 Hz monitor does; the display's settings were not to be touched. What to look for there is only whether Doozer alone moves evenly (20 pictures a second).
+
+**Found on the way, and left:** with the monitor asleep, and nobody able to see it, Doozer still draws when it moves. Nothing in the app knows the display is off. Stopping the frame clock while it is would save all of a walk's cost for as long as the screen is dark; that is a change to the shell (Windows tells a program when the display goes off), and it was not made here.
+
+### 18.2 The Pill's focus session
+
+Section 4 left a focus session in the Pill "at the line" (0.88, 1.17 and 0.93 % of a core in three samples), and guessed that about 0.3 % of it was the brain's tick and each view's bookkeeping, four times a second.
+
+**What it was actually spending**, looked at for the first time (`scripts/profile-page.mjs`, the page's main thread over a minute of a Pill session in the 1.0.0 build): busy **0.17 %** of the time, of which script 0.06 %; one style calculation every two seconds; **no frames at all**. Nothing is drawn in a Pill session, and nothing animates (asked of the page every 40 ms for half a minute: never). The 0.3 % of the guess was the whole browser renderer process, most of which is not the tick. What a Pill session costs is wake-ups: the brain's tick four times a second, the heartbeat to the shell every two seconds, the shell's own look at the cursor ten times a second, and, in every measurement in this document, the measuring scenario itself, which looks at Doozer twice a second to record what it was doing.
+
+**What was changed.** With nobody at the window the host now ticks the brain once a second instead of four times (`host.ts`). Nothing a tick does can be seen sooner than that with nobody there: the needs move a point in minutes, and a countdown nobody is looking at is shown in minutes. "Somebody is there" is the frame clock's account: a pointer or key event in the page in the last four seconds. The moment somebody arrives the brain is ticked at once, and four times a second from then on.
+
+- **A session still ends on time, and more nearly than before.** A running session's slow ticks are timed to land 8 ms after each whole second of its countdown, and the last one 8 ms after its end. A test holds that with nobody there the session completes within 10 ms of its time; with the four-a-second tick it could be 250 ms late. For this the brain gained one read-only question, `focusEndsInMs()`, because the time left in its state is rounded up to whole seconds.
+- **A countdown in seconds still shows every second** (its last minute counts in seconds even with nobody there): the ticks land on the seconds, and a test holds that sixty of them show sixty different seconds, none skipped and none twice.
+- **The watchdogs keep their limits.** The heartbeat to the shell is every two seconds as before and the shell's limit is six; neither was touched, and neither depends on the brain's tick. The scenes' own time limits are timers of their own. Every view's never-stuck checks pass on the final build (docs/release.md).
+- The brain's contract already said that calling `tick()` more or less often must not change the outcome; time away is still noticed after a gap of 90 seconds between ticks.
+
+**Before and after.**
+
+| | 1.0.0 | 1.0.1 |
+|---|---|---|
+| Wake-ups of the page for the brain's clock, nobody there | 4 a second | 1 a second |
+| The page's main thread during a Pill session (a minute, twice each, taken by turns) | busy 0.174 and 0.170 %; script 0.056 and 0.056 % | busy **0.151 and 0.153 %**; script 0.038 and 0.040 % |
+| Timers that fire in the page during a Pill session (40 s) | | 1.6 a second in all: the tick, and Doozer's blink |
+| A session's end with nobody there | up to 250 ms after its time | within 10 ms |
+| **A Pill session, the whole app: forty half-minute windows of each build, taken at the same moments** | mean 0.57 %, median 0.54 %, highest 1.24 %; 2 windows at or over 1 % | mean **0.47 %**, median 0.41 %, highest 0.98 %; **none at 1 %** |
+| The same by process (means): the page's process, the browser's own, graphics, the shell, the network service | 0.19, 0.15, 0.13, 0.06, 0.03 | 0.14, 0.13, 0.12, 0.06, 0.02 |
+| The Pill at rest, eight windows of each | mean 0.42 % | mean 0.32 % |
+
+**Under 1 %, and no longer at the line.** Window for window, 1.0.1 was lower by 0.10 % of a core on average (standard error 0.03), lower in 25 of the 40 pairs and the same in 4. A shorter comparison earlier the same evening (18 windows of each) could not tell the two apart, 0.62 against 0.59 %: it takes forty to see a tenth of a percent in this noise. These were taken on the build of commit `79b7fa1`; the final build differs from it only in the frame clock, which does not run in a Pill session, since nothing is drawn.
+
+**What these numbers are worth.** The saving is real and small: a tenth of a percent of a core over the whole app, of which the page's own main thread accounts for a fifth; the rest is what a wake-up costs outside it (the page's other threads, the browser's process, the graphics process each do a little less). A half-minute window of this state reads anywhere from 0.0 to 1.2 % for the same build, which is why it took forty pairs. Two things are worth saying plainly. The Pill's session was not at the line because of the tick alone: the readings in section 4 were taken in a busier hour, and 1.0.0 itself averages 0.57 % on a quiet one. And what is left of the cost was not touched: the browser being there at all (its own process reads 0.05 to 0.3 % whatever the page does), the heartbeat, and the shell looking at the cursor.
+
+### 18.3 The shell's style-repair counter
+
+The shell's cursor tracker rewrites the window's style whenever it is not what it should be, and counts it. The counter read 19 after Phase 9's three-hour soak and nobody knew why (section 15; desktop-checks.md).
+
+**It never counted a repair.** The tracker counted every style it wrote that did not follow from a decision of its own on that same tick. But three things in the shell change what the style should be and leave the writing to the tracker's next tick:
+
+- hiding the window while it is catching the mouse (the view tucked away behind a fullscreen app with the pointer on Doozer): a hidden window catches nothing whatever its style says, so the shell just notes "not catching" and the tracker writes the click-through style a tenth of a second later;
+- the start of a drag, when the shell marks the window as catching before the tracker has seen the cursor on it;
+- the tracker giving the keyboard back when the page never claimed it.
+
+Each of those is the shell catching up with itself. They are now counted as that (`style_catch_ups`), and a repair is only a write that nothing of the shell's own explains, which is what the name always said: somebody else (the window library, another program) rewrote the style. The style found and the style put back are kept for the report when it happens.
+
+**Confirmed by a soak** of the Desktop view on a build with the two counts apart: 25 minutes, 727 actions, 32 changes of window mode, 7 tuck-aways, 118 carries. **333 flips, 4 catch-ups, 0 repairs.** Four in 25 minutes is the same order as nineteen in three hours. The soak now fails if a repair is counted, and the shell's own test of a deliberately broken style (shell-spike 4.5, six breaks, six repairs) still counts six.
+
+So: not a bug in the window, a counter that counted the wrong thing. Nothing about how the window behaves was changed.
+
+### 18.4 Calm, strolling less, and the version 1.0.1 budget table
+
+**Decided on the owner's delegation** (spec section 13, 2026-11-20): Calm stays the default and strolls less often, to come within its budget of a twelve-minute average under 1 % of a core, but never rarer than about one stroll every four minutes on average; and if both cannot hold, the four-minute stroll is kept and the figure recorded. Calm now rests 140 to 280 s and then strolls nineteen times in twenty: one stroll every 3.7 minutes on average, where it was every 45 to 120 s three times in four (about every two minutes).
+
+**Calm over twelve minutes, the two builds side by side, twice** (60 s windows, the means; the final builds of each, on the evening of 2026-11-21 with the owner at the machine):
+
+| Run | 1.0.0 | 1.0.1 |
+|---|---|---|
+| A | **0.96 %**: 7 strolls and a peek, walking 8.7 % of the time | **1.08 %**: 3 strolls and a peek, walking 5.5 % |
+| B | **0.68 %**: 6 strolls, walking 3.8 % | **1.04 %**: 1 stroll and a peek, walking 4.4 % |
+
+**Not met, by a hair, and recorded as the brief asked.** 1.0.1 averaged 1.08 and 1.04 %. Two things stand out:
+
+- **The peek, not the stroll, is now what Calm costs.** In each 1.0.1 run a single minute held a peek (Doozer walks to the nearer screen edge and back, about forty seconds at 50 px/s) and that minute alone read 4.8 and 6.0 %; the other eleven minutes averaged 0.6 to 0.7 %. The spec asks for a peek "roughly once every ten minutes", so a twelve-minute window holds one more often than not, and with it the average sits at about 1 %. Fewer or shorter peeks would close it; that was not in the decision, and was not done.
+- **This evening's noise is as large as the difference between the builds.** 1.0.0 measured 0.96 and 0.68 % here, where Phase 10 had it at 2.81 and 2.89 % on a busier hour; its run B had no peek. Twelve-minute runs of a random pace do not separate the two builds; what the stroll change does is certain from the table itself: half as many strolls, each costing the same.
+
+**The 1.0.1 budget table**, the final build (half-minute windows, six of each; mean, median and the highest window; memory is the private working set):
+
+| View | At rest | In a focus session | Memory |
+|---|---|---|---|
+| Pill | 0.50 % (median 0.52, highest 0.98) | 0.68 % (0.62, 1.29) | 97 to 104 MB |
+| Room | 0.75 % (0.54, 1.70) | 0.66 % (0.65, 1.29) | 114 to 133 MB |
+| Island | 0.53 % (0.34, 1.39) | 0.45 % (0.46, 0.67) | 120 to 134 MB |
+| Desktop, Still | 0.31 % (0.26, 0.57) | 0.50 % (0.41, 0.83), on Calm | 130 to 141 MB |
+| Desktop, Calm, twelve minutes | **1.08 and 1.04 %** (medians 0.58 and 0.43) | | 125 to 140 MB |
+| Budget | under 1 % | under 1 % | under 150 MB |
+
+Every view at rest and every focus session is under 1 % on average and every state under 150 MB; a few single half-minutes went over (the owner was using the machine). Calm's twelve-minute average is at 1.04 to 1.08 %, as above. The Pill's focus session was measured more closely in section 18.2 (forty paired windows: 0.47 % against 0.57 % for 1.0.0).

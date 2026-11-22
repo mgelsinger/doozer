@@ -51,7 +51,7 @@ Rules for a view:
 
 **Never stuck.** Every wait has a limit: a pop-out that never settles, a frame that never comes (a hidden window draws none), a window that refuses to change, a view that throws while mounting. The result is always either a view on screen with its regions reported (the first view in the list is the fallback), or nothing shown and the whole window click-through.
 
-**The clock.** `brain.tick()` every 250 ms, every second while tucked away. A listener that throws does not stop it.
+**The clock.** `brain.tick()` every 250 ms while somebody is at the window, once a second while nobody is, and once a second while tucked away. "Somebody is there" is the frame clock's account (`frames.ts`): a pointer or key event in the page in the last four seconds; the moment somebody arrives the brain is ticked at once. With nobody there a running session's ticks land 8 ms after each whole second of its countdown and the last one on its end (`brain.focusEndsInMs()`), so a countdown in seconds still shows every second and a session ends on time. A listener that throws does not stop the clock.
 
 **Saving.** Within a second of anything happening (an action, a setting, a session event, a view changing its note, coming back from time away), within five minutes when only time has passed, when tucking away, and before quitting. Quit from the tray arrives as the shell's `quit-requested`; the host saves and answers with `shell.quit()`, and the shell quits by itself after 0.9 s if the page never answers. If the save could not even be *read* at start-up the host runs without writing, so a good save is never replaced by a new pet.
 

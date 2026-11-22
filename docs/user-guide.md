@@ -6,11 +6,19 @@ Nothing bad ever happens to Doozer. It never dies, it is never hungry because yo
 
 ## Installing
 
-Run `Doozer_1.0.0_x64-setup.exe`. It installs for you alone (no administrator password), into `%LOCALAPPDATA%\Doozer`, and adds Doozer to the Start menu. It needs Windows 10 or 11.
+Run `Doozer_1.0.1_x64-setup.exe`. It installs for you alone (no administrator password), into `%LOCALAPPDATA%\Doozer`, and adds Doozer to the Start menu. It needs Windows 10 or 11, 64-bit.
 
 The installer is not signed. If Windows SmartScreen says it "protected your PC", choose *More info*, then *Run anyway*.
 
-Doozer keeps to itself: no account, no updates in the background, nothing sent anywhere. (The one exception is the installer itself, on a PC that lacks Microsoft's WebView2 runtime: it fetches that from Microsoft. Windows 11 always has it.)
+Doozer is free to use and to pass on unchanged; `LICENSE.txt`, installed beside the program, says so in full, and `THIRD-PARTY-NOTICES.txt` beside it lists the work of others it is built with.
+
+## Privacy
+
+Doozer collects nothing and sends nothing. It makes no network requests of any kind: no account, no updates, no analytics, no crash reports. The page Doozer is drawn in is not allowed to reach the network at all.
+
+Everything it knows stays on your PC: your pet and your settings, in one small file (*Your pet's save*, below). Nothing else is written outside the program's own folder, apart from the browser engine's own cache in `%LOCALAPPDATA%\com.doozer.desktop` and, if you switch it on, one *Start with Windows* entry. Uninstalling removes both, and asks whether to delete the save too.
+
+The one exception is not Doozer but the installer, and only on a PC that lacks Microsoft's WebView2 runtime (Windows 11 always has it): there it fetches that runtime from Microsoft.
 
 ## Finding Doozer
 

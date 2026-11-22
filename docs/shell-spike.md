@@ -295,7 +295,7 @@ Desktop Duplication returned lighter colours than a plain screen copy of the sam
 - **A development build keeps its own save**, in a `dev` subfolder of the app-data folder.
 - **"Coming soon" in the native menu:** `set_available_views` disables the items of views that are not built and says so in their text.
 - **The right-click menu hands focus back.** The menu library has to make the window the foreground window for the popup to close on a click elsewhere; when the popup closes the shell gives the foreground back to whichever window had it. Not yet tried by a person.
-- Still not built: a content security policy, an installer.
+- Still not built: a content security policy, an installer. (Both since done: the installer in Phase 11, the policy in version 1.0.1; [release.md](release.md).)
 - **The identifier is settled: `com.doozer.desktop` stays** (2026-11-13). It names the save folder, so it must never change; it is the constant `APP_ID` in `lib.rs`, and a test keeps it equal to `identifier` in `tauri.conf.json`.
 
 **What Phase 7 added to the shell** (2026-11-13):
