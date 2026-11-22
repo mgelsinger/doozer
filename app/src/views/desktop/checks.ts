@@ -426,6 +426,11 @@ const stuck: Scenario = async (app) => {
   await sleep(400);
   released.length = 0;
   const second = snap(app);
+  // How carries have ended so far: this carry's own ending is the difference. (Reading the
+  // running total instead failed once, on a busy machine, with this carry ended correctly:
+  // the first drag's end, a mouse-up and the shell's notice arriving together, had been
+  // counted as the shell's notice rather than the mouse-up.)
+  const dropsBefore = { ...snap(app).drops };
   carry = await carryTo(app, { x: Math.round(second.x + 500), y: Math.round(second.y - 420) }, { steps: 12, stepMs: 16 });
   const held = { state: snap(app).state, native: await status() };
   const t0 = performance.now();
@@ -444,9 +449,12 @@ const stuck: Scenario = async (app) => {
     'lost mouse-up: the shell said so exactly once': released.length === 1,
     'lost mouse-up: Doozer is back on the line': landedB && afterB.ok,
     'lost mouse-up: click-through again at rest': restedNative.styleClickThrough && !restedNative.catching && !restedNative.holding,
-    'lost mouse-up: counted as ended by the shell': (snap(app).drops.released ?? 0) === 1,
+    'lost mouse-up: counted as ended by the shell': (snap(app).drops.released ?? 0) - (dropsBefore.released ?? 0) === 1,
   });
-  out.lostMouseUp = { endedAfterMs, released: released.length, afterB };
+  const dropsAfter: Record<string, number | undefined> = { ...snap(app).drops };
+  const dropsThen: Record<string, number | undefined> = dropsBefore;
+  const countedAs = Object.fromEntries(Object.keys(dropsAfter).map((cause) => [cause, (dropsAfter[cause] ?? 0) - (dropsThen[cause] ?? 0)]).filter(([, n]) => n !== 0));
+  out.lostMouseUp = { endedAfterMs, released: released.length, countedAs, dropsBefore, afterB };
 
   // 3. The shell never saw the press at all (so it will never say it ended): the next
   //    pointer move with no button ends the carry.
