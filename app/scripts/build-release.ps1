@@ -55,10 +55,31 @@ try {
   @{ build = @{ frontendDist = "target/release-page/$name"; beforeBuildCommand = '' } } |
     ConvertTo-Json -Compress | Set-Content -Path $override -Encoding utf8NoBOM
 
-  npx tauri build --config $override
-  if ($LASTEXITCODE -ne 0) { throw 'the installer did not build' }
+  # Paths of this machine must not be in the program. Rust writes the source path of a
+  # library into the program wherever that library can report an error, and the libraries
+  # are kept under the user's profile (~\.cargo\registry), so without this the program
+  # carried the user's name 158 times (docs/release.md, "Ready to publish"). Each path is
+  # mapped to a neutral word. CARGO_ENCODED_RUSTFLAGS takes them one per field, so a path
+  # with a space in it is safe.
+  $remap = [System.Collections.Generic.List[string]]::new()
+  $cargoHome = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $env:USERPROFILE '.cargo' }
+  $rustupHome = if ($env:RUSTUP_HOME) { $env:RUSTUP_HOME } else { Join-Path $env:USERPROFILE '.rustup' }
+  $repoRoot = (Resolve-Path (Join-Path $app '..')).Path.TrimEnd('\')
+  foreach ($pair in @(@($cargoHome, 'cargo'), @($rustupHome, 'rustup'), @($repoRoot, 'doozer'), @($env:USERPROFILE, 'home'))) {
+    $remap.Add('--remap-path-prefix'); $remap.Add("$($pair[0])=$($pair[1])")
+  }
+  $env:CARGO_ENCODED_RUSTFLAGS = $remap -join [char]0x1f
+  try {
+    npx tauri build --config $override
+    if ($LASTEXITCODE -ne 0) { throw 'the installer did not build' }
+  }
+  finally { Remove-Item Env:CARGO_ENCODED_RUSTFLAGS -ErrorAction SilentlyContinue }
 }
 finally { Pop-Location }
+
+# And check: nothing of this machine's, or of whoever built it, in what ships.
+& (Join-Path $PSScriptRoot 'scan-personal.ps1') -Path (Join-Path $tauri 'target\release\doozer.exe'), (Join-Path $tauri 'installer'), $dist
+if ($LASTEXITCODE -ne 0) { throw 'personal details were found in what ships (above)' }
 
 $version = (Get-Content (Join-Path $app 'package.json') -Raw | ConvertFrom-Json).version
 $setup = Join-Path $tauri "target\release\bundle\nsis\Doozer_${version}_x64-setup.exe"

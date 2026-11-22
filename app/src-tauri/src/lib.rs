@@ -390,6 +390,20 @@ mod tests {
     assert!(!csp.get("script-src").and_then(|v| v.as_str()).unwrap_or("").contains("unsafe-inline"));
   }
 
+  /// Doozer's licence is installed beside the program (decided 2026-11-20 for the public
+  /// release): free to use and to pass on unchanged, no warranty, and no licence page in
+  /// the installer. It must not name anybody: the copyright is "the author of Doozer".
+  #[test]
+  fn the_licence_ships_and_names_nobody() {
+    let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+    assert_eq!(config["bundle"]["resources"]["installer/LICENSE.txt"], "LICENSE.txt");
+    assert!(config["bundle"]["licenseFile"].is_null(), "no licence page in the installer");
+    let licence = include_str!("../installer/LICENSE.txt");
+    assert!(licence.contains("Copyright (c) 2026 the author of Doozer"));
+    assert!(licence.contains("without any warranty"));
+    assert!(licence.contains("unchanged"));
+  }
+
   /// One version, written in three places (the installer and "Installed apps" read
   /// tauri.conf.json, the executable's properties Cargo.toml, the page package.json).
   #[test]

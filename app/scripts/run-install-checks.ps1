@@ -161,6 +161,7 @@ try {
   Check (Test-Path $exe) "the program is in $installDir"
   Check (Test-Path $uninstaller) 'its uninstaller is beside it'
   Check (Test-Path (Join-Path $installDir 'THIRD-PARTY-NOTICES.txt')) 'the third-party notices are beside it'
+  Check (Test-Path (Join-Path $installDir 'LICENSE.txt')) "Doozer's own licence is beside it"
   Check (Test-Path $startMenu) 'it is in the Start menu'
   if (Test-Path $desktop) { Note 'a silent install also puts a shortcut on the desktop' }
   $entry = Get-ItemProperty $uninstallKey -ErrorAction SilentlyContinue

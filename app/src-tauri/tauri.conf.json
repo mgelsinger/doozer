@@ -75,7 +75,8 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "installer/THIRD-PARTY-NOTICES.txt": "THIRD-PARTY-NOTICES.txt"
+      "installer/THIRD-PARTY-NOTICES.txt": "THIRD-PARTY-NOTICES.txt",
+      "installer/LICENSE.txt": "LICENSE.txt"
     },
     "windows": {
       "webviewInstallMode": {

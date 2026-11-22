@@ -1,0 +1,20 @@
+Doozer
+Copyright (c) 2026 the author of Doozer
+
+You may use this program for free, for as long as you like, on as many of your own
+computers as you like.
+
+You may give copies of it to anyone, free of charge, as long as you pass it on
+unchanged: the installer as it is, or the installed program with this file and
+THIRD-PARTY-NOTICES.txt beside it. You may not sell it, and you may not change it
+and pass the changed program on.
+
+The program is provided as it is, without any warranty of any kind, express or
+implied, including the warranties of merchantability, fitness for a particular
+purpose and non-infringement. In no event shall the author be liable for any claim,
+damages or other liability, whether in an action of contract, tort or otherwise,
+arising from, out of or in connection with the program or its use.
+
+Doozer includes the work of other people, each under its own licence. Those
+licences are in THIRD-PARTY-NOTICES.txt, installed beside this file, and nothing in
+this file changes them.
