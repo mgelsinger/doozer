@@ -199,6 +199,16 @@ export function createSettingsPanel(brain: Brain, options: SettingsPanelOptions 
     { value: 'normal', label: 'Normal' }, { value: 'large', label: 'Large' }, { value: 'larger', label: 'Larger' },
   ], () => brain.settings.uiScale, (value) => set('uiScale', value)), '', true);
 
+  // ---- Frame rate (src/frames.ts) -----------------------------------------------------
+  const always = (fps: string, more: string): string => `${fps} pictures a second all the time, or as many as your screen shows. ${more}`;
+  row('Frame rate', segmented<Settings['frameRate']>('Frame rate', () => [
+    { value: 'light', label: 'Light', tip: '24 pictures a second on its own, 60 while you are with it. Lightest on your PC' },
+    { value: '30', label: '30', tip: '30 pictures a second on its own, 60 while you are with it' },
+    { value: '60', label: '60', tip: always('60', 'Uses more of your PC') },
+    { value: '120', label: '120', tip: always('120', 'Uses a lot more of your PC') },
+    { value: '144', label: '144', tip: always('144', 'Uses a lot more of your PC') },
+  ], () => brain.settings.frameRate, (value) => set('frameRate', value)), 'Smoother uses more of your PC', true);
+
   // ---- Reduce motion ------------------------------------------------------------------
   row('Reduce motion', segmented<Settings['reduceMotion']>('Reduce motion', () => [
     { value: 'system', label: 'Follow system' }, { value: 'on', label: 'On' }, { value: 'off', label: 'Off' },

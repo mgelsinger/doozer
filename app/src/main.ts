@@ -56,6 +56,11 @@ async function startApp(root: HTMLElement, run: TestRun): Promise<App> {
     debug: import.meta.env.DEV || run.enabled,
   });
 
+  // The Frame rate setting (src/frames.ts). A scripted run that asks for a rate of its own
+  // (`fps`) sets it after this, and keeps it unless the setting is changed.
+  frames.choose(brain.settings.frameRate);
+  brain.on('settings', ({ key }) => { if (key === 'frameRate') frames.choose(brain.settings.frameRate); });
+
   const pill = createPillView();
   const room = createRoomView();
   // The Island only loads three.js when it is switched to (views/island/index.ts).

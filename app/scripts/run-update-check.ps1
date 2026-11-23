@@ -119,6 +119,26 @@ $lookAfter = @'
 })()
 '@
 
+# The Frame rate row (1.1.0): which choices it has and which is checked; then choose 144.
+$frameRateRow = @'
+(async () => {
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const q = (s) => document.querySelector(s);
+  const until = async (find) => { for (let i = 0; i < 50 && !find(); i++) await wait(100); return find(); };
+  const find = () => q('[role="radiogroup"][aria-label="Frame rate"]');
+  const pill = q('.pillv-pill');
+  if (!find()) { if (!q('[data-act="settings"]')) pill?.click(); await until(() => q('[data-act="settings"]')); q('[data-act="settings"]')?.click(); }
+  const group = await until(find);
+  if (!group) return 'no frame rate row';
+  const values = [...group.querySelectorAll('[role="radio"]')].map((b) => b.dataset.value).join(',');
+  const checked = group.querySelector('[aria-checked="true"]')?.dataset.value ?? 'none';
+  group.querySelector('[data-value="144"]')?.click();
+  await wait(1200);
+  const now = find()?.querySelector('[aria-checked="true"]')?.dataset.value ?? 'gone';
+  return values + '|' + checked + '|chose ' + now;
+})()
+'@
+
 # ---- nothing of Doozer may be here already ------------------------------------------------
 $inTheWay = @()
 if (@(Get-Process doozer -ErrorAction SilentlyContinue).Count) { $inTheWay += 'a Doozer is running (or a test of one)' }
@@ -155,6 +175,13 @@ try {
   Check ($after.palette -eq 'mint' -and $after.sound -eq $true -and $after.desktopActivity -eq 'still') "the same settings: $($after.palette), sound $($after.sound), $($after.desktopActivity)"
   $colour = Ask-Page 'getComputedStyle(document.querySelector(".dz") ?? document.body).getPropertyValue("--dz-body").trim().toLowerCase()'
   Check ($colour -eq '#a9e8cf') "Doozer is drawn in Mint (its body colour is $colour)"
+  # From 1.1.0: a save from before the Frame rate setting comes up at the default, and a choice is kept.
+  if ([version]$version -ge [version]'1.1.0') {
+    $rates = Ask-Page $frameRateRow
+    Check ($rates -like 'light,30,60,120,144|light|chose 144*') "Settings offers Light, 30, 60, 120 and 144, at Light after the update, and takes 144 (the page says $rates)"
+    $chosen = Ask-Page 'window.__TAURI_INTERNALS__.invoke("load_save").then((s) => JSON.parse(s.data).brain.settings.frameRate ?? "none")'
+    Check ($chosen -eq '144') "the save holds the rate chosen ($chosen)"
+  }
   Stop-Installed
 
   '3. uninstall'

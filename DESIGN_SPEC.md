@@ -319,6 +319,7 @@ Everything that is *interface* rather than *world* — the pill, the Card, the R
 | Start with Windows | On · Off | Off |
 | Reduce motion | On · Off | Follows the system |
 | Interface size | Normal · Large · Larger | Normal (added in Phase 10; section 13) |
+| Frame rate | Light · 30 · 60 · 120 · 144 | Light: 24 a second alone, 60 with somebody there (added in 1.1.0; section 13) |
 
 ---
 
@@ -391,3 +392,4 @@ Record any change made after sign-off here, with the date and who asked for it.
   5. **Section 12:** Doozer is an original creature; the release is a public release of the installer only, unsigned, no updater, source not published; the default pace is Calm.
   6. **The name and the identifier stay.** The Jim Henson Company uses "Doozers" (in *Fraggle Rock*, and a children's series of that name); a rename is cheap before the first public upload and costly after. docs/release.md says so plainly; it is not legal advice.
   7. **Terms:** a short licence (`LICENSE.txt`) installed beside the program; no licence page in the installer; a Privacy section in the user guide (Doozer collects nothing and makes no network requests); nothing the owner is named by goes into anything that ships.
+- **2026-11-23** (owner asked: "30fps, 60fps, 120fps, 144fps should all be available"; details decided by Claude, owner delegated) — Section 9 gains a row, **Frame rate**: Light · 30 · 60 · 120 · 144. **Light is the default** and is decision 2 above unchanged (24 a second alone, 60 with the pointer on Doozer); it is the only choice measured within section 10's budget of 1 % of a core, so it stays the default. A number is the rate with nobody there; with somebody there it is that or 60, whichever is more. A rate above the screen's refresh is every refresh (144 on a 120 Hz screen is 120). The Island's own lower caps (30 alone, 60 lively) are lifted to a chosen number. What each choice costs is in [docs/polish-checks.md](docs/polish-checks.md) section 19. Version 1.1.0.

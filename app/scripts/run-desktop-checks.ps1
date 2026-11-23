@@ -6,6 +6,7 @@
 #   pwsh app/scripts/run-desktop-checks.ps1 -Only app-desktop-hello      # a ten-second look: does the view come up here at all
 #   pwsh app/scripts/run-desktop-checks.ps1 -Soak 180                # the soak alone: three hours of random actions
 #   pwsh app/scripts/run-desktop-checks.ps1 -Show                    # let the window be seen
+#   pwsh app/scripts/run-desktop-checks.ps1 -FrameRate 144           # at a chosen Frame rate (default: the app's own)
 #
 # Needs a build with the test hooks; scripts/build-desktop-checks.ps1 makes one in its
 # own folders (the default -Exe here).
@@ -22,6 +23,8 @@ param(
   [int] $Seed = 20261113,
   # Where to keep the reports. Default: a scratch folder that is removed at the end if nothing failed.
   [string] $Out = '',
+  # The Frame rate setting to run at (1.1.0): light, 30, 60, 120 or 144. Default: the app's own default.
+  [string] $FrameRate = '',
   [switch] $Show
 )
 
@@ -55,6 +58,7 @@ function Stop-Tree([int] $rootId) {
 # One run of the app: a scenario, optional arguments, a time limit. Returns the report.
 function Invoke-Scenario([string] $name, [hashtable] $arguments = @{}, [int] $limitSeconds = 240) {
   $arguments.tag = $name
+  if ($FrameRate) { $arguments.frameRate = $FrameRate }
   $env:DOOZER_SPIKE = $name
   $env:DOOZER_SPIKE_ARGS = ($arguments | ConvertTo-Json -Compress)
   $report = Join-Path $outDir "$name.json"

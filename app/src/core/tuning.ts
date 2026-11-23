@@ -126,6 +126,7 @@ export function defaultSettings(): Settings {
     startWithWindows: false,
     reduceMotion: 'system',
     uiScale: 'normal',
+    frameRate: 'light',
     hat: null,
     lastView: 'pill',
   };

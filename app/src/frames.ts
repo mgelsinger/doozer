@@ -48,8 +48,16 @@
 // animation. `ATTENDED_FPS` (60) while the pointer is on something of Doozer's or was a
 // moment ago (`attend`). The window is click-through everywhere else, so any pointer event
 // the page sees means someone is at it. The numbers are a trade of smoothness against
-// processor time and are the owner's to change (docs/polish-checks.md section 2 has what
-// each costs): 30 instead of 24 costs about a third more for everything Doozer does alone.
+// processor time (docs/polish-checks.md section 2 has what each costs): 30 instead of 24
+// costs about a third more for everything Doozer does alone.
+//
+// The Frame rate setting (1.1.0) lets whoever uses Doozer make that trade themselves
+// (`choose`). 'light' is the two rates above and the default, and the only choice that
+// keeps Doozer inside its budget of one per cent of a core. A number is the rate with
+// nobody there, and the rate with somebody there is that or 60, whichever is more. A rate
+// higher than the screen refreshes is simply every refresh: asked for 144 on a 120 Hz
+// screen, a tick's frame is always the next refresh (`schedule` asks at once), so it is
+// 120. docs/polish-checks.md section 19 has what each choice costs.
 //
 // Never stuck. Nothing here decides when anything ends: scenes, faces and performances
 // are ended by timers elsewhere (character/expression-state.ts, ui/lifecycle.ts). This
@@ -69,6 +77,7 @@
 // `data-live` anywhere wakes the clock.
 
 import { realTimers, type Timers } from './character/timers';
+import type { FrameRateId } from './core/contract';
 
 /** Frames a second with nobody there. */
 export const AMBIENT_FPS = 24;
@@ -90,6 +99,14 @@ const EARLY_MS = 2;
 const HOP_MS = 24;
 /** Every CSS animation inside an element matching this is held still. */
 const HOLD = '[data-live="0"]';
+
+/** The two rates for a choice of the Frame rate setting. */
+export function ratesFor(choice: FrameRateId): { ambient: number; attended: number } {
+  if (choice === 'light') return { ambient: AMBIENT_FPS, attended: ATTENDED_FPS };
+  const fps = Number(choice);
+  if (!Number.isFinite(fps) || fps <= 0) return { ambient: AMBIENT_FPS, attended: ATTENDED_FPS };
+  return { ambient: fps, attended: Math.max(fps, ATTENDED_FPS) };
+}
 
 export type FrameCallback = (now: number) => void;
 /** Asks for one frame; returns the function that takes the request back. */
@@ -180,6 +197,7 @@ export class FrameClock {
   private readonly arrivals = new Set<() => void>();
   private ambient = AMBIENT_FPS;
   private attended = ATTENDED_FPS;
+  private floor_ = 0;
   private readonly stats_ = { ticks: 0, fallbacks: 0, passedOver: 0, late: 0, adopted: 0, finished: 0, released: 0, moving: 0 };
 
   constructor(options: FrameClockOptions = {}) {
@@ -258,6 +276,18 @@ export class FrameClock {
     if (rates.ambient !== undefined && rates.ambient > 0) this.ambient = rates.ambient;
     if (rates.attended !== undefined && rates.attended > 0) this.attended = rates.attended;
   }
+
+  /** Take up a choice of the Frame rate setting. It counts from the next tick on. */
+  choose(choice: FrameRateId): void {
+    this.setRates(ratesFor(choice));
+    this.floor_ = choice === 'light' ? 0 : this.ambient;
+  }
+
+  /**
+   * The rate chosen in settings, or 0 for 'light'. For what keeps its own, lower caps
+   * (the Island's renderer), so that a chosen rate lifts them too.
+   */
+  get floor(): number { return this.floor_; }
 
   // ---- taking the page's animations over ----------------------------------------------
 

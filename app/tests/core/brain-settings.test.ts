@@ -17,6 +17,7 @@ describe('settings', () => {
       startWithWindows: false,
       reduceMotion: 'system',
       uiScale: 'normal',
+      frameRate: 'light',
       hat: null,
       lastView: 'pill',
     } satisfies Settings);
@@ -47,6 +48,7 @@ describe('settings', () => {
       startWithWindows: [true, false],
       reduceMotion: ['on', 'off', 'system'],
       uiScale: ['large', 'larger', 'normal'],
+      frameRate: ['30', '60', '120', '144', 'light'],
       hat: ['nightcap', 'bow', null],
       lastView: ['room', 'island', 'desktop', 'pill'],
     };

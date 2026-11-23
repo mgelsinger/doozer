@@ -14,6 +14,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import type { NeedKey, Settings } from '../../core/contract';
+import { readSetting } from '../../core/save';
 import { parseSave } from '../../host/store';
 import type { App } from '../../main';
 import { shell, type Region } from '../../shell';
@@ -1360,6 +1361,10 @@ export async function runDesktopChecks(app: App, run: TestRun): Promise<void> {
   const names = scenarioNames(run);
   const whole: Record<string, unknown> = { run, startedAt: new Date().toISOString(), scenarios: {} };
   const results = whole.scenarios as Record<string, unknown>;
+  // The Frame rate setting to run at, as somebody would choose it (1.1.0; run-desktop-checks.ps1 -FrameRate).
+  const rate = readSetting('frameRate', args.frameRate);
+  if (rate !== undefined) app.brain.setSetting('frameRate', rate);
+  whole.frameRate = app.brain.settings.frameRate;
   for (const name of names) {
     const scenario = SCENARIOS[name];
     try {

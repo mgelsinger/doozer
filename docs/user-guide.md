@@ -85,6 +85,7 @@ Pick one in the menu or in the row of homes on the Card. Everything carries over
 | Start with Windows | Off by default. |
 | Reduce motion | Follows Windows unless you choose. Doozer stops wandering and bouncing; nothing flies about. |
 | Interface size | Normal, Large or Larger: everything, in every home. |
+| Frame rate | How many pictures a second Doozer is drawn at. *Light* (the default) is 24 when you are not near it and 60 when you are, and is the lightest on your PC. *30*, *60*, *120* or *144* draw about that many all the time (and never fewer than 60 while you are with it), up to what your screen can show: smoother, and the higher ones use a good deal more of your PC. |
 
 ## Quitting
 
@@ -111,3 +112,4 @@ Either way the program, its shortcuts and its *Start with Windows* entry are rem
 - **Ctrl+Alt+D does nothing.** Another program has that shortcut. *Open Doozer's card* in the tray menu does the same.
 - **It looks too small or too large.** *Size* for Doozer's home, *Interface size* for everything.
 - **It moves too much, or too little.** *Desktop activity* and *Reduce motion*.
+- **The motion looks choppy.** Choose a higher *Frame rate*, such as your screen's own (often 60, 120 or 144).

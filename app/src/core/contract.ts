@@ -94,6 +94,8 @@ export interface PetState {
 // ---- settings -------------------------------------------------------------------
 
 export type SizeId = 'small' | 'medium' | 'large';
+/** 'light': 24 a second with nobody there and 60 with somebody. A number: that many all the time, and at least 60 with somebody (up to what the screen shows). */
+export type FrameRateId = 'light' | '30' | '60' | '120' | '144';
 
 export interface Settings {
   palette: PaletteId;                                    // default 'peach'
@@ -108,6 +110,7 @@ export interface Settings {
   startWithWindows: boolean;                             // default false
   reduceMotion: 'system' | 'on' | 'off';                 // default 'system'
   uiScale: 'normal' | 'large' | 'larger';                // default 'normal'; how large the whole interface is drawn
+  frameRate: FrameRateId;                                // default 'light'; how many pictures a second Doozer is drawn at (src/frames.ts)
   hat: HatId | null;                                     // default null; only unlocked hats take effect
   lastView: ViewId;                                      // default 'pill'
 }

@@ -1,7 +1,7 @@
 {
   "name": "doozer-app",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Doozer - a desktop virtual pet. One pet, four homes. See ../DESIGN_SPEC.md and ../WORK_PLAN.md.",
   "type": "module",
   "scripts": {

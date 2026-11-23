@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AMBIENT_FPS, ATTENDED_FPS, ATTEND_MS, FALLBACK_MS, FrameClock } from '../src/frames';
+import { AMBIENT_FPS, ATTENDED_FPS, ATTEND_MS, FALLBACK_MS, FrameClock, ratesFor } from '../src/frames';
 
 // ---- A pretend screen: a clock, timers, and frames at a refresh rate -------------------
 
@@ -939,5 +939,55 @@ describe('somebody arriving', () => {
     clock.onArrive(arrived);
     clock.attend(0);
     expect(arrived).not.toHaveBeenCalled();
+  });
+});
+
+// ---- The Frame rate setting ------------------------------------------------------------------------
+
+describe('the Frame rate setting', () => {
+  it('light is the two rates of 1.0; a number is that rate alone and at least 60 with somebody there', () => {
+    expect(ratesFor('light')).toEqual({ ambient: AMBIENT_FPS, attended: ATTENDED_FPS });
+    expect(ratesFor('30')).toEqual({ ambient: 30, attended: 60 });
+    expect(ratesFor('60')).toEqual({ ambient: 60, attended: 60 });
+    expect(ratesFor('120')).toEqual({ ambient: 120, attended: 120 });
+    expect(ratesFor('144')).toEqual({ ambient: 144, attended: 144 });
+    // Anything a save could not have held is the default.
+    expect(ratesFor('7x' as never)).toEqual({ ambient: AMBIENT_FPS, attended: ATTENDED_FPS });
+  });
+
+  it('a choice sets the rate and the floor the Island lifts its own caps to, and light takes both back', () => {
+    const { clock } = setUp();
+    expect(clock.floor).toBe(0);
+    clock.choose('120');
+    expect(clock.fps).toBe(120);
+    expect(clock.floor).toBe(120);
+    clock.choose('30');
+    expect(clock.fps).toBe(30);
+    clock.attend();
+    expect(clock.fps).toBe(60);
+    clock.choose('light');
+    expect(clock.fps).toBe(ATTENDED_FPS);
+    expect(clock.floor).toBe(0);
+  });
+
+  /** Pictures drawn in two seconds of one animation running, after the first half second. */
+  function picturesAt(hz: number, choice: Parameters<FrameClock['choose']>[0]): number {
+    const { screen, page, clock } = setUp(hz);
+    clock.choose(choice);
+    page.add({ css: true });
+    page.emit('animationstart');
+    screen.advance(500);
+    const before = clock.stats.ticks;
+    screen.advance(2000);
+    return (clock.stats.ticks - before) / 2;
+  }
+
+  it.each([
+    // [screen, choice, pictures a second]
+    [120, '30', 30], [120, '60', 60], [120, '120', 120], [120, '144', 120],
+    [144, '144', 144], [144, '120', 144], [144, '30', 28.8],
+    [60, '60', 60], [60, '120', 60], [60, '144', 60], [60, '30', 30],
+  ] as const)('on a %d Hz screen, %s is drawn at %d a second', (hz, choice, fps) => {
+    expect(picturesAt(hz, choice)).toBeCloseTo(fps, -0.5);
   });
 });

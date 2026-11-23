@@ -9,6 +9,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import type { ViewId } from '../core/contract';
+import { readSetting } from '../core/save';
 import { frames } from '../frames';
 import { UI_SCALE } from '../host/host';
 import type { Region } from '../shell';
@@ -129,6 +130,7 @@ function activity(app: App, view: ViewId): { lively: boolean; walking: boolean; 
  *   hour   Room only: pretend it is this hour of the day
  *   style  a stylesheet to add, for experiments
  *   fps    draw at this many frames a second whoever is there
+ *   frameRate  the Frame rate setting: light | 30 | 60 | 120 | 144
  *   script the body of a function of `app`, run once the state is set up (experiments)
  *   pacing false: leave every animation to the browser, as before Phase 10
  */
@@ -138,6 +140,9 @@ const hold: Scenario = async (app, args) => {
   const { brain } = app;
   // (`pacing: false` is read at start-up, in main.ts: the clock is then never attached.)
   if (typeof args.fps === 'number') frames.setRates({ ambient: args.fps, attended: args.fps });
+  // The Frame rate setting, chosen as somebody would choose it (1.1.0).
+  const rate = readSetting('frameRate', args.frameRate);
+  if (rate !== undefined) brain.setSetting('frameRate', rate);
   if (view === 'desktop') {
     const pace = (['still', 'calm', 'lively'] as const).find((p) => p === args.pace) ?? 'calm';
     brain.setSetting('desktopActivity', pace);

@@ -137,6 +137,7 @@ const SETTING_READERS: { readonly [K in keyof Settings]: (v: unknown) => Setting
   startWithWindows: bool,
   reduceMotion: oneOf(['system', 'on', 'off'] as const),
   uiScale: oneOf(['normal', 'large', 'larger'] as const),
+  frameRate: oneOf(['light', '30', '60', '120', '144'] as const),
   hat: oneOf(HATS),
   lastView: oneOf(VIEWS),
 };

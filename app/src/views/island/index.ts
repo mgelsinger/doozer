@@ -273,8 +273,8 @@ export function createIslandView(options: IslandViewOptions = {}): IslandView {
         if (!moving) flushRegions();
         return moving;
       },
-      // Sixty a second only for what somebody is there to see.
-      fps: () => Math.min(stage?.active && attention?.lively ? ACTIVE_FPS : AMBIENT_FPS, pageFps()),
+      // Sixty a second only for what somebody is there to see, unless a higher rate was chosen in settings.
+      fps: () => Math.min(Math.max(stage?.active && attention?.lively ? ACTIVE_FPS : AMBIENT_FPS, frames.floor), pageFps()),
       requestFrame,
       cancelFrame,
       timers,

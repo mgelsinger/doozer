@@ -211,6 +211,20 @@ describe('loading: a save that is mostly fine keeps what is valid', () => {
     expect('somethingElse' in settings).toBe(false);
   });
 
+  it('reads a save written by 1.0.1, which has no Frame rate, with the default rate and every other setting kept', () => {
+    const save = usedSave();
+    save.settings.desktopActivity = 'still';
+    delete save.settings.frameRate;
+    const settings = load(JSON.parse(JSON.stringify(save))).settings;
+    expect(settings.frameRate).toBe('light');
+    expect(settings).toMatchObject({ palette: 'mint', sound: true, desktopActivity: 'still' });
+    // and a chosen rate survives a save and a load
+    save.settings.frameRate = '144';
+    expect(load(save).settings.frameRate).toBe('144');
+    save.settings.frameRate = 90;
+    expect(load(save).settings.frameRate).toBe('light');
+  });
+
   it('copes with missing sections', () => {
     const save = usedSave() as Partial<SaveShape>;
     delete save.focus;
