@@ -125,7 +125,8 @@ $frameRateRow = @'
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const q = (s) => document.querySelector(s);
   const until = async (find) => { for (let i = 0; i < 50 && !find(); i++) await wait(100); return find(); };
-  const find = () => q('[role="radiogroup"][aria-label="Frame rate"]');
+  // The row, once its buttons are drawn (the group is there a moment before they are).
+  const find = () => { const g = q('[role="radiogroup"][aria-label="Frame rate"]'); return g?.querySelector('[role="radio"]') ? g : null; };
   const pill = q('.pillv-pill');
   if (!find()) { if (!q('[data-act="settings"]')) pill?.click(); await until(() => q('[data-act="settings"]')); q('[data-act="settings"]')?.click(); }
   const group = await until(find);
@@ -133,8 +134,10 @@ $frameRateRow = @'
   const values = [...group.querySelectorAll('[role="radio"]')].map((b) => b.dataset.value).join(',');
   const checked = group.querySelector('[aria-checked="true"]')?.dataset.value ?? 'none';
   group.querySelector('[data-value="144"]')?.click();
-  await wait(1200);
+  // Read it back soon: the panel folds away by itself with no pointer on it.
+  await wait(300);
   const now = find()?.querySelector('[aria-checked="true"]')?.dataset.value ?? 'gone';
+  await wait(900);
   return values + '|' + checked + '|chose ' + now;
 })()
 '@

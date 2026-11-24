@@ -580,3 +580,50 @@ So: not a bug in the window, a counter that counted the wrong thing. Nothing abo
 | Budget | under 1 % | under 1 % | under 150 MB |
 
 Every view at rest and every focus session is under 1 % on average and every state under 150 MB; a few single half-minutes went over (the owner was using the machine). Calm's twelve-minute average is at 1.04 to 1.08 %, as above. The Pill's focus session was measured more closely in section 18.2 (forty paired windows: 0.47 % against 0.57 % for 1.0.0).
+
+## 19. Version 1.1.0: the Frame rate setting, and what each choice costs
+
+Done on 2026-11-23, on the same machine, at the owner's request: "30fps, 60fps, 120fps, 144fps should all be available." Settings has a row, **Frame rate**: Light · 30 · 60 · 120 · 144 (`src/frames.ts`, `ratesFor` and `choose`).
+
+- **Light** is the default and is 1.0.1 unchanged: 24 pictures a second with nobody there, 60 with the pointer on Doozer or a moment after.
+- **A number** is the rate with nobody there; with somebody there it is that or 60, whichever is more. The Island's renderer, which keeps its own lower caps (30 alone, 60 while lively), is lifted to the number too.
+- **A rate above the screen's refresh is every refresh**: 144 on a 120 Hz screen is 120. A rate the refresh does not divide is held, like Light, for the fewest whole refreshes that do not go over it, except that a quick rate asks early enough to take the next refresh: 120 on a 144 Hz screen is 144, 60 on it is 48. The clock's tests hold all of this on pretend screens of 60, 120 and 144 Hz.
+- A save from 1.0.1, which has no such setting, loads at Light (a test, and the update check of section 18's kind, 1.0.1 to 1.1.0).
+
+**What each choice costs.** The same build (the 1.1.0 build with the test hooks), one choice after another, each state twenty seconds three times after a twenty-second start. The owner had been away from the machine for a day and the monitor was asleep, and the window was then given refreshes at about 103 a second, not 120: so 120 and 144 both drew 103 pictures a second here, and Light drew 21 (every fifth refresh), 30 drew 27 (every fourth) and 60 drew 51 (every second). The machine was busy with other programs throughout.
+
+| Choice | Pictures a second, walking (this screen) | Desktop, walking without a pause: mean | Memory while walking |
+|---|---|---|---|
+| Light | 21 | **19.2 %** | 136 to 145 MB |
+| 30 | 27 | **21.7 %** | 138 to 148 MB |
+| 60 | 51 | **25.5 %** | 193 to 202 MB |
+| 120 | 103 | **31.7 %** | 196 to 205 MB |
+| 144 | 103 (the screen's limit) | **38.8 %** | 198 to 208 MB |
+
+Walking without a pause is the dearest thing Doozer does and the state where the rate shows: everything that moves is drawn once a picture, so what Doozer costs while it moves grows with the pictures. 120 and 144 drew exactly as many pictures here (1,035 in ten seconds each), so the gap between them is the machine's noise, which is about that large. **From 60 up, memory while moving is over the 150 MB budget**: the graphics process holds more while it presents more pictures, as section 2 found for the old build at 120.
+
+**At rest the choice hardly matters**, because at rest almost nothing moves: in every view the clock drew 0 to 4 pictures in most ten-second spans whatever the rate. Measured at rest, every choice in every view came out between 0.8 and 2.4 % with no order among them: the noise of a busy machine, not the rate.
+
+**So the budget holds for the default, and for nobody who chooses more.** Section 10 of the spec asks for under 1 % at rest and in a focus session; Light is the only choice that costs no more than that while Doozer moves about, and is the default. The settings row says "Smoother uses more of your PC", and each number's tip says how.
+
+**The default against 1.0.1, side by side** (the final builds of each, at the same moments; half-minute windows, six of each; means):
+
+| State | 1.0.1 | 1.1.0 |
+|---|---|---|
+| Pill at rest | 1.02 % | 1.11 % |
+| Pill, focus session | 1.65 % | 1.54 % |
+| Room at rest | 1.64 % | 1.39 % |
+| Room, focus session | 2.33 % | 1.95 % |
+| Island at rest | 1.65 % | 1.22 % |
+| Island, focus session | 1.41 % | 1.35 % |
+| Desktop, Still, at rest | 1.11 % | 1.30 % |
+| Desktop, Calm, focus session | 1.52 % | 1.52 % |
+| Memory | 97 to 139 MB | 98 to 138 MB |
+
+**Not under 1 % on this evening, for either build.** The two builds are the same code at Light, and 1.1.0 was the cheaper of the two in five states of eight; but the whole machine was noisier than on 2026-11-21, when 1.0.1 measured 0.31 to 0.75 % in these states (section 18.4), with the monitor asleep and other programs busy (a game launcher, Docker, a chat app). The figure that 1.1.0 changes nothing at the default is this table; the absolute one is section 18.4's, on a quieter evening.
+
+**Not measured:** a monitor that is awake. On this one awake at 120 Hz, 120 and 144 would both be 120, and Light 24. Whether 24 looks smooth enough next to everything else moving at 120 is for an eye, and is now the user's to change.
+
+**What was checked on the final 1.1.0 build with the test hooks** (commit `9ed8aef`, cloaked, injected input): the Pill 4 of 4, the Room 6 of 6, the Island 5 of 5, the Desktop 2 of 2; **never stuck at the highest rate**, the Desktop's twenty minutes of interruptions run again at 144, passed; **an hour's Desktop soak at the default rate**, passed (nothing rescued, no style repairs, nothing refused by the policy); Reduce motion and the interface size in every view, passed.
+
+**The keyboard way into the Card (section 9) could not be checked this time, on either build.** All four views failed at "the window has the keyboard": the Card opened, but the window that was in front kept the keyboard. The 1.0.1 build, run straight after, failed the same way, and 1.1.0 changes nothing on that path (the shortcut, the shell's hand-over, the Card's focus). The machine was in a state the check had not met before: the owner had been away for more than a day, with the monitor asleep, and the window in front was another program's that had not been touched in all that time. Windows decides when a program may take the keyboard, and this time it said no to both builds. Left as a check to run again with the monitor awake; section 16's own item (Ctrl+Alt+D with real keys) stands.
