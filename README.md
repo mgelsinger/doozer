@@ -1,6 +1,55 @@
-# Doozer
+<p align="center"><img src="app/src-tauri/icons/128x128@2x.png" width="112" alt=""></p>
 
-A small creature that lives on your desktop: one pet with four homes (Pill, Room, Island, Desktop) and a focus timer in every one of them.
+<h1 align="center">Doozer</h1>
+
+<p align="center">A small creature that lives on your Windows desktop and keeps you company while you work.</p>
+
+<p align="center">
+  <b><a href="../../releases/latest">Download Doozer for Windows</a></b><br>
+  <sub>Windows 10 or 11, 64-bit · 1.7 MB · free, no account, no network requests</sub>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/readme-pill.jpg" width="24%" alt="The Pill, with Doozer's Card open under it">
+  <img src="docs/screenshots/readme-room.jpg" width="24%" alt="The Room: Doozer on its rug, by day">
+  <img src="docs/screenshots/readme-island.jpg" width="24%" alt="The Island: a 3D Doozer with its quick menu open">
+  <img src="docs/screenshots/readme-desktop.jpg" width="24%" alt="The Desktop: Doozer standing on the taskbar with its quick menu open">
+</p>
+
+One pet, four homes. Switch between them whenever you like; Doozer, its mood and a running focus session all carry over.
+
+| Home | What it is |
+|---|---|
+| **Pill** | A small pill docked to the edge of the screen. Click it for the Card: feed, play, wash, nap, treats and the focus timer. |
+| **Room** | A framed little room you can put anywhere. Click the bowl, the ball, the soap, the lamp or the clock. |
+| **Island** | A soft 3D Doozer on a floating island with no window around it. Stroke it, press it, click it. |
+| **Desktop** | No window at all: Doozer stands on your taskbar and strolls about. Clicks beside it go to whatever is underneath. |
+
+<p align="center"><img src="docs/screenshots/readme-moments.jpg" width="100%" alt="Four moments on the Island: a snack falling, a bath under a rain cloud, glasses on for a focus session, asleep at night"></p>
+
+## What it does
+
+- **It needs a little looking after.** Feed it, fill its bowl, play, give it a wash, put it to bed. Between times it gets on with its own small life.
+- **It keeps you company while you work.** Every home has a focus timer (15, 25 or 50 minutes). Doozer puts its glasses on and sits still with you, and finishing a session earns treats.
+- **Nothing bad ever happens to it.** It never dies, it is never hungry because you had a bad day, and stopping a session early costs nothing.
+- **It stays out of the way.** It is light on the PC, tucks away while something is full screen, and never takes the keyboard unless you ask (Ctrl+Alt+D).
+- **It keeps to itself.** No account, nothing collected, no network requests of any kind.
+
+## Installing
+
+1. Get `Doozer_<version>_x64-setup.exe` from the [latest release](../../releases/latest), under *Assets*, and run it. It installs for you alone, with no administrator password.
+2. **Windows may say "Windows protected your PC".** The installer is not signed with a paid certificate, so SmartScreen does not know it yet. Choose **More info**, then **Run anyway**.
+3. Doozer appears in a small pill at the top of the screen and in the tray beside the clock. Click the pill for its Card; right-click for the menu.
+
+A newer version is installed over the old one and keeps your pet. To remove Doozer: *Settings → Apps → Installed apps → Doozer → Uninstall*; a tick box asks whether your pet's save goes too.
+
+Everything else about living with it is in the [user guide](docs/user-guide.md); what is new and the known limits are in the [release notes](docs/release-notes-1.1.0.md).
+
+---
+
+## For developers
+
+One pet with four homes (Pill, Room, Island, Desktop) and a focus timer in every one of them, built as a TypeScript page in a Tauri 2 shell.
 
 **Version 1.1.0, ready for a public release of the installer** ([docs/release.md](docs/release.md), section 10; the text to publish with it is [docs/release-notes-1.1.0.md](docs/release-notes-1.1.0.md)). All eleven phases of the plan are built and every open decision is made; what is left is for a person's eyes, ears and hand on the mouse, and none of it blocks the release: [WORK_PLAN.md](WORK_PLAN.md), "What is left, and whose it is".
 
