@@ -14,7 +14,7 @@ Phase 11 of [WORK_PLAN.md](../WORK_PLAN.md), brought up to version 1.0.1 (2026-1
   - the installer and the uninstaller **page by page, on screen**, with a picture of every page, both ways through the tick box (38 checks);
   - install, run, a second copy, a save, *Start with Windows* from Settings, an update over a running copy, uninstall, silently (49 checks); and 1.0.1 with a pet and settings updated to 1.1.0, both kept, and the new setting at Light and then chosen (18 checks);
   - no personal details in anything that ships, and nothing found by Windows Defender;
-  - every view's scripted checks, the never-stuck pass at 144, the polish set and an hour's Desktop soak on a build of the same commit with the test hooks, each of them failing if the policy refuses anything. **The keyboard way into the Card could not be checked this time, on 1.1.0 or 1.0.1** (section 7). Sections 7 and 10.
+  - every view's scripted checks, the never-stuck pass at 144, the polish set and an hour's Desktop soak on a build of the same commit with the test hooks, each of them failing if the policy refuses anything. The keyboard way into the Card could not be checked by that script on 2026-11-23; **on 2026-11-26 the real Ctrl+Alt+D was pressed at the program that ships, in all four views, and took the keyboard in each** (section 7). Sections 7 and 10.
 - **Not checked by a person, and accepted as such:** the icon in the real tray, a PC that is not this one, a monitor that is awake and not 120 Hz, and how each frame rate looks. Section 8.
 
 ## 1. Building it
@@ -238,11 +238,13 @@ The scripted checks of every view need the test hooks, so they were run on a bui
 | The Desktop | Never stuck (twenty minutes of interruptions), the click-through probes | 2 of 2 |
 | **The Desktop at 144**, the highest rate | Never stuck, the same twenty minutes | 1 of 1 |
 | Polish | Reduce motion in every view, the interface size in every view | 2 of 2 |
-| Polish: **the keyboard way into the Card**, each of the four views | The Card opens from the shortcut, but the window in front kept the keyboard: **failed in all four, and on the 1.0.1 build too, straight after** | not checked (below) |
+| Polish: **the keyboard way into the Card**, each of the four views | On 2026-11-23 the Card opened from the shortcut, but the window in front kept the keyboard: failed in all four, and on the 1.0.1 build too, straight after. **On 2026-11-26 checked again, and with real key presses** | passed, with one part of the Room not reached (below) |
 | **The Desktop soak, a full hour** | Random actions with hands-off checks between; nothing rescued, no style repairs | ok |
 | The content security policy, in all of those runs | Nothing refused | 0 |
 
 **The keyboard check.** It had passed on 1.0.1 on 2026-11-21. This time the owner had been away for more than a day, the monitor was asleep, and the window in front was another program's that nobody had touched in all that time; Windows let neither build take the keyboard from it. 1.0.1, which passed before, failed in the same way at the same hour, and 1.1.0 changes nothing on that path, so this is the machine's state and not a change in Doozer; but it is not a pass, and it is recorded as not checked for 1.1.0. Run `run-polish-checks.ps1 -Only app-polish-keyboard` again with the monitor awake. ([polish-checks.md](polish-checks.md), section 19.)
+
+**The keyboard check again, 2026-11-26.** With the owner at the machine and the monitor awake, the script passed in the Pill and the Room on a quiet machine, and failed in the Island and the Desktop when it was made to run while the owner was typing in a browser. The reason is the check's own: a test run does not register the shortcut, so the script calls the shortcut's handler with no key press behind it, and without a key press Windows decides for itself whether a program may take the keyboard (not while somebody is typing elsewhere, and not on 2026-11-23, after a day with nobody there). So a new script, `scripts/run-hotkey-check.ps1`, presses the real Ctrl+Alt+D at the program that ships. **In all four views the window took the keyboard at once, with the focus on *Feed*, while the owner was working in a browser.** In the Pill, the Island and the Desktop, Escape then closed the Card and the keyboard went back to the same browser window. In the Room the owner's own mouse click took the keyboard back each time before Escape was pressed, as a click should; the Room's Escape passed in the scripted check. ([polish-checks.md](polish-checks.md), section 20.)
 
 **What failed on the way, and was the check:** the update check's new Frame rate step found the Settings row before its buttons were drawn, and read it after the panel had folded itself away. It now waits for the buttons and reads the choice back at once; the app was right both times (the pet, the settings and the save were all as they should be).
 
@@ -273,7 +275,7 @@ The save tests leave nothing in the temp folder, and the native tests no registr
 2. **Another PC.** Windows SmartScreen on a machine that did not build the file; a Windows 10 PC; a PC without WebView2 (the installer should fetch it). None of these could be tried here.
 3. **A screen that is awake and not 120 Hz.** On a 60 Hz screen Doozer alone should move evenly at 20 pictures a second. That is held by tests on pretend screens, and was seen on this machine's own screen with its monitor asleep (about 56 Hz), not on a real 60 Hz monitor ([polish-checks.md](polish-checks.md), section 18.1).
 4. **The frame rates, by eye** (1.1.0). Each choice was measured with the monitor asleep, where the screen gave about 103 refreshes a second; none was looked at. On a 144 Hz screen, 120 and 144 should both be 144, and 30 about 29; on a 60 Hz screen, 60, 120 and 144 are all 60. Held by tests on pretend screens of 60, 120 and 144 Hz.
-5. **The keyboard way into the Card on 1.1.0** (section 7): press Ctrl+Alt+D while typing in another program; the Card should open with *Feed* focused, and Escape should hand the keyboard back.
+5. **The Card's keys by hand** (section 7). A script pressed the real Ctrl+Alt+D and the real Escape on 2026-11-26, while the owner was working in another program. Nobody has pressed Tab, the arrows or Enter in the Card for real, or Escape in the Room without a click in between.
 6. **Start with Windows, for real.** Switch it on in Settings, sign out and in, and see Doozer arrive without taking the keyboard. The scripts prove the entry is written with the installed path and removed on uninstall, not that Windows acts on it.
 7. Everything the earlier phases left for the owner still stands: section 16 of [polish-checks.md](polish-checks.md), section 9 of [desktop-checks.md](desktop-checks.md), section 10 of [island-checks.md](island-checks.md).
 
@@ -284,12 +286,12 @@ The save tests leave nothing in the temp folder, and the native tests no registr
 3. `pwsh scripts/build-release.ps1`.
 4. On a machine with no Doozer on it: `pwsh scripts/run-install-checks.ps1`, and `pwsh scripts/run-install-pages.ps1 -Out <folder>` for the pages (it waits until nobody is at the machine). On the owner's own machine, once a pet lives there, both refuse to run: install by hand instead. The installer keeps the save.
 5. The update from the last release: `pwsh scripts/run-update-check.ps1 -Old <the last release's installer>` (same machine rule as step 4).
-6. Every view's checks on a build with the test hooks: `pwsh scripts/build-polish-checks.ps1 -Label final`, then `run-app-checks.ps1`, `run-room-checks.ps1`, `run-island-checks.ps1`, `run-desktop-checks.ps1` (and `-Soak 60`, and `-Only app-desktop-stuck -FrameRate 144`) and `run-polish-checks.ps1`, each with `-Exe src-tauri\target\polish\final\doozer.exe`.
+6. Every view's checks on a build with the test hooks: `pwsh scripts/build-polish-checks.ps1 -Label final`, then `run-app-checks.ps1`, `run-room-checks.ps1`, `run-island-checks.ps1`, `run-desktop-checks.ps1` (and `-Soak 60`, and `-Only app-desktop-stuck -FrameRate 144`) and `run-polish-checks.ps1`, each with `-Exe src-tauri\target\polish\final\doozer.exe`. Then the real shortcut on the release build itself: `pwsh scripts/run-hotkey-check.ps1` (on screen, and it takes the keyboard for a few seconds at a time: with nobody at the machine, or with their leave).
 7. Tag the commit `v<version>`.
 
 ## 10. Ready to publish
 
-**Yes.** Version 1.1.0 is ready for a public release of the installer, as decided (section 6), with one check of 1.0.1's not repeated (the keyboard way into the Card; below). Nothing was published, pushed, bought or signed up for; putting the file up is the owner's step.
+**Yes.** Version 1.1.0 is ready for a public release of the installer, as decided (section 6). The one check that could not be made on 2026-11-23, the keyboard way into the Card, was made on 2026-11-26 with real key presses (below; recorded in the commit after the tag). Nothing was published, pushed, bought or signed up for; putting the file up is the owner's step.
 
 | What ships | |
 |---|---|
@@ -314,7 +316,8 @@ A rebuild gives a different hash (the build stamps the time); the file above is 
 | **f. Release text** | [release-notes-1.1.0.md](release-notes-1.1.0.md): what Doozer is, Windows 10 or 11 64-bit, the SmartScreen steps, size and SHA-256, what is new, known limits |
 | The installer, silently: install, run, a second copy, a save, *Start with Windows*, an update over a running copy, uninstall | 49 of 49 |
 | The installer's and uninstaller's pages, on screen, both ways through the tick box | 38 of 38, 14 pages pictured |
-| Every view's scripted checks and the polish set | All pass, **except the keyboard way into the Card, not checked**: Windows let neither 1.1.0 nor 1.0.1 take the keyboard that evening (section 7). 1.1.0 changes nothing on that path |
+| Every view's scripted checks and the polish set | All pass. The keyboard way into the Card could not be checked on 2026-11-23 (Windows let neither 1.1.0 nor 1.0.1 take the keyboard that evening); on 2026-11-26 it passed in the Pill and the Room, and the real key press in the next row answered for all four (section 7) |
+| **The real Ctrl+Alt+D**, pressed by a script at the program that ships, in every view, with the owner working in a browser (2026-11-26) | **The window takes the keyboard at once in all four views**, with the focus on *Feed*. Escape closes the Card and hands the keyboard back to the same window in the Pill, the Island and the Desktop; in the Room the owner's own click took it back first, each time |
 | The content security policy | Nothing refused in any run |
 | The tests | 1,199 page tests and 64 native tests, type-check clean, three rounds, the third inside the release build |
 
@@ -324,7 +327,7 @@ A rebuild gives a different hash (the build stamps the time); the file above is 
 - how each frame rate looks, on any screen;
 - another PC: SmartScreen on a machine that did not build the file, Windows 10, a PC without WebView2;
 - a monitor that is awake and not 120 Hz;
-- the keyboard way into the Card on 1.1.0, which the script could not reach this time;
+- Tab, the arrows and Enter in the Card, pressed for real (the shortcut and Escape were, by a script, on 2026-11-26);
 - *Start with Windows* across a real sign-in.
 
 Each is described in section 8 and in the earlier write-ups. None of them can make the installer harm a PC or lose a pet; the worst they could show is something that looks or sounds less good than it should.

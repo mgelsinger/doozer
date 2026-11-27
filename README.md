@@ -46,6 +46,7 @@ Run everything from the `app` folder; first time only: `npm install`.
 | The same for the Island (never stuck, a lost graphics context, click-through along its outline, memory after leaving, pictures) | `pwsh scripts/build-island-checks.ps1`, then `pwsh scripts/run-island-checks.ps1` and `pwsh scripts/measure-island-leak.ps1` (builds into its own folders) |
 | The same for the Desktop (never stuck, click-through probes, a soak) | `pwsh scripts/build-desktop-checks.ps1`, then `pwsh scripts/run-desktop-checks.ps1` (builds into its own folders) |
 | Reduce motion and the interface size in every view, the keyboard way into the Card; and the measuring tools | `pwsh scripts/build-polish-checks.ps1 -Label final`, then `pwsh scripts/run-polish-checks.ps1`; `measure-set.ps1` and `trace-frames.ps1` are described in [docs/polish-checks.md](docs/polish-checks.md), section 17 |
+| The real Ctrl+Alt+D, pressed at the release build in every view | `pwsh scripts/run-hotkey-check.ps1` (on screen, and it takes the keyboard for a few seconds at a time; [docs/polish-checks.md](docs/polish-checks.md), section 20) |
 
 Using it:
 

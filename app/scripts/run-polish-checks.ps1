@@ -9,11 +9,15 @@
 # real mouse out, use a scratch save and a browser profile of their own, and are cloaked
 # unless -Show. The keyboard check takes the keyboard for half a second, and only does
 # so when nobody has touched the machine for a minute; otherwise it says it was skipped.
+# -IdleSeconds makes that minute shorter, for a run the person at the machine has agreed to:
+#
+#   pwsh app/scripts/run-polish-checks.ps1 -Only app-polish-keyboard -IdleSeconds 2
 
 param(
   [string] $Exe = (Join-Path $PSScriptRoot '..\src-tauri\target\polish\final\doozer.exe'),
   [string[]] $Only = @(),
   [string] $Out = '',
+  [int] $IdleSeconds = 60,
   [switch] $Show
 )
 
@@ -70,10 +74,10 @@ function Invoke-Scenario([string] $name, [hashtable] $arguments, [string] $tag, 
 $plan = @(
   @{ name = 'app-polish-motion'; args = @{}; tag = 'app-polish-motion'; limit = 900 },
   @{ name = 'app-polish-scale'; args = @{}; tag = 'app-polish-scale'; limit = 900 },
-  @{ name = 'app-polish-keyboard'; args = @{ view = 'pill' }; tag = 'app-polish-keyboard-pill'; limit = 120 },
-  @{ name = 'app-polish-keyboard'; args = @{ view = 'room' }; tag = 'app-polish-keyboard-room'; limit = 120 },
-  @{ name = 'app-polish-keyboard'; args = @{ view = 'island' }; tag = 'app-polish-keyboard-island'; limit = 120 },
-  @{ name = 'app-polish-keyboard'; args = @{ view = 'desktop' }; tag = 'app-polish-keyboard-desktop'; limit = 120 }
+  @{ name = 'app-polish-keyboard'; args = @{ view = 'pill'; idleMs = $IdleSeconds * 1000 }; tag = 'app-polish-keyboard-pill'; limit = 120 },
+  @{ name = 'app-polish-keyboard'; args = @{ view = 'room'; idleMs = $IdleSeconds * 1000 }; tag = 'app-polish-keyboard-room'; limit = 120 },
+  @{ name = 'app-polish-keyboard'; args = @{ view = 'island'; idleMs = $IdleSeconds * 1000 }; tag = 'app-polish-keyboard-island'; limit = 120 },
+  @{ name = 'app-polish-keyboard'; args = @{ view = 'desktop'; idleMs = $IdleSeconds * 1000 }; tag = 'app-polish-keyboard-desktop'; limit = 120 }
 )
 # `pwsh -File ... -Only a,b` hands over one string, not a list.
 $Only = @($Only | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
