@@ -47,7 +47,10 @@ Everything else about living with it is in the [user guide](docs/user-guide.md);
 
 ## Licence
 
-Doozer is free to use and to pass on unchanged, with no warranty: [LICENSE.txt](app/src-tauri/installer/LICENSE.txt), which is also installed beside the program. The source in this repository is here to be read; it does not come with a licence to reuse or change it. Doozer is built with the work of others, listed with their licences in [THIRD-PARTY-NOTICES.txt](app/src-tauri/installer/THIRD-PARTY-NOTICES.txt).
+- **The code** is under the [MIT licence](LICENSE): use it, change it, build on it.
+- **Doozer itself is not.** The creature (its design, its model, its icons and pictures) and the name stay with the author, so something built from this code needs a creature and a name of its own. [ARTWORK-AND-NAME.md](ARTWORK-AND-NAME.md) says what that covers.
+- **The program you download** is free to use and to pass on unchanged, with no warranty: [LICENSE.txt](app/src-tauri/installer/LICENSE.txt), which is also installed beside the program.
+- **The work of others** that Doozer is built with is listed, with its licences, in [THIRD-PARTY-NOTICES.txt](app/src-tauri/installer/THIRD-PARTY-NOTICES.txt).
 
 ---
 
