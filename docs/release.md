@@ -288,6 +288,7 @@ The save tests leave nothing in the temp folder, and the native tests no registr
 5. The update from the last release: `pwsh scripts/run-update-check.ps1 -Old <the last release's installer>` (same machine rule as step 4).
 6. Every view's checks on a build with the test hooks: `pwsh scripts/build-polish-checks.ps1 -Label final`, then `run-app-checks.ps1`, `run-room-checks.ps1`, `run-island-checks.ps1`, `run-desktop-checks.ps1` (and `-Soak 60`, and `-Only app-desktop-stuck -FrameRate 144`) and `run-polish-checks.ps1`, each with `-Exe src-tauri\target\polish\final\doozer.exe`. Then the real shortcut on the release build itself: `pwsh scripts/run-hotkey-check.ps1` (on screen, and it takes the keyboard for a few seconds at a time: with nobody at the machine, or with their leave).
 7. Tag the commit `v<version>`.
+8. Put it on GitHub (the repository is `origin`): `git push origin main --tags`, then `gh release create v<version> <the installer> --title "Doozer <version>" --notes-file <the release notes, without their first line> --verify-tag --latest`. Check that the release's asset has the size and SHA-256 of section 10 (`gh api repos/<owner>/doozer/releases/latest`), and point the README's link to the release notes at the new file.
 
 ## 10. Ready to publish
 
@@ -332,4 +333,6 @@ A rebuild gives a different hash (the build stamps the time); the file above is 
 
 Each is described in section 8 and in the earlier write-ups. None of them can make the installer harm a PC or lose a pet; the worst they could show is something that looks or sounds less good than it should.
 
-**Before putting it up**, one thing only the owner can weigh: the name (section 6). It stays by decision, and a rename is cheap now and costly after the first upload.
+**Before putting it up**, one thing only the owner can weigh: the name (section 6). It stays by decision, and a rename is cheap now and costly once other people can download it.
+
+**Where it is, 2026-11-27.** At the owner's request the project is on GitHub as `mgelsinger/doozer`, a **private** repository, and release `v1.1.0` there holds the installer of the table above (GitHub's own SHA-256 of the uploaded file matches it) with the release notes as its text. Nobody but the owner can see it or download from it yet: a browser that is not signed in gets "not found". Opening the download to other people is the owner's step, and the work plan's "What is left" says what the two ways are.

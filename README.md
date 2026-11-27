@@ -51,7 +51,7 @@ Everything else about living with it is in the [user guide](docs/user-guide.md);
 
 One pet with four homes (Pill, Room, Island, Desktop) and a focus timer in every one of them, built as a TypeScript page in a Tauri 2 shell.
 
-**Version 1.1.0, ready for a public release of the installer** ([docs/release.md](docs/release.md), section 10; the text to publish with it is [docs/release-notes-1.1.0.md](docs/release-notes-1.1.0.md)). All eleven phases of the plan are built and every open decision is made; what is left is for a person's eyes, ears and hand on the mouse, and none of it blocks the release: [WORK_PLAN.md](WORK_PLAN.md), "What is left, and whose it is".
+**Version 1.1.0, ready for a public release of the installer**, and since 2026-11-27 release `v1.1.0` of this repository, which is private ([docs/release.md](docs/release.md), section 10; the text to publish with it is [docs/release-notes-1.1.0.md](docs/release-notes-1.1.0.md)). All eleven phases of the plan are built and every open decision is made; what is left is for a person's eyes, ears and hand on the mouse, and none of it blocks the release: [WORK_PLAN.md](WORK_PLAN.md), "What is left, and whose it is".
 
 - **Using Doozer** (installing, looking after it, the four homes, removing it): [docs/user-guide.md](docs/user-guide.md)
 - **The installer, and how the release was checked:** [docs/release.md](docs/release.md)
