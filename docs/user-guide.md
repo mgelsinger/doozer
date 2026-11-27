@@ -6,7 +6,7 @@ Nothing bad ever happens to Doozer. It never dies, it is never hungry because yo
 
 ## Installing
 
-Run `Doozer_1.0.1_x64-setup.exe`. It installs for you alone (no administrator password), into `%LOCALAPPDATA%\Doozer`, and adds Doozer to the Start menu. It needs Windows 10 or 11, 64-bit.
+Run the installer, `Doozer_<version>_x64-setup.exe`. It installs for you alone (no administrator password), into `%LOCALAPPDATA%\Doozer`, and adds Doozer to the Start menu. It needs Windows 10 or 11, 64-bit.
 
 The installer is not signed. If Windows SmartScreen says it "protected your PC", choose *More info*, then *Run anyway*.
 

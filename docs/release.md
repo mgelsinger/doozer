@@ -1,6 +1,6 @@
 # Release: the installer, and how version 1.1.0 was checked
 
-Phase 11 of [WORK_PLAN.md](../WORK_PLAN.md), brought up to version 1.0.1 (2026-11-20 and 21), the first public release, and then to **1.1.0 (2026-11-23), which adds a Frame rate setting**. **Is 1.1.0 ready to publish? Yes: section 10.** What a person installing Doozer needs to know is in [user-guide.md](user-guide.md); this is for whoever builds it. What each version changed is section 4.
+Phase 11 of [WORK_PLAN.md](../WORK_PLAN.md), brought up to version 1.0.1 (2026-11-20 and 21), the first public release, and then to **1.1.0 (2026-11-23), which adds a Frame rate setting**. **1.1.0 was published on 2026-11-27: section 10.** What a person installing Doozer needs to know is in [user-guide.md](user-guide.md); this is for whoever builds it. What each version changed is section 4.
 
 ## In short
 
@@ -8,7 +8,7 @@ Phase 11 of [WORK_PLAN.md](../WORK_PLAN.md), brought up to version 1.0.1 (2026-1
 - **The icon is Doozer:** the whole creature from 48 pixels up, a simplified face at tray sizes.
 - **Uninstalling is clean, and the pet is the user's choice.** The uninstaller's one tick box, *Also delete Doozer's save (your pet and its progress)*, decides whether the save goes. Unticked, which is how it starts, the save stays and a later install finds the same Doozer. Everything else goes either way: the program, its shortcuts, the *Start with Windows* entry, the browser's cache, and (new in 1.0.1) the installer's own key in the registry.
 - **The page runs under a content security policy** (new in 1.0.1): nothing but the app's own files and its own shell. Section 5.
-- **A public release of the installer.** Unsigned, no automatic updates, the source not published; a short licence installed beside the program (free to use and to pass on unchanged, no warranty). Decided by Claude on the owner's delegation, 2026-11-20; section 6. Whether it is ready to go up is section 10, *Ready to publish*.
+- **A public release of the installer.** Unsigned, no automatic updates; a short licence installed beside the program (free to use and to pass on unchanged, no warranty). Decided by Claude on the owner's delegation, 2026-11-20; section 6. **Since 2026-11-27 the repository is public too**, at the owner's word, with the installer under its releases. Whether it is ready to go up is section 10, *Ready to publish*.
 - **1.1.0 adds one setting, Frame rate:** Light (the default, 1.0.1 unchanged), 30, 60, 120 or 144 pictures a second. Higher rates cost more processor time while Doozer moves; section 4.
 - **Checked on this machine without a hand on the mouse, for 1.1.0:**
   - the installer and the uninstaller **page by page, on screen**, with a picture of every page, both ways through the tick box (38 checks);
@@ -161,11 +161,11 @@ What needed nothing: WebGL, Web Audio (the sounds are made in the page, not load
 
 ## 6. Decisions, and how to change them
 
-**A public release of the installer only.** On 2026-11-16 the owner said "I'll share it"; on 2026-11-20 they handed every open decision to Claude, and Claude decided on a public release: the installer is put up for anyone to download. Unsigned, with no updater, and the source not published. The decisions, each recorded in the spec's section 13 as decided by Claude on the owner's delegation:
+**A public release of the installer, and since 2026-11-27 of the source as well.** On 2026-11-16 the owner said "I'll share it"; on 2026-11-20 they handed every open decision to Claude, and Claude decided on a public release: the installer is put up for anyone to download. Unsigned, with no updater, and at first with the source not published. The decisions, each recorded in the spec's section 13 as decided by Claude on the owner's delegation:
 
 - **The terms:** the licence above, and a Privacy section in the user guide: Doozer collects nothing and makes no network requests.
 - **Unsigned** and **no updater**: below. Both can be added later without touching the app.
-- **The source is not published.** The repository holds the owner's working notes as well as the code; publishing it would be a decision of its own, with a licence for the code chosen for it.
+- **The source: published on 2026-11-27.** Until then it was not; the repository holds the owner's working notes as well as the code. The owner, 2026-11-27: "lets just make the whole thing public", and the repository on GitHub is public: the code, the notes and the history. **No licence to reuse or change the code comes with it** (decided by Claude: publishing was asked for, a licence was not, and one cannot be taken back). The source is there to be read, and the program's own terms above are unchanged. An open-source licence is the owner's to add. Before it went public, every file, every picture and the whole history were searched for secrets, addresses and the machine's paths (work plan, log, 2026-11-27).
 
 **The name.** The name "Doozer" and the identifier `com.doozer.desktop` stay. Be aware that the Jim Henson Company uses "Doozers": they are the small builder creatures of *Fraggle Rock*, and there has been a children's series called *Doozers*. Whether a free desktop pet of the same name is a problem is a question for someone qualified to answer it; this paragraph is not legal advice. What is certain is the cost of changing course: a rename is cheap before the first public upload (the name in a handful of files, and the identifier, which names the save's folder, before anyone has a save) and costly after it (every installed copy keeps its pet in the old folder, and the name is out in the world).
 
@@ -292,7 +292,7 @@ The save tests leave nothing in the temp folder, and the native tests no registr
 
 ## 10. Ready to publish
 
-**Yes.** Version 1.1.0 is ready for a public release of the installer, as decided (section 6). The one check that could not be made on 2026-11-23, the keyboard way into the Card, was made on 2026-11-26 with real key presses (below; recorded in the commit after the tag). Nothing was published, pushed, bought or signed up for; putting the file up is the owner's step.
+**Yes.** Version 1.1.0 is ready for a public release of the installer, as decided (section 6). The one check that could not be made on 2026-11-23, the keyboard way into the Card, was made on 2026-11-26 with real key presses (below; recorded in the commit after the tag). Nothing was bought or signed up for. It went up on 2026-11-27 (the end of this section).
 
 | What ships | |
 |---|---|
@@ -333,6 +333,6 @@ A rebuild gives a different hash (the build stamps the time); the file above is 
 
 Each is described in section 8 and in the earlier write-ups. None of them can make the installer harm a PC or lose a pet; the worst they could show is something that looks or sounds less good than it should.
 
-**Before putting it up**, one thing only the owner can weigh: the name (section 6). It stays by decision, and a rename is cheap now and costly once other people can download it.
+**Before it went up**, one thing was the owner's to weigh: the name (section 6). It stayed.
 
-**Where it is, 2026-11-27.** At the owner's request the project is on GitHub as `mgelsinger/doozer`, a **private** repository, and release `v1.1.0` there holds the installer of the table above (GitHub's own SHA-256 of the uploaded file matches it) with the release notes as its text. Nobody but the owner can see it or download from it yet: a browser that is not signed in gets "not found". Opening the download to other people is the owner's step, and the work plan's "What is left" says what the two ways are.
+**Where it is, since 2026-11-27.** At the owner's request the project is on GitHub as `mgelsinger/doozer`, first private and then, the same day, **public** ("lets just make the whole thing public"). Release `v1.1.0` there holds the installer of the table above with the release notes as its text, and is the latest. Checked without signing in: the repository's page answers, *latest* leads to `v1.1.0`, the installer's link serves 1,809,882 bytes, and GitHub's own SHA-256 of the file is the one in the table. The README's front page (the download link, a picture of each home) was looked at on GitHub's page.

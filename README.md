@@ -45,13 +45,17 @@ A newer version is installed over the old one and keeps your pet. To remove Dooz
 
 Everything else about living with it is in the [user guide](docs/user-guide.md); what is new and the known limits are in the [release notes](docs/release-notes-1.1.0.md).
 
+## Licence
+
+Doozer is free to use and to pass on unchanged, with no warranty: [LICENSE.txt](app/src-tauri/installer/LICENSE.txt), which is also installed beside the program. The source in this repository is here to be read; it does not come with a licence to reuse or change it. Doozer is built with the work of others, listed with their licences in [THIRD-PARTY-NOTICES.txt](app/src-tauri/installer/THIRD-PARTY-NOTICES.txt).
+
 ---
 
 ## For developers
 
 One pet with four homes (Pill, Room, Island, Desktop) and a focus timer in every one of them, built as a TypeScript page in a Tauri 2 shell.
 
-**Version 1.1.0, ready for a public release of the installer**, and since 2026-11-27 release `v1.1.0` of this repository, which is private ([docs/release.md](docs/release.md), section 10; the text to publish with it is [docs/release-notes-1.1.0.md](docs/release-notes-1.1.0.md)). All eleven phases of the plan are built and every open decision is made; what is left is for a person's eyes, ears and hand on the mouse, and none of it blocks the release: [WORK_PLAN.md](WORK_PLAN.md), "What is left, and whose it is".
+**Version 1.1.0, published on 2026-11-27 as release `v1.1.0` of this repository** ([docs/release.md](docs/release.md), section 10; the text published with it is [docs/release-notes-1.1.0.md](docs/release-notes-1.1.0.md)). All eleven phases of the plan are built and every open decision is made; what is left is for a person's eyes, ears and hand on the mouse, and none of it blocks the release: [WORK_PLAN.md](WORK_PLAN.md), "What is left, and whose it is".
 
 - **Using Doozer** (installing, looking after it, the four homes, removing it): [docs/user-guide.md](docs/user-guide.md)
 - **The installer, and how the release was checked:** [docs/release.md](docs/release.md)
